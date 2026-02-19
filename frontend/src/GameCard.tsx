@@ -2,6 +2,7 @@ import { types } from "../wailsjs/go/models";
 import { GameCover } from "./GameCover";
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 import { useEffect } from "react";
+import { getMouseActive } from './inputMode';
 
 interface GameCardProps {
     game: types.Game;
@@ -30,7 +31,9 @@ export function GameCard({ game, onClick, onEnterPress }: GameCardProps) {
             className={`card game-card ${focused ? 'focused' : ''}`}
             onClick={onClick}
             onMouseEnter={() => {
-                focusSelf();
+                if (getMouseActive()) {
+                    focusSelf();
+                }
             }}
         >
             <GameCover game={game} className="game-cover" />

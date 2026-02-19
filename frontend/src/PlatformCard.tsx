@@ -2,6 +2,7 @@ import { types } from "../wailsjs/go/models";
 import { useEffect, useState } from "react";
 import { GetPlatformCover } from "../wailsjs/go/main/App";
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
+import { getMouseActive } from './inputMode';
 
 interface PlatformCardProps {
     platform: types.Platform;
@@ -54,7 +55,9 @@ export function PlatformCard({ platform, onClick, onEnterPress }: PlatformCardPr
             className={`card game-card ${focused ? 'focused' : ''}`}
             onClick={onClick}
             onMouseEnter={() => {
-                focusSelf();
+                if (getMouseActive()) {
+                    focusSelf();
+                }
             }}
         >
             {loading ? (

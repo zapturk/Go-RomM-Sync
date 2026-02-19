@@ -58,6 +58,7 @@ export function useGamepad() {
             // Actions
             if (gp.buttons[BUTTON_MAPPING.A]?.pressed) triggerKey('Enter');
             if (gp.buttons[BUTTON_MAPPING.B]?.pressed) triggerKey('Backspace'); // Or Escape
+            if (gp.buttons[BUTTON_MAPPING.X]?.pressed) triggerKey('r'); // Refresh/Sync
         }
 
         requestRef.current = requestAnimationFrame(scanGamepads);

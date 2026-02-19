@@ -16,7 +16,7 @@ function Library() {
     });
 
     const refreshLibrary = () => {
-        setStatus("Refreshing library...");
+        setStatus("Syncing...");
 
         // Fetch games
         GetLibrary()
@@ -26,7 +26,7 @@ function Library() {
             })
             .catch((err) => {
                 console.error("Failed to fetch library:", err);
-                setStatus("Error loading library: " + err);
+                setStatus("Error: " + err);
             });
 
         // Fetch platforms
@@ -34,11 +34,11 @@ function Library() {
             .then((result) => {
                 console.log("Platforms fetched:", result);
                 setPlatforms(result);
-                setStatus("Library and Platforms loaded!");
+                setStatus("Ready");
             })
             .catch((err) => {
                 console.error("Failed to fetch platforms:", err);
-                setStatus("Error loading platforms: " + err);
+                setStatus("Error: " + err);
             });
     };
 
@@ -56,6 +56,17 @@ function Library() {
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [selectedPlatform]);
+
+    // Handle "Refresh" (R key)
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'r' || e.key === 'R') {
+                refreshLibrary();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     const sortedPlatforms = [...platforms].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -102,8 +113,6 @@ function Library() {
                 // Platform Grid View
                 <>
                     <h1>Platforms</h1>
-                    <button className="btn" onClick={refreshLibrary} style={{ marginBottom: "1rem" }}>Sync Library</button>
-                    <p>{status}</p>
                     <div className="grid-container">
                         {visiblePlatforms.map((platform) => (
                             <PlatformCard
@@ -139,6 +148,45 @@ function Library() {
                     </div>
                 </>
             )}
+
+            <div className="input-legend">
+                <div className="footer-left">
+                    <span>{status}</span>
+                </div>
+                <div className="footer-right">
+                    <div className="legend-item">
+                        <div className="btn-icon">
+                            <div className="btn-dot north"></div>
+                            <div className="btn-dot east"></div>
+                            <div className="btn-dot south"></div>
+                            <div className="btn-dot west active"></div>
+                        </div>
+                        <span>Sync</span>
+                    </div>
+
+                    {selectedPlatform && (
+                        <div className="legend-item">
+                            <div className="btn-icon">
+                                <div className="btn-dot north"></div>
+                                <div className="btn-dot east active"></div>
+                                <div className="btn-dot south"></div>
+                                <div className="btn-dot west"></div>
+                            </div>
+                            <span>Back</span>
+                        </div>
+                    )}
+
+                    <div className="legend-item">
+                        <div className="btn-icon">
+                            <div className="btn-dot north"></div>
+                            <div className="btn-dot east"></div>
+                            <div className="btn-dot south active"></div>
+                            <div className="btn-dot west"></div>
+                        </div>
+                        <span>OK</span>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
