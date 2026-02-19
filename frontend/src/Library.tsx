@@ -46,6 +46,17 @@ function Library() {
         refreshLibrary();
     }, []);
 
+    // Handle "Back" navigation (Backspace/Escape)
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.code === 'Backspace' || e.code === 'Escape') && selectedPlatform) {
+                setSelectedPlatform(null);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedPlatform]);
+
     const sortedPlatforms = [...platforms].sort((a, b) => a.name.localeCompare(b.name));
 
     // Helper to get games for a platform

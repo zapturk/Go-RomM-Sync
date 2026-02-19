@@ -4,10 +4,13 @@ import LoginView from './Login';
 import Library from './Library';
 import { Login } from "../wailsjs/go/main/App";
 import { init } from '@noriginmedia/norigin-spatial-navigation';
+import { useGamepad } from './useGamepad';
 
 function App() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+
+    useGamepad();
 
     useEffect(() => {
         init();
