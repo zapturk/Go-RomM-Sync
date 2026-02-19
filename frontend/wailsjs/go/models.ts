@@ -42,6 +42,24 @@ export namespace types {
 	        this.full_path = source["full_path"];
 	    }
 	}
+	export class Platform {
+	    id: number;
+	    name: string;
+	    slug: string;
+	    url_icon: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Platform(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.slug = source["slug"];
+	        this.url_icon = source["url_icon"];
+	    }
+	}
 
 }
 

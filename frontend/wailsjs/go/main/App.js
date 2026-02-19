@@ -14,6 +14,14 @@ export function GetLibrary() {
   return window['go']['main']['App']['GetLibrary']();
 }
 
+export function GetPlatformCover(arg1, arg2) {
+  return window['go']['main']['App']['GetPlatformCover'](arg1, arg2);
+}
+
+export function GetPlatforms() {
+  return window['go']['main']['App']['GetPlatforms']();
+}
+
 export function Greet(arg1) {
   return window['go']['main']['App']['Greet'](arg1);
 }

@@ -142,3 +142,56 @@ func (a *App) GetCover(romID uint, coverURL string) (string, error) {
 
 	return base64.StdEncoding.EncodeToString(data), nil
 }
+
+// GetPlatforms fetches the list of platforms
+func (a *App) GetPlatforms() ([]types.Platform, error) {
+	return a.rommClient.GetPlatforms()
+}
+
+// GetPlatformCover returns the base64 encoded cover image for a platform
+func (a *App) GetPlatformCover(platformID uint, coverURL string) (string, error) {
+	if coverURL == "" {
+		return "", nil // No cover available
+	}
+
+	// Define cache directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home dir: %w", err)
+	}
+	cacheDir := filepath.Join(homeDir, ".go-romm-sync", "cache", "platforms")
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create cache dir: %w", err)
+	}
+
+	// Determine filename from platformID (assuming jpg for simplicity, or we could hash the URL)
+	ext := filepath.Ext(coverURL)
+	if ext == "" {
+		ext = ".jpg"
+	}
+	filename := fmt.Sprintf("%d%s", platformID, ext)
+	cachePath := filepath.Join(cacheDir, filename)
+
+	// Check if file exists
+	if _, err := os.Stat(cachePath); err == nil {
+		// File exists, read and return base64
+		data, err := os.ReadFile(cachePath)
+		if err != nil {
+			return "", fmt.Errorf("failed to read cached cover: %w", err)
+		}
+		return base64.StdEncoding.EncodeToString(data), nil
+	}
+
+	// File doesn't exist, download it
+	data, err := a.rommClient.DownloadCover(coverURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to download cover: %w", err)
+	}
+
+	// Save to cache
+	if err := os.WriteFile(cachePath, data, 0644); err != nil {
+		fmt.Printf("Warning: failed to write to cache: %v\n", err)
+	}
+
+	return base64.StdEncoding.EncodeToString(data), nil
+}

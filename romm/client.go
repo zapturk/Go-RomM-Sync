@@ -30,7 +30,7 @@ func (c *Client) Login(username, password string) (string, error) {
 	data := url.Values{}
 	data.Set("username", username)
 	data.Set("password", password)
-	data.Set("scope", "roms.read")
+	data.Set("scope", "roms.read platforms.read")
 
 	req, err := http.NewRequest("POST", c.BaseURL+"/api/token", strings.NewReader(data.Encode()))
 	if err != nil {
@@ -176,6 +176,82 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("cover fetch failed with status %d", resp.StatusCode)
 	}
-
 	return io.ReadAll(resp.Body)
+}
+
+// GetPlatforms fetches the list of platforms
+func (c *Client) GetPlatforms() ([]types.Platform, error) {
+	if c.Token == "" {
+		return nil, fmt.Errorf("not authenticated")
+	}
+
+	var allPlatforms []types.Platform
+	seenIDs := make(map[uint]bool)
+	limit := 100
+	offset := 0
+
+	for {
+		url := fmt.Sprintf("%s/api/platforms?limit=%d&offset=%d", c.BaseURL, limit, offset)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create platforms request: %w", err)
+		}
+
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+
+		resp, err := c.Client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("failed to perform platforms request: %w", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			return nil, fmt.Errorf("platforms fetch failed with status %d: %s", resp.StatusCode, string(body))
+		}
+
+		var raw json.RawMessage
+		if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+			return nil, fmt.Errorf("failed to decode platforms response: %w", err)
+		}
+
+		var pageItems []types.Platform
+
+		if err := json.Unmarshal(raw, &pageItems); err != nil {
+			var paginated struct {
+				Items []types.Platform `json:"items"`
+				Total int              `json:"total_count"`
+			}
+			if err := json.Unmarshal(raw, &paginated); err == nil {
+				pageItems = paginated.Items
+			} else {
+				return nil, fmt.Errorf("failed to parse platforms response: unknown format")
+			}
+		}
+
+		if len(pageItems) == 0 {
+			break
+		}
+
+		newItems := false
+		for _, item := range pageItems {
+			if !seenIDs[item.ID] {
+				seenIDs[item.ID] = true
+				allPlatforms = append(allPlatforms, item)
+				newItems = true
+			}
+		}
+
+		if !newItems {
+			break
+		}
+
+		if len(pageItems) < limit {
+			break
+		}
+
+		offset += limit
+	}
+
+	return allPlatforms, nil
 }
