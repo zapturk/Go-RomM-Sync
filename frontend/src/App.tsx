@@ -3,10 +3,19 @@ import './App.css';
 import LoginView from './Login';
 import Library from './Library';
 import { Login } from "../wailsjs/go/main/App";
+import { init } from '@noriginmedia/norigin-spatial-navigation';
+import { useGamepad } from './useGamepad';
+import './inputMode'; // Activate input mode tracking
 
 function App() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+
+    useGamepad();
+
+    useEffect(() => {
+        init();
+    }, []);
 
     useEffect(() => {
         // Try to auto-login using saved config
@@ -41,7 +50,7 @@ function App() {
                 <Library />
             )}
         </div>
-    )
+    );
 }
 
-export default App
+export default App;

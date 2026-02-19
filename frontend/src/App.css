@@ -85,6 +85,8 @@
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 20px;
     padding: 20px;
+    padding-bottom: 70px;
+    /* Space for the footer */
 }
 
 .game-card {
@@ -95,9 +97,12 @@
     cursor: pointer;
 }
 
-.game-card:hover {
+body.mouse-mode .game-card:hover,
+.game-card.focused {
     transform: translateY(-5px);
     background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    /* Adding subtle border for better visibility */
 }
 
 .game-cover {
@@ -134,5 +139,144 @@
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
+
     display: block;
+}
+
+.input-legend {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 50px;
+    background: #111;
+    color: #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 40px;
+    box-sizing: border-box;
+    font-size: 0.9rem;
+    border-top: 1px solid #333;
+    z-index: 1000;
+}
+
+.footer-left {
+    display: flex;
+    align-items: center;
+    font-weight: bold;
+    color: #888;
+}
+
+.footer-right {
+    display: flex;
+    gap: 30px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-transform: uppercase;
+    font-weight: 600;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+}
+
+/* Controller Button Icon (4-button layout cross) */
+.btn-icon {
+    width: 20px;
+    height: 20px;
+    position: relative;
+    display: inline-block;
+}
+
+.btn-dot {
+    width: 5px;
+    height: 5px;
+    background-color: #444;
+    border-radius: 50%;
+    position: absolute;
+    transition: background-color 0.2s;
+}
+
+/* North (Y / Triangle) */
+.btn-dot.north {
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* East (B / Circle) */
+.btn-dot.east {
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+}
+
+/* South (A / Cross) */
+.btn-dot.south {
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* West (X / Square) */
+.btn-dot.west {
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%);
+}
+
+.btn-dot.active {
+    background-color: #fff;
+    box-shadow: 0 0 4px rgba(255, 255, 255, 0.8);
+}
+
+/* Keyboard Icon Styling */
+.key-icon {
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: monospace;
+    font-weight: bold;
+    font-size: 0.75rem;
+    min-width: 20px;
+    text-align: center;
+    color: #eee;
+    box-shadow: 0 2px 0 #222;
+}
+
+/* Toggle Logic based on Input Mode */
+/* Default (first load): show keyboard? or controller? Let's check logic.
+   inputMode.ts defaults to 'mouse' which has 'input-mouse'. 
+   We want:
+   - input-gamepad: Show .show-gamepad, Hide .show-keyboard
+   - input-keyboard: Show .show-keyboard, Hide .show-gamepad
+   - input-mouse: Show .show-keyboard (fallback), Hide .show-gamepad
+*/
+
+.show-gamepad {
+    display: none;
+}
+
+.show-keyboard {
+    display: inline-block;
+}
+
+body.input-gamepad .show-gamepad {
+    display: inline-block;
+}
+
+body.input-gamepad .show-keyboard {
+    display: none;
+}
+
+body.input-keyboard .show-gamepad {
+    display: none;
+}
+
+body.input-keyboard .show-keyboard {
+    display: inline-block;
 }

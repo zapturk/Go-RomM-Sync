@@ -3,14 +3,22 @@ import { GetLibrary, GetPlatforms } from "../wailsjs/go/main/App";
 import { types } from "../wailsjs/go/models";
 import { GameCard } from "./GameCard";
 import { PlatformCard } from "./PlatformCard";
+import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 
 function Library() {
     const [games, setGames] = useState<types.Game[]>([]);
     const [platforms, setPlatforms] = useState<types.Platform[]>([]);
     const [status, setStatus] = useState("Loading library...");
+    const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
+    const [syncTrigger, setSyncTrigger] = useState(0);
+
+    const { ref, focusKey } = useFocusable({
+        trackChildren: true
+    });
 
     const refreshLibrary = () => {
-        setStatus("Refreshing library...");
+        setStatus("Syncing...");
+        setSyncTrigger(prev => prev + 1);
 
         // Fetch games
         GetLibrary()
@@ -20,7 +28,7 @@ function Library() {
             })
             .catch((err) => {
                 console.error("Failed to fetch library:", err);
-                setStatus("Error loading library: " + err);
+                setStatus("Error: " + err);
             });
 
         // Fetch platforms
@@ -28,11 +36,11 @@ function Library() {
             .then((result) => {
                 console.log("Platforms fetched:", result);
                 setPlatforms(result);
-                setStatus("Library and Platforms loaded!");
+                setStatus("Ready");
             })
             .catch((err) => {
                 console.error("Failed to fetch platforms:", err);
-                setStatus("Error loading platforms: " + err);
+                setStatus("Error: " + err);
             });
     };
 
@@ -40,62 +48,85 @@ function Library() {
         refreshLibrary();
     }, []);
 
-    const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
+    // Handle "Back" navigation (Backspace/Escape)
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.code === 'Backspace' || e.code === 'Escape') && selectedPlatform) {
+                e.preventDefault();
+                setSelectedPlatform(null);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedPlatform]);
 
-    // Extract unique platforms from game paths
-    // Assumes path format like ".../Console Name/Game.ext" or similar
-    const getPlatformFromPath = (path: string): string => {
-        if (!path) return "Unknown";
-        const parts = path.split('/');
-        // Assuming the folder containing the file is the platform
-        // e.g. /library/roms/NES/mario.nes -> NES
-        // If path ends with file, take distinct parent
-        if (parts.length >= 2) {
-            return parts[parts.length - 2];
-        }
-        return "Unknown";
-    };
+    // Handle "Refresh" (R key)
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'r' || e.key === 'R') {
+                e.preventDefault();
+                refreshLibrary();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
-    // We don't need to manually extract platforms from paths anymore, 
-    // but we need to link games to the selected platform.
-    // The previous implementation used folder names as platform names.
-    // RomM data might have platform_id? Let's check Game struct.
-    // types/game.go doesn't show platform_id.
-    // However, looking at previous implementation: getPlatformFromPath.
-    // Using fetched platforms is better, but we need to map games to them. 
-    // "slug" or "name" likely matches the folder or we check if RomM API returns platform_id in Game.
-    // Step 260 shows Game struct: id, name, rom_id, url_cover, full_path.
-    // We will stick to `getPlatformFromPath` logic to MATCH the fetched platform name/slug?
-    // Or just filter based on if the platform name is in the path?
-    // Let's assume Platform.Name roughly matches the folder name from getPlatformFromPath.
-
-    // Sort platforms by name
     const sortedPlatforms = [...platforms].sort((a, b) => a.name.localeCompare(b.name));
 
     // Helper to get games for a platform
     const getGamesForPlatform = (platform: types.Platform) => {
         return games.filter(game => {
-            // Heuristic: check if platform name is part of the path
-            // This is imperfect but works with existing logic
             return game.full_path.includes("/" + platform.name + "/") ||
                 game.full_path.includes("/" + platform.slug + "/");
         });
     };
 
+    const visiblePlatforms = sortedPlatforms.filter(p => getGamesForPlatform(p).length > 0);
+
+    // Auto-focus first platform when configured
+    useEffect(() => {
+        if (!selectedPlatform && visiblePlatforms.length > 0) {
+            // Give a moment for the DOM to settle
+            setTimeout(() => {
+                const key = `platform-${visiblePlatforms[0].id}`;
+                setFocus(key);
+            }, 100);
+        }
+    }, [visiblePlatforms.length, selectedPlatform, setFocus]);
+
+    // Auto-focus first game when platform selected
+    useEffect(() => {
+        if (selectedPlatform) {
+            const platform = platforms.find(p => p.name === selectedPlatform);
+            if (platform) {
+                const platformGames = getGamesForPlatform(platform);
+                if (platformGames.length > 0) {
+                    setTimeout(() => {
+                        const key = `game-${platformGames[0].id}`;
+                        setFocus(key);
+                    }, 100);
+                }
+            }
+        }
+    }, [selectedPlatform, games, platforms, setFocus]);
+
     return (
-        <div id="library">
+        <div id="library" ref={ref}>
             {!selectedPlatform ? (
                 // Platform Grid View
                 <>
                     <h1>Platforms</h1>
-                    <button className="btn" onClick={refreshLibrary} style={{ marginBottom: "1rem" }}>Sync Library</button>
-                    <p>{status}</p>
                     <div className="grid-container">
-                        {sortedPlatforms.filter(p => getGamesForPlatform(p).length > 0).map((platform) => (
+                        {visiblePlatforms.map((platform) => (
                             <PlatformCard
                                 key={platform.id}
                                 platform={platform}
                                 onClick={() => setSelectedPlatform(platform.name)}
+                                onEnterPress={() => {
+                                    setSelectedPlatform(platform.name);
+                                }}
+                                syncTrigger={syncTrigger}
                             />
                         ))}
                     </div>
@@ -104,21 +135,65 @@ function Library() {
                 // Game Grid View
                 <>
                     <div className="nav-header">
-                        <button className="back-btn" onClick={() => setSelectedPlatform(null)}>
-                            ← Back
-                        </button>
                         <h1>{selectedPlatform}</h1>
                     </div>
                     <div className="grid-container">
                         {selectedPlatform && platforms.find(p => p.name === selectedPlatform) ?
                             getGamesForPlatform(platforms.find(p => p.name === selectedPlatform)!).map((game) => (
-                                <GameCard key={game.id} game={game} />
+                                <GameCard
+                                    key={game.id}
+                                    game={game}
+                                />
                             ))
                             : <p>No games found (mapping issue?)</p>
                         }
                     </div>
                 </>
             )}
+
+            <div className="input-legend">
+                <div className="footer-left">
+                    <span>{status}</span>
+                </div>
+                <div className="footer-right">
+                    <div className="legend-item">
+                        {/* Gamepad Icon */}
+                        <div className="btn-icon show-gamepad">
+                            <div className="btn-dot north"></div>
+                            <div className="btn-dot east"></div>
+                            <div className="btn-dot south"></div>
+                            <div className="btn-dot west active"></div>
+                        </div>
+                        {/* Keyboard Icon */}
+                        <div className="key-icon show-keyboard">R</div>
+                        <span>Sync</span>
+                    </div>
+
+                    {selectedPlatform && (
+                        <div className="legend-item">
+                            <div className="btn-icon show-gamepad">
+                                <div className="btn-dot north"></div>
+                                <div className="btn-dot east active"></div>
+                                <div className="btn-dot south"></div>
+                                <div className="btn-dot west"></div>
+                            </div>
+                            <div className="key-icon show-keyboard">ESC</div>
+                            <span>Back</span>
+                        </div>
+                    )}
+
+                    <div className="legend-item">
+                        <div className="btn-icon show-gamepad">
+                            <div className="btn-dot north"></div>
+                            <div className="btn-dot east"></div>
+                            <div className="btn-dot south active"></div>
+                            <div className="btn-dot west"></div>
+                        </div>
+                        <div className="key-icon show-keyboard">ENTER</div>
+                        <span>OK</span>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
