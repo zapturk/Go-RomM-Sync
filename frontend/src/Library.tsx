@@ -10,6 +10,7 @@ function Library() {
     const [platforms, setPlatforms] = useState<types.Platform[]>([]);
     const [status, setStatus] = useState("Loading library...");
     const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
+    const [syncTrigger, setSyncTrigger] = useState(0);
 
     const { ref, focusKey } = useFocusable({
         trackChildren: true
@@ -17,6 +18,7 @@ function Library() {
 
     const refreshLibrary = () => {
         setStatus("Syncing...");
+        setSyncTrigger(prev => prev + 1);
 
         // Fetch games
         GetLibrary()
@@ -124,6 +126,7 @@ function Library() {
                                 onEnterPress={() => {
                                     setSelectedPlatform(platform.name);
                                 }}
+                                syncTrigger={syncTrigger}
                             />
                         ))}
                     </div>

@@ -1,18 +1,23 @@
 import { types } from "../wailsjs/go/models";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { GetPlatformCover } from "../wailsjs/go/main/App";
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
+import { getCachedImage, setCachedImage, hasCachedImage } from './ImageCache';
 
 interface PlatformCardProps {
     platform: types.Platform;
     onClick?: () => void;
     onEnterPress?: () => void;
+    syncTrigger?: number; // Made optional to support legacy usage if any, but we pass it
 }
 
-export function PlatformCard({ platform, onClick, onEnterPress }: PlatformCardProps) {
+export function PlatformCard({ platform, onClick, onEnterPress, syncTrigger = 0 }: PlatformCardProps) {
     const [imageSrc, setImageSrc] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+
+    // Track the last sync trigger we processed to detect changes
+    const prevSyncTrigger = useRef(syncTrigger);
 
     const { ref, focused, focusSelf } = useFocusable({
         onEnterPress: onEnterPress || onClick,
@@ -26,10 +31,27 @@ export function PlatformCard({ platform, onClick, onEnterPress }: PlatformCardPr
             return;
         }
 
+        const isSyncing = syncTrigger !== prevSyncTrigger.current;
+        prevSyncTrigger.current = syncTrigger;
+
+        // Logic Verification:
+        // 1. Syncing (User pressed R/X): Always fetch fresh to check for updates.
+        // 2. Cache Miss: Always fetch.
+        // 3. Cache Hit & Not Syncing (Just navigating): Use Cache.
+
+        if (!isSyncing && hasCachedImage(platform.id)) {
+            setImageSrc(getCachedImage(platform.id)!);
+            setLoading(false);
+            return;
+        }
+
+        // Fetch from backend (Scenario 1 & 2 & Cache Miss)
+        setLoading(true);
         GetPlatformCover(platform.id, platform.slug)
             .then((dataURI) => {
                 if (dataURI) {
                     setImageSrc(dataURI);
+                    setCachedImage(platform.id, dataURI);
                 }
             })
             .catch((err) => {
@@ -38,7 +60,7 @@ export function PlatformCard({ platform, onClick, onEnterPress }: PlatformCardPr
             .finally(() => {
                 setLoading(false);
             });
-    }, [platform.id, platform.slug]);
+    }, [platform.id, platform.slug, syncTrigger]);
 
     useEffect(() => {
         if (focused && ref.current) {
