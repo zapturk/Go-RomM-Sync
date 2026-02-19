@@ -1,0 +1,81 @@
+#app {
+    height: 100vh;
+    text-align: center;
+}
+
+#logo {
+    display: block;
+    width: 50%;
+    height: 50%;
+    margin: auto;
+    padding: 10% 0 0;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    background-origin: content-box;
+}
+
+.result {
+    height: 20px;
+    line-height: 20px;
+    margin: 1.5rem auto;
+}
+
+
+.input-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    margin-top: 2rem;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 300px;
+}
+
+.input-group label {
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+    color: white;
+}
+
+.input-box .input {
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    outline: none;
+    height: 35px;
+    line-height: 35px;
+    padding: 0 10px;
+    background-color: #fff;
+    -webkit-font-smoothing: antialiased;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.3s;
+}
+
+.input-box .input:focus {
+    border-color: #007bff;
+}
+
+.input-box .btn {
+    width: 100px;
+    height: 40px;
+    line-height: 40px;
+    border-radius: 5px;
+    border: none;
+    margin-top: 10px;
+    padding: 0 8px;
+    cursor: pointer;
+    background-color: #007bff;
+    color: white;
+    font-size: 1rem;
+    transition: background-color 0.3s;
+}
+
+.input-box .btn:hover {
+    background-color: #0056b3;
+}
