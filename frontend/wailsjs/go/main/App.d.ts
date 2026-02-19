@@ -4,6 +4,8 @@ import {types} from '../models';
 
 export function GetConfig():Promise<types.AppConfig>;
 
+export function GetCover(arg1:number,arg2:string):Promise<string>;
+
 export function GetLibrary():Promise<Array<types.Game>>;
 
 export function Greet(arg1:string):Promise<string>;

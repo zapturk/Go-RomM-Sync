@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { GetLibrary } from "../wailsjs/go/main/App";
 import { types } from "../wailsjs/go/models";
+import { GameCover } from "./GameCover";
 
 function Library() {
     const [games, setGames] = useState<types.Game[]>([]);
     const [status, setStatus] = useState("Loading library...");
 
-    useEffect(() => {
+    const refreshLibrary = () => {
+        setStatus("Refreshing library...");
         GetLibrary()
             .then((result) => {
                 console.log("Library fetched:", result);
@@ -17,6 +19,10 @@ function Library() {
                 console.error("Failed to fetch library:", err);
                 setStatus("Error loading library: " + err);
             });
+    };
+
+    useEffect(() => {
+        refreshLibrary();
     }, []);
 
     const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
@@ -53,6 +59,7 @@ function Library() {
                 // Platform Grid View
                 <>
                     <h1>Game Configurations</h1>
+                    <button className="btn" onClick={refreshLibrary} style={{ marginBottom: "1rem" }}>Sync Library</button>
                     <p>{status}</p>
                     <div className="grid-container">
                         {platforms.map((platform) => (
@@ -81,11 +88,7 @@ function Library() {
                     <div className="grid-container">
                         {gamesByPlatform[selectedPlatform]?.map((game) => (
                             <div key={game.id} className="card game-card">
-                                {game.url_cover ? (
-                                    <img src={game.url_cover} alt={game.name} className="game-cover" />
-                                ) : (
-                                    <div className="no-cover">No Cover</div>
-                                )}
+                                <GameCover game={game} className="game-cover" />
                                 <h3>{game.name}</h3>
                             </div>
                         ))}

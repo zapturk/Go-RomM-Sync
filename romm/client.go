@@ -69,44 +69,113 @@ func (c *Client) GetLibrary() ([]types.Game, error) {
 		return nil, fmt.Errorf("not authenticated")
 	}
 
-	req, err := http.NewRequest("GET", c.BaseURL+"/api/roms", nil)
+	var allGames []types.Game
+	seenIDs := make(map[uint]bool)
+	limit := 100
+	offset := 0
+
+	for {
+		// Construct URL with pagination parameters
+		url := fmt.Sprintf("%s/api/roms?limit=%d&offset=%d", c.BaseURL, limit, offset)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create library request: %w", err)
+		}
+
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+
+		resp, err := c.Client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("failed to perform library request: %w", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			return nil, fmt.Errorf("library fetch failed with status %d: %s", resp.StatusCode, string(body))
+		}
+
+		// Check if response is an array or object (pagination)
+		// We'll decode into a raw message first to check
+		var raw json.RawMessage
+		if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+			return nil, fmt.Errorf("failed to decode library response: %w", err)
+		}
+
+		var pageItems []types.Game
+
+		// Try unmarshalling as array first (backward compatibility or non-paginated)
+		if err := json.Unmarshal(raw, &pageItems); err != nil {
+			// Try unmarshalling as paginated object
+			var paginated struct {
+				Items []types.Game `json:"items"`
+				Total int          `json:"total_count"` // Guessing field name, catching just items for now
+			}
+			if err := json.Unmarshal(raw, &paginated); err == nil {
+				pageItems = paginated.Items
+			} else {
+				// Failed both
+				return nil, fmt.Errorf("failed to parse library response: unknown format")
+			}
+		}
+
+		if len(pageItems) == 0 {
+			break
+		}
+
+		// Check for duplicates (indicates ignored pagination params or end of list loop)
+		newItems := false
+		for _, game := range pageItems {
+			if !seenIDs[game.ID] {
+				seenIDs[game.ID] = true
+				allGames = append(allGames, game)
+				newItems = true
+			}
+		}
+
+		if !newItems {
+			// If all items in this page were already seen, stop to avoid infinite loop
+			break
+		}
+
+		if len(pageItems) < limit {
+			break
+		}
+
+		offset += limit
+	}
+
+	return allGames, nil
+}
+
+// DownloadCover fetches the cover image from the provided URL
+func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
+	if c.Token == "" {
+		return nil, fmt.Errorf("not authenticated")
+	}
+
+	// Handles full URL or relative path
+	targetURL := coverURL
+	if !strings.HasPrefix(coverURL, "http") {
+		targetURL = c.BaseURL + coverURL
+	}
+
+	req, err := http.NewRequest("GET", targetURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create library request: %w", err)
+		return nil, fmt.Errorf("failed to create cover request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to perform library request: %w", err)
+		return nil, fmt.Errorf("failed to perform cover request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("library fetch failed with status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("cover fetch failed with status %d", resp.StatusCode)
 	}
 
-	// Check if response is an array or object (pagination)
-	// We'll decode into a raw message first to check
-	var raw json.RawMessage
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		return nil, fmt.Errorf("failed to decode library response: %w", err)
-	}
-
-	// Try unmarshalling as array first (backward compatibility)
-	var games []types.Game
-	if err := json.Unmarshal(raw, &games); err == nil {
-		return games, nil
-	}
-
-	// Try unmarshalling as paginated object
-	var paginated struct {
-		Items []types.Game `json:"items"`
-	}
-	if err := json.Unmarshal(raw, &paginated); err == nil {
-		return paginated.Items, nil
-	}
-
-	return nil, fmt.Errorf("failed to parse library response: unknown format")
+	return io.ReadAll(resp.Body)
 }
