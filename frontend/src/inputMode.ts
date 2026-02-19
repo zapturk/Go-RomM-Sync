@@ -1,33 +1,43 @@
-// Simple global state to track if the user is currently using the mouse.
-// This helps prevent "focus stealing" when the view scrolls under a stationary mouse cursor
-// while using keyboard/gamepad navigation.
+// Global state tracking
+let currentMode: 'mouse' | 'keyboard' | 'gamepad' = 'mouse';
 
-let isMouseActive = false;
+const setMode = (mode: 'mouse' | 'keyboard' | 'gamepad') => {
+    if (currentMode === mode) return;
+    currentMode = mode;
+    document.body.classList.remove('input-mouse', 'input-keyboard', 'input-gamepad');
+    document.body.classList.add(`input-${mode}`);
+
+    // Legacy support for hover effects
+    if (mode === 'mouse') {
+        document.body.classList.add('mouse-mode');
+    } else {
+        document.body.classList.remove('mouse-mode');
+    }
+};
 
 if (typeof window !== 'undefined') {
+    // Set initial default
+    document.body.classList.add('input-mouse', 'mouse-mode');
+
     window.addEventListener('mousemove', (e) => {
-        // Only consider the mouse active if it actually moved.
-        // Browsers sometimes fire mousemove on scroll even if the physical mouse didn't move.
-        // We use a small threshold or check movementX/Y to be sure.
         if (Math.abs(e.movementX) > 0 || Math.abs(e.movementY) > 0) {
-            isMouseActive = true;
-            document.body.classList.add('mouse-mode');
-            document.body.classList.remove('keyboard-mode');
+            setMode('mouse');
         }
     });
 
-    window.addEventListener('keydown', () => {
-        isMouseActive = false;
-        document.body.classList.remove('mouse-mode');
-        document.body.classList.add('keyboard-mode');
+    window.addEventListener('keydown', (e) => {
+        // e.isTrusted is true for physical key strokes, false for script-generated (gamepad)
+        if (e.isTrusted) {
+            setMode('keyboard');
+        } else {
+            setMode('gamepad');
+        }
     });
 
-    // Also listen for mousedown just in case
     window.addEventListener('mousedown', () => {
-        isMouseActive = true;
-        document.body.classList.add('mouse-mode');
-        document.body.classList.remove('keyboard-mode');
+        setMode('mouse');
     });
 }
 
-export const getMouseActive = () => isMouseActive;
+export const getMouseActive = () => currentMode === 'mouse';
+export const getInputMode = () => currentMode;

@@ -50,6 +50,7 @@ function Library() {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if ((e.code === 'Backspace' || e.code === 'Escape') && selectedPlatform) {
+                e.preventDefault();
                 setSelectedPlatform(null);
             }
         };
@@ -61,6 +62,7 @@ function Library() {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'r' || e.key === 'R') {
+                e.preventDefault();
                 refreshLibrary();
             }
         };
@@ -130,9 +132,6 @@ function Library() {
                 // Game Grid View
                 <>
                     <div className="nav-header">
-                        <button className="back-btn" onClick={() => setSelectedPlatform(null)}>
-                            ← Back
-                        </button>
                         <h1>{selectedPlatform}</h1>
                     </div>
                     <div className="grid-container">
@@ -155,34 +154,39 @@ function Library() {
                 </div>
                 <div className="footer-right">
                     <div className="legend-item">
-                        <div className="btn-icon">
+                        {/* Gamepad Icon */}
+                        <div className="btn-icon show-gamepad">
                             <div className="btn-dot north"></div>
                             <div className="btn-dot east"></div>
                             <div className="btn-dot south"></div>
                             <div className="btn-dot west active"></div>
                         </div>
+                        {/* Keyboard Icon */}
+                        <div className="key-icon show-keyboard">R</div>
                         <span>Sync</span>
                     </div>
 
                     {selectedPlatform && (
                         <div className="legend-item">
-                            <div className="btn-icon">
+                            <div className="btn-icon show-gamepad">
                                 <div className="btn-dot north"></div>
                                 <div className="btn-dot east active"></div>
                                 <div className="btn-dot south"></div>
                                 <div className="btn-dot west"></div>
                             </div>
+                            <div className="key-icon show-keyboard">ESC</div>
                             <span>Back</span>
                         </div>
                     )}
 
                     <div className="legend-item">
-                        <div className="btn-icon">
+                        <div className="btn-icon show-gamepad">
                             <div className="btn-dot north"></div>
                             <div className="btn-dot east"></div>
                             <div className="btn-dot south active"></div>
                             <div className="btn-dot west"></div>
                         </div>
+                        <div className="key-icon show-keyboard">ENTER</div>
                         <span>OK</span>
                     </div>
                 </div>

@@ -232,3 +232,51 @@ body.mouse-mode .game-card:hover,
     background-color: #fff;
     box-shadow: 0 0 4px rgba(255, 255, 255, 0.8);
 }
+
+/* Keyboard Icon Styling */
+.key-icon {
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: monospace;
+    font-weight: bold;
+    font-size: 0.75rem;
+    min-width: 20px;
+    text-align: center;
+    color: #eee;
+    box-shadow: 0 2px 0 #222;
+}
+
+/* Toggle Logic based on Input Mode */
+/* Default (first load): show keyboard? or controller? Let's check logic.
+   inputMode.ts defaults to 'mouse' which has 'input-mouse'. 
+   We want:
+   - input-gamepad: Show .show-gamepad, Hide .show-keyboard
+   - input-keyboard: Show .show-keyboard, Hide .show-gamepad
+   - input-mouse: Show .show-keyboard (fallback), Hide .show-gamepad
+*/
+
+.show-gamepad {
+    display: none;
+}
+
+.show-keyboard {
+    display: inline-block;
+}
+
+body.input-gamepad .show-gamepad {
+    display: inline-block;
+}
+
+body.input-gamepad .show-keyboard {
+    display: none;
+}
+
+body.input-keyboard .show-gamepad {
+    display: none;
+}
+
+body.input-keyboard .show-keyboard {
+    display: inline-block;
+}
