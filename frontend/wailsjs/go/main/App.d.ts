@@ -4,6 +4,10 @@ import {types} from '../models';
 
 export function GetConfig():Promise<types.AppConfig>;
 
+export function GetLibrary():Promise<Array<types.Game>>;
+
 export function Greet(arg1:string):Promise<string>;
+
+export function Login():Promise<string>;
 
 export function SaveConfig(arg1:types.AppConfig):Promise<string>;

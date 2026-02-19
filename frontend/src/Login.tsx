@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react';
-import { GetConfig, SaveConfig } from "../wailsjs/go/main/App";
+import { GetConfig, SaveConfig, Login as RommLogin } from "../wailsjs/go/main/App";
 import { types } from "../wailsjs/go/models";
-// App.css is imported in App.tsx so specific styles might work if not scoped, 
-// but it's safer to not rely on App.tsx imports if we want this standalone.
-// For now, since App.tsx usually imports global styles, we might assume App.css is global enough.
-// or we can import it here too.
 
-function Login() {
+interface LoginProps {
+    onLoginSuccess: () => void;
+}
+
+function Login({ onLoginSuccess }: LoginProps) {
     const [resultText, setResultText] = useState("Please enter your RomM details 👇");
     const [server, setServer] = useState('');
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-    const updateResultText = (result: string) => setResultText(result);
+
+    // UI state
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
 
     useEffect(() => {
         GetConfig().then((config) => {
@@ -21,13 +23,40 @@ function Login() {
         });
     }, []);
 
-    function saveConfig() {
+    function handleConnect() {
+        if (!server || !username || !password) {
+            setResultText("Please fill in all fields");
+            return;
+        }
+
+        setIsLoggingIn(true);
+        setResultText("Saving config and connecting...");
+
         const config = new types.AppConfig({
             romm_host: server,
             username: username,
             password: password
         });
-        SaveConfig(config).then(updateResultText);
+
+        // First save the config
+        SaveConfig(config)
+            .then((saveResult) => {
+                // If save is successful (or returns message), try to login
+                console.log(saveResult);
+                return RommLogin();
+            })
+            .then((token) => {
+                setResultText("Success! Connected to RomM.");
+                console.log("Logged in with token:", token);
+                onLoginSuccess();
+            })
+            .catch((err) => {
+                setResultText("Error: " + err);
+                console.error("Login/Save failed:", err);
+            })
+            .finally(() => {
+                setIsLoggingIn(false);
+            });
     }
 
     return (
@@ -46,7 +75,9 @@ function Login() {
                     <label htmlFor="password">Password</label>
                     <input id="password" className="input" onChange={(e) => setPassword(e.target.value)} value={password} autoComplete="off" name="password" type="password" />
                 </div>
-                <button className="btn" onClick={saveConfig}>Connect</button>
+                <button className="btn" onClick={handleConnect} disabled={isLoggingIn}>
+                    {isLoggingIn ? "Connecting..." : "Connect"}
+                </button>
             </div>
         </div>
     )

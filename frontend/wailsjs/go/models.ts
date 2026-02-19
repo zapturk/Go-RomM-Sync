@@ -22,6 +22,26 @@ export namespace types {
 	        this.retroarch_executable = source["retroarch_executable"];
 	    }
 	}
+	export class Game {
+	    id: number;
+	    name: string;
+	    rom_id: number;
+	    url_cover: string;
+	    full_path: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Game(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.rom_id = source["rom_id"];
+	        this.url_cover = source["url_cover"];
+	        this.full_path = source["full_path"];
+	    }
+	}
 
 }
 

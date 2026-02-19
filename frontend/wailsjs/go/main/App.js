@@ -6,8 +6,16 @@ export function GetConfig() {
   return window['go']['main']['App']['GetConfig']();
 }
 
+export function GetLibrary() {
+  return window['go']['main']['App']['GetLibrary']();
+}
+
 export function Greet(arg1) {
   return window['go']['main']['App']['Greet'](arg1);
+}
+
+export function Login() {
+  return window['go']['main']['App']['Login']();
 }
 
 export function SaveConfig(arg1) {

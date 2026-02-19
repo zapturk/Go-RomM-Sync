@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"go-romm-sync/config"
+	"go-romm-sync/romm"
 	"go-romm-sync/types"
 )
 
@@ -11,12 +12,16 @@ import (
 type App struct {
 	ctx           context.Context
 	configManager *config.ConfigManager
+	rommClient    *romm.Client
 }
 
 // NewApp creates a new App application struct
 func NewApp(cm *config.ConfigManager) *App {
+	cfg := cm.GetConfig()
+	client := romm.NewClient(cfg.RommHost)
 	return &App{
 		configManager: cm,
+		rommClient:    client,
 	}
 }
 
@@ -54,5 +59,33 @@ func (a *App) SaveConfig(cfg types.AppConfig) string {
 	if err != nil {
 		return fmt.Sprintf("Error saving config: %s", err.Error())
 	}
+
+	// Update client in case host changed
+	a.rommClient = romm.NewClient(cfg.RommHost)
+
 	return "Configuration saved successfully!"
+}
+
+// Login authenticates with the RomM server
+func (a *App) Login() (string, error) {
+	cfg := a.configManager.GetConfig()
+	if cfg.RommHost == "" || cfg.Username == "" || cfg.Password == "" {
+		return "", fmt.Errorf("missing configuration: host, username, or password")
+	}
+
+	// Ensure client is up to date with current config
+	if a.rommClient.BaseURL == "" || a.rommClient.BaseURL != cfg.RommHost {
+		a.rommClient = romm.NewClient(cfg.RommHost)
+	}
+
+	token, err := a.rommClient.Login(cfg.Username, cfg.Password)
+	if err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// GetLibrary fetches the game library
+func (a *App) GetLibrary() ([]types.Game, error) {
+	return a.rommClient.GetLibrary()
 }

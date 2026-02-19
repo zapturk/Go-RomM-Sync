@@ -37,3 +37,4 @@ node_modules
 frontend/dist
 .DS_Store
 config.json
+go-romm-sync
