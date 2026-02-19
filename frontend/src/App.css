@@ -117,3 +117,22 @@
     border-radius: 4px;
     color: #888;
 }
+
+.platform-image-container {
+    width: 100%;
+    height: 150px;
+    /* Fixed height for consistency */
+    padding: 15px;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+.platform-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+}

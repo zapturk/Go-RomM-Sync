@@ -13,15 +13,15 @@ export function PlatformCard({ platform, onClick }: PlatformCardProps) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!platform.url_icon) {
+        if (!platform.slug) {
             setLoading(false);
             return;
         }
 
-        GetPlatformCover(platform.id, platform.url_icon)
-            .then((base64) => {
-                if (base64) {
-                    setImageSrc(`data:image/jpeg;base64,${base64}`);
+        GetPlatformCover(platform.id, platform.slug)
+            .then((dataURI) => {
+                if (dataURI) {
+                    setImageSrc(dataURI);
                 }
             })
             .catch((err) => {
@@ -30,14 +30,18 @@ export function PlatformCard({ platform, onClick }: PlatformCardProps) {
             .finally(() => {
                 setLoading(false);
             });
-    }, [platform.id, platform.url_icon]);
+    }, [platform.id, platform.slug]);
 
     return (
         <div className="card game-card" onClick={onClick}>
             {loading ? (
-                <div className="cover-placeholder game-cover">Loading...</div>
+                <div className="platform-image-container">
+                    <div className="cover-placeholder">Loading...</div>
+                </div>
             ) : imageSrc ? (
-                <img src={imageSrc} alt={platform.name} className="game-cover" />
+                <div className="platform-image-container">
+                    <img src={imageSrc} alt={platform.name} className="platform-image" />
+                </div>
             ) : (
                 <div className="no-cover">No Icon</div>
             )}
