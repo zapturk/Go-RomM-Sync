@@ -79,3 +79,60 @@
 .input-box .btn:hover {
     background-color: #0056b3;
 }
+
+.grid-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
+    padding: 20px;
+}
+
+.game-card {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    padding: 10px;
+    transition: transform 0.2s;
+    cursor: pointer;
+}
+
+.game-card:hover {
+    transform: translateY(-5px);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.game-cover {
+    width: 100%;
+    aspect-ratio: 3/4;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+.no-cover {
+    width: 100%;
+    aspect-ratio: 3/4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #333;
+    border-radius: 4px;
+    color: #888;
+}
+
+.platform-image-container {
+    width: 100%;
+    height: 150px;
+    /* Fixed height for consistency */
+    padding: 15px;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+.platform-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+}
