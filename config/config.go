@@ -80,15 +80,27 @@ func (cm *ConfigManager) Save(newConfig types.AppConfig) error {
 // createDefault generates a dummy config file if none exists
 func (cm *ConfigManager) createDefault() error {
 	defaultConfig := types.AppConfig{
-		RommHost:            "http://localhost:8080",
-		Username:            "admin",
-		Password:            "password",
-		LibraryPath:         "./roms",
-		RetroArchPath:       "C:\\RetroArch",
-		RetroArchExecutable: "retroarch.exe",
+		RommHost:            "",
+		Username:            "",
+		Password:            "",
+		LibraryPath:         "",
+		RetroArchPath:       "",
+		RetroArchExecutable: "",
 	}
 	cm.Config = &defaultConfig
 
 	fmt.Println("Config file not found. Creating default at:", cm.ConfigPath)
-	return cm.Save(defaultConfig)
+
+	// Create the directory if it doesn't exist
+	dir := filepath.Dir(cm.ConfigPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	data, err := json.MarshalIndent(cm.Config, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(cm.ConfigPath, data, 0644)
 }
