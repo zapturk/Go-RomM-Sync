@@ -1,16 +1,23 @@
-
 import { types } from "../wailsjs/go/models";
 import { useEffect, useState } from "react";
 import { GetPlatformCover } from "../wailsjs/go/main/App";
+import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 
 interface PlatformCardProps {
     platform: types.Platform;
     onClick?: () => void;
+    onEnterPress?: () => void;
 }
 
-export function PlatformCard({ platform, onClick }: PlatformCardProps) {
+export function PlatformCard({ platform, onClick, onEnterPress }: PlatformCardProps) {
     const [imageSrc, setImageSrc] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+
+    const { ref, focused, focusSelf } = useFocusable({
+        onEnterPress: onEnterPress || onClick,
+        focusKey: `platform-${platform.id}`,
+        onFocus: () => console.log("Platform focused:", platform.name)
+    });
 
     useEffect(() => {
         if (!platform.slug) {
@@ -32,8 +39,24 @@ export function PlatformCard({ platform, onClick }: PlatformCardProps) {
             });
     }, [platform.id, platform.slug]);
 
+    useEffect(() => {
+        if (focused && ref.current) {
+            ref.current.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+            });
+        }
+    }, [focused]);
+
     return (
-        <div className="card game-card" onClick={onClick}>
+        <div
+            ref={ref}
+            className={`card game-card ${focused ? 'focused' : ''}`}
+            onClick={onClick}
+            onMouseEnter={() => {
+                focusSelf();
+            }}
+        >
             {loading ? (
                 <div className="platform-image-container">
                     <div className="cover-placeholder">Loading...</div>
