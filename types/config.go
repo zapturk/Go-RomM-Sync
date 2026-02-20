@@ -8,4 +8,6 @@ type AppConfig struct {
 	LibraryPath         string `json:"library_path"`         // Where to download ROMs
 	RetroArchPath       string `json:"retroarch_path"`       // Root folder of RA
 	RetroArchExecutable string `json:"retroarch_executable"` // "retroarch.exe"
+	CheevosUsername     string `json:"cheevos_username"`
+	CheevosPassword     string `json:"cheevos_password"`
 }

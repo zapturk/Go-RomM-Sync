@@ -11,6 +11,8 @@ function Login({ onLoginSuccess }: LoginProps) {
     const [server, setServer] = useState('');
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [cheevosUsername, setCheevosUsername] = useState('');
+    const [cheevosPassword, setCheevosPassword] = useState('');
 
     // UI state
     const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -20,6 +22,8 @@ function Login({ onLoginSuccess }: LoginProps) {
             if (config.romm_host) setServer(config.romm_host);
             if (config.username) setUsername(config.username);
             if (config.password) setPassword(config.password);
+            if (config.cheevos_username) setCheevosUsername(config.cheevos_username);
+            if (config.cheevos_password) setCheevosPassword(config.cheevos_password);
         });
     }, []);
 
@@ -35,7 +39,9 @@ function Login({ onLoginSuccess }: LoginProps) {
         const config = new types.AppConfig({
             romm_host: server,
             username: username,
-            password: password
+            password: password,
+            cheevos_username: cheevosUsername,
+            cheevos_password: cheevosPassword
         });
 
         // First save the config
@@ -59,21 +65,37 @@ function Login({ onLoginSuccess }: LoginProps) {
             });
     }
 
+    const handleInputKeyDown = (e: React.KeyboardEvent) => {
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+            e.stopPropagation();
+        }
+    };
+
     return (
         <div id="login">
             <div id="result" className="result">{resultText}</div>
             <div id="input" className="input-box">
                 <div className="input-group">
                     <label htmlFor="server">RomM Server URL</label>
-                    <input id="server" className="input" onChange={(e) => setServer(e.target.value)} value={server} autoComplete="off" name="server" type="text" placeholder="http://localhost:8080" />
+                    <input id="server" className="input" onChange={(e) => setServer(e.target.value)} onKeyDown={handleInputKeyDown} value={server} autoComplete="off" name="server" type="text" placeholder="http://localhost:8080" />
                 </div>
                 <div className="input-group">
                     <label htmlFor="username">Username</label>
-                    <input id="username" className="input" onChange={(e) => setUsername(e.target.value)} value={username} autoComplete="off" name="username" type="text" />
+                    <input id="username" className="input" onChange={(e) => setUsername(e.target.value)} onKeyDown={handleInputKeyDown} value={username} autoComplete="off" name="username" type="text" />
                 </div>
                 <div className="input-group">
                     <label htmlFor="password">Password</label>
-                    <input id="password" className="input" onChange={(e) => setPassword(e.target.value)} value={password} autoComplete="off" name="password" type="password" />
+                    <input id="password" className="input" onChange={(e) => setPassword(e.target.value)} onKeyDown={handleInputKeyDown} value={password} autoComplete="off" name="password" type="password" />
+                </div>
+
+                <div className="section-title" style={{ marginTop: '20px', fontSize: '0.9rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px' }}>RetroAchievements (Optional)</div>
+                <div className="input-group">
+                    <label htmlFor="cheevosUsername">RA Username</label>
+                    <input id="cheevosUsername" className="input" onChange={(e) => setCheevosUsername(e.target.value)} onKeyDown={handleInputKeyDown} value={cheevosUsername} autoComplete="off" name="cheevosUsername" type="text" />
+                </div>
+                <div className="input-group">
+                    <label htmlFor="cheevosPassword">RA Password</label>
+                    <input id="cheevosPassword" className="input" onChange={(e) => setCheevosPassword(e.target.value)} onKeyDown={handleInputKeyDown} value={cheevosPassword} autoComplete="off" name="cheevosPassword" type="password" />
                 </div>
                 <button className="btn" onClick={handleConnect} disabled={isLoggingIn}>
                     {isLoggingIn ? "Connecting..." : "Connect"}

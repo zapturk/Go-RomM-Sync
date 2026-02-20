@@ -18,16 +18,24 @@ type ConfigManager struct {
 
 // NewConfigManager initializes the manager and determines the file path
 func NewConfigManager() *ConfigManager {
-	// Strategy: Look for config.json next to the executable
-	exePath, err := os.Executable()
+	home, err := os.UserHomeDir()
 	if err != nil {
-		exePath = "."
+		// Fallback to executable dir if home is not available
+		exePath, err := os.Executable()
+		if err != nil {
+			exePath = "."
+		}
+		configPath := filepath.Join(filepath.Dir(exePath), "config.json")
+		return &ConfigManager{
+			ConfigPath: configPath,
+			Config:     &types.AppConfig{},
+		}
 	}
-	configPath := filepath.Join(filepath.Dir(exePath), "config.json")
+	configPath := filepath.Join(home, ".go-romm-sync", "config", "config.json")
 
 	return &ConfigManager{
 		ConfigPath: configPath,
-		Config:     &types.AppConfig{}, // Empty default
+		Config:     &types.AppConfig{},
 	}
 }
 
@@ -68,6 +76,12 @@ func (cm *ConfigManager) Save(newConfig types.AppConfig) error {
 	defer cm.Mu.Unlock()
 
 	*cm.Config = newConfig
+
+	// Ensure directory exists
+	dir := filepath.Dir(cm.ConfigPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
 
 	data, err := json.MarshalIndent(cm.Config, "", "  ")
 	if err != nil {

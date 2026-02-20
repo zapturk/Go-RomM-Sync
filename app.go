@@ -40,6 +40,11 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
+// Quit closes the application
+func (a *App) Quit() {
+	wailsRuntime.Quit(a.ctx)
+}
+
 // Greet returns a greeting for the given name
 func (a *App) Greet(name string) string {
 	return fmt.Sprintf("Hello %s, It's show time!", name)
@@ -62,6 +67,12 @@ func (a *App) SaveConfig(cfg types.AppConfig) string {
 	}
 	if cfg.RetroArchExecutable == "" {
 		cfg.RetroArchExecutable = current.RetroArchExecutable
+	}
+	if cfg.CheevosUsername == "" {
+		cfg.CheevosUsername = current.CheevosUsername
+	}
+	if cfg.CheevosPassword == "" {
+		cfg.CheevosPassword = current.CheevosPassword
 	}
 
 	err := a.configManager.Save(cfg)
@@ -341,14 +352,33 @@ func (a *App) GetRomDownloadStatus(id uint) (bool, error) {
 	romDir := a.getRomDir(&game)
 
 	if info, err := os.Stat(romDir); err == nil && info.IsDir() {
-		// Check if directory contains at least one file
-		files, err := os.ReadDir(romDir)
-		if err == nil && len(files) > 0 {
-			return true, nil
-		}
+		return a.findRomPath(romDir) != "", nil
 	}
 
 	return false, nil
+}
+
+// findRomPath looks for a valid ROM file in the given directory
+func (a *App) findRomPath(romDir string) string {
+	files, err := os.ReadDir(romDir)
+	if err != nil {
+		return ""
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		name := file.Name()
+		if strings.HasPrefix(name, ".") {
+			continue // Skip hidden files like .DS_Store
+		}
+		ext := strings.ToLower(filepath.Ext(name))
+		if _, ok := retroarch.CoreMap[ext]; ok || ext == ".zip" {
+			return filepath.Join(romDir, name)
+		}
+	}
+	return ""
 }
 
 // DeleteRom removes a downloaded ROM from the local library
@@ -391,17 +421,10 @@ func (a *App) PlayRom(id uint) error {
 
 	// 2. Find local ROM path
 	romDir := a.getRomDir(&game)
-
-	// Since we might not know the exact filename saved locally if it differed,
-	// or if the directory has the single file we expect:
-	files, err := os.ReadDir(romDir)
-	if err != nil || len(files) == 0 {
-		return fmt.Errorf("ROM not found locally on disk. Please download it first.")
+	romPath := a.findRomPath(romDir)
+	if romPath == "" {
+		return fmt.Errorf("no valid ROM file found in %s. Please download it first.", romDir)
 	}
-
-	// Assume the first file in the directory is our ROM
-	// (or we can look for the specific expected filename)
-	romPath := filepath.Join(romDir, files[0].Name())
 
 	// 3. Check if RetroArch is Configured
 	exePath := cfg.RetroArchPath
@@ -422,7 +445,7 @@ func (a *App) PlayRom(id uint) error {
 	}
 
 	// 4. Launch the game
-	err = retroarch.Launch(a.ctx, exePath, romPath)
+	err = retroarch.Launch(a.ctx, exePath, romPath, cfg.CheevosUsername, cfg.CheevosPassword)
 	if err != nil {
 		return fmt.Errorf("failed to launch game: %w", err)
 	}
