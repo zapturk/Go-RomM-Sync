@@ -22,7 +22,11 @@ const SettingsIcon = ({ size = 24 }: { size?: number }) => (
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>
 );
-function Library() {
+interface LibraryProps {
+    onOpenSettings: () => void;
+}
+
+function Library({ onOpenSettings }: LibraryProps) {
     const [games, setGames] = useState<types.Game[]>([]);
     const [platforms, setPlatforms] = useState<types.Platform[]>([]);
     const [status, setStatus] = useState("Loading library...");
@@ -37,13 +41,7 @@ function Library() {
     const { ref: configRef, focused: configFocused, focusSelf: focusConfig } = useFocusable({
         focusKey: 'config-button',
         onEnterPress: () => {
-            SelectRetroArchExecutable().then((path: string) => {
-                if (path) {
-                    setStatus("RetroArch path configured successfully.");
-                }
-            }).catch((err: string) => {
-                setStatus(`Configuration error: ${err}`);
-            });
+            onOpenSettings();
         },
     });
 
@@ -175,30 +173,32 @@ function Library() {
             {!selectedPlatform ? (
                 // Platform Grid View
                 <>
-                    <div className="nav-header">
-                        <h1>Platforms</h1>
+                    <div className="nav-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: '60px' }}>
                         <button
                             ref={configRef}
                             className={`btn config-btn ${configFocused ? 'focused' : ''}`}
-                            title="Configure RetroArch Path"
-                            style={{ margin: 0 }}
+                            title="Open Settings"
+                            style={{
+                                margin: 0,
+                                padding: '5px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: 'transparent',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                position: 'absolute',
+                                left: '40px'
+                            }}
                             onMouseEnter={() => {
                                 if (getMouseActive()) {
                                     focusConfig();
                                 }
                             }}
-                            onClick={() => {
-                                SelectRetroArchExecutable().then((path: string) => {
-                                    if (path) {
-                                        setStatus("RetroArch path configured successfully.");
-                                    }
-                                }).catch((err: string) => {
-                                    setStatus(`Configuration error: ${err}`);
-                                });
-                            }}
+                            onClick={onOpenSettings}
                         >
-                            <SettingsIcon />
+                            <SettingsIcon size={24} />
                         </button>
+                        <h1 style={{ margin: 0 }}>Platforms</h1>
                     </div>
                     <div className="grid-container">
                         {visiblePlatforms.map((platform) => (
@@ -217,8 +217,8 @@ function Library() {
             ) : (
                 // Game Grid View
                 <>
-                    <div className="nav-header">
-                        <h1>{selectedPlatform}</h1>
+                    <div className="nav-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60px' }}>
+                        <h1 style={{ margin: 0 }}>{selectedPlatform}</h1>
                     </div>
                     <div className="grid-container">
                         {selectedPlatform && platforms.find(p => p.name === selectedPlatform) ?

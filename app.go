@@ -57,31 +57,45 @@ func (a *App) GetConfig() types.AppConfig {
 
 // SaveConfig saves the configuration
 func (a *App) SaveConfig(cfg types.AppConfig) string {
-	// Preserve existing paths if they are empty in the incoming config (simple merge strategy)
 	current := a.configManager.GetConfig()
-	if cfg.LibraryPath == "" {
-		cfg.LibraryPath = current.LibraryPath
+
+	oldHost := current.RommHost
+
+	// Merge values: only overwrite if the new value is non-empty
+	if cfg.RommHost != "" {
+		current.RommHost = cfg.RommHost
 	}
-	if cfg.RetroArchPath == "" {
-		cfg.RetroArchPath = current.RetroArchPath
+	if cfg.Username != "" {
+		current.Username = cfg.Username
 	}
-	if cfg.RetroArchExecutable == "" {
-		cfg.RetroArchExecutable = current.RetroArchExecutable
+	if cfg.Password != "" {
+		current.Password = cfg.Password
 	}
-	if cfg.CheevosUsername == "" {
-		cfg.CheevosUsername = current.CheevosUsername
+	if cfg.LibraryPath != "" {
+		current.LibraryPath = cfg.LibraryPath
 	}
-	if cfg.CheevosPassword == "" {
-		cfg.CheevosPassword = current.CheevosPassword
+	if cfg.RetroArchPath != "" {
+		current.RetroArchPath = cfg.RetroArchPath
+	}
+	if cfg.RetroArchExecutable != "" {
+		current.RetroArchExecutable = cfg.RetroArchExecutable
+	}
+	if cfg.CheevosUsername != "" {
+		current.CheevosUsername = cfg.CheevosUsername
+	}
+	if cfg.CheevosPassword != "" {
+		current.CheevosPassword = cfg.CheevosPassword
 	}
 
-	err := a.configManager.Save(cfg)
+	err := a.configManager.Save(current)
 	if err != nil {
 		return fmt.Sprintf("Error saving config: %s", err.Error())
 	}
 
-	// Update client in case host changed
-	a.rommClient = romm.NewClient(cfg.RommHost)
+	// Update client only if host changed to preserve session token
+	if current.RommHost != oldHost {
+		a.rommClient = romm.NewClient(current.RommHost)
+	}
 
 	return "Configuration saved successfully!"
 }
