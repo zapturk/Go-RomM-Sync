@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"go-romm-sync/config"
+	"go-romm-sync/retroarch"
 	"go-romm-sync/romm"
 	"go-romm-sync/types"
 	"io"
@@ -289,7 +290,7 @@ func (a *App) DownloadRomToLibrary(id uint) error {
 	}
 
 	// 2. Start download
-	reader, filename, err := a.rommClient.DownloadFile(id)
+	reader, filename, err := a.rommClient.DownloadFile(&game)
 	if err != nil {
 		return err
 	}
@@ -372,4 +373,92 @@ func (a *App) DeleteRom(id uint) error {
 	}
 
 	return nil
+}
+
+// PlayRom attempts to launch the given ROM with RetroArch
+func (a *App) PlayRom(id uint) error {
+	cfg := a.configManager.GetConfig()
+	if cfg.LibraryPath == "" {
+		return fmt.Errorf("library path is not configured")
+	}
+
+	// 1. Get ROM info
+	game, err := a.rommClient.GetRom(id)
+	if err != nil {
+		return fmt.Errorf("failed to get ROM info: %w", err)
+	}
+
+	// 2. Find local ROM path
+	romDir := a.getRomDir(&game)
+
+	// Since we might not know the exact filename saved locally if it differed,
+	// or if the directory has the single file we expect:
+	files, err := os.ReadDir(romDir)
+	if err != nil || len(files) == 0 {
+		return fmt.Errorf("ROM not found locally on disk. Please download it first.")
+	}
+
+	// Assume the first file in the directory is our ROM
+	// (or we can look for the specific expected filename)
+	romPath := filepath.Join(romDir, files[0].Name())
+
+	// 3. Check if RetroArch is Configured
+	exePath := cfg.RetroArchPath
+	if exePath == "" {
+		// Prompt user manually if they haven't set it yet
+		exePath, err = a.SelectRetroArchExecutable()
+		if err != nil {
+			return fmt.Errorf("retroarch not configured: %w", err)
+		}
+		if exePath == "" {
+			return fmt.Errorf("launch cancelled: RetroArch executable not selected")
+		}
+	} else {
+		// Verify the configured path exists
+		if _, err := os.Stat(exePath); err != nil {
+			return fmt.Errorf("retroarch executable not found at configured path: %s", exePath)
+		}
+	}
+
+	// 4. Launch the game
+	err = retroarch.Launch(a.ctx, exePath, romPath)
+	if err != nil {
+		return fmt.Errorf("failed to launch game: %w", err)
+	}
+
+	return nil
+}
+
+// SelectRetroArchExecutable opens a file dialog for the user to select the RetroArch executable.
+func (a *App) SelectRetroArchExecutable() (string, error) {
+	options := runtime.OpenDialogOptions{
+		Title: "Select RetroArch Executable",
+		Filters: []runtime.FileFilter{
+			{
+				DisplayName: "Executables",
+				Pattern:     "*.exe;*.app;retroarch",
+			},
+			{
+				DisplayName: "All Files",
+				Pattern:     "*.*",
+			},
+		},
+	}
+
+	selectedFile, err := runtime.OpenFileDialog(a.ctx, options)
+	if err != nil {
+		return "", err
+	}
+
+	if selectedFile != "" {
+		// Save to config
+		cfg := a.configManager.GetConfig()
+		cfg.RetroArchPath = selectedFile
+		err = a.configManager.Save(cfg)
+		if err != nil {
+			return "", fmt.Errorf("failed to save config: %w", err)
+		}
+	}
+
+	return selectedFile, nil
 }

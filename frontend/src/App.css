@@ -275,14 +275,21 @@ body.mouse-mode .game-card:hover,
     background-color: #5d3fd3 !important;
 }
 
-.delete-btn {
-    background-color: #ff5252 !important;
+.delete-btn, .config-btn {
     padding: 0 !important;
     min-width: 50px;
     height: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.delete-btn {
+    background-color: #ff5252 !important;
+}
+
+.config-btn {
+    background-color: #555 !important;
 }
 
 .download-btn {

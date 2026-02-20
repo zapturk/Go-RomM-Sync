@@ -50,6 +50,14 @@ export function Login() {
   return window['go']['main']['App']['Login']();
 }
 
+export function PlayRom(arg1) {
+  return window['go']['main']['App']['PlayRom'](arg1);
+}
+
 export function SaveConfig(arg1) {
   return window['go']['main']['App']['SaveConfig'](arg1);
+}
+
+export function SelectRetroArchExecutable() {
+  return window['go']['main']['App']['SelectRetroArchExecutable']();
 }

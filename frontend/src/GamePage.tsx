@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom } from "../wailsjs/go/main/App";
+import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRom } from "../wailsjs/go/main/App";
 import { types } from "../wailsjs/go/models";
 import { GameCover } from "./GameCover";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
@@ -71,7 +71,19 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const { ref: playRef, focused: playFocused, focusSelf: focusPlay } = useFocusable({
         focusKey: 'play-button',
         onEnterPress: () => {
-            setDownloadStatus("Play feature coming soon...");
+            if (game) {
+                setDownloadStatus("Starting RetroArch...");
+                PlayRom(game.id).then(() => {
+                    setDownloadStatus("Game launched successfully!");
+                }).catch((err: string) => {
+                    // Check if it's the RetroArch cancelled error
+                    if (err.includes("launch cancelled")) {
+                        setDownloadStatus("");
+                    } else {
+                        setDownloadStatus(`Play error: ${err}`);
+                    }
+                });
+            }
         },
     });
 
@@ -175,7 +187,18 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                         }
                                     }}
                                     onClick={() => {
-                                        setDownloadStatus("Play feature coming soon...");
+                                        if (game) {
+                                            setDownloadStatus("Starting RetroArch...");
+                                            PlayRom(game.id).then(() => {
+                                                setDownloadStatus("Game launched successfully!");
+                                            }).catch((err: string) => {
+                                                if (err.includes("launch cancelled")) {
+                                                    setDownloadStatus("");
+                                                } else {
+                                                    setDownloadStatus(`Play error: ${err}`);
+                                                }
+                                            });
+                                        }
                                     }}
                                 >
                                     Play
@@ -183,6 +206,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                 <button
                                     ref={deleteRef}
                                     className={`btn delete-btn ${deleteFocused ? 'focused' : ''}`}
+                                    title="Delete ROM"
                                     onMouseEnter={() => {
                                         if (getMouseActive()) {
                                             focusDelete();

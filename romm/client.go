@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strings"
 )
 
@@ -290,13 +291,16 @@ func (c *Client) GetRom(id uint) (types.Game, error) {
 }
 
 // DownloadFile fetches a file from RomM and returns a reader and the filename
-func (c *Client) DownloadFile(romID uint) (io.ReadCloser, string, error) {
+func (c *Client) DownloadFile(game *types.Game) (io.ReadCloser, string, error) {
 	if c.Token == "" {
 		return nil, "", fmt.Errorf("not authenticated")
 	}
 
-	url := fmt.Sprintf("%s/api/roms/download?rom_ids=%d", c.BaseURL, romID)
-	req, err := http.NewRequest("GET", url, nil)
+	filename := filepath.Base(game.FullPath)
+	escapedFilename := url.PathEscape(filename)
+
+	urlPath := fmt.Sprintf("%s/api/roms/%d/content/%s", c.BaseURL, game.ID, escapedFilename)
+	req, err := http.NewRequest("GET", urlPath, nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create download request: %w", err)
 	}
@@ -313,15 +317,12 @@ func (c *Client) DownloadFile(romID uint) (io.ReadCloser, string, error) {
 		return nil, "", fmt.Errorf("download failed with status %d", resp.StatusCode)
 	}
 
-	// Try to get filename from Content-Disposition
-	filename := ""
+	// Double check Content-Disposition if the backend assigned an explicit download name
 	cd := resp.Header.Get("Content-Disposition")
-	if cd != "" {
-		if strings.Contains(cd, "filename=") {
-			parts := strings.Split(cd, "filename=")
-			if len(parts) > 1 {
-				filename = strings.Trim(parts[1], "\"")
-			}
+	if cd != "" && strings.Contains(cd, "filename=") {
+		parts := strings.Split(cd, "filename=")
+		if len(parts) > 1 {
+			filename = strings.Trim(parts[1], "\"")
 		}
 	}
 
