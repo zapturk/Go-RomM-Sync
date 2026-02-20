@@ -15,9 +15,10 @@ import (
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-var coreMap = map[string]string{
+var CoreMap = map[string]string{
 	// Nintendo
 	".nes": "nestopia_libretro",         // NES
+	".fds": "nestopia_libretro",         // Famicom Disk System
 	".sfc": "snes9x_libretro",           // SNES
 	".smc": "snes9x_libretro",           // SNES
 	".z64": "mupen64plus_next_libretro", // N64
@@ -26,6 +27,8 @@ var coreMap = map[string]string{
 	".gb":  "gambatte_libretro",         // GameBoy
 	".gbc": "gambatte_libretro",         // GameBoy Color
 	".gba": "mgba_libretro",             // GameBoy Advance
+	".nds": "melonds_libretro",          // Nintendo DS
+	".vb":  "beetle_vb_libretro",        // Virtual Boy
 
 	// Sega
 	".md":  "genesis_plus_gx_libretro", // MegaDrive / Genesis
@@ -33,11 +36,37 @@ var coreMap = map[string]string{
 	".gen": "genesis_plus_gx_libretro", // MegaDrive / Genesis
 	".sms": "genesis_plus_gx_libretro", // Master System
 	".gg":  "genesis_plus_gx_libretro", // Game Gear
+	".32x": "picodrive_libretro",       // 32X
+	".msu": "genesis_plus_gx_libretro", // Sega CD
+	".cue": "genesis_plus_gx_libretro", // Sega CD / Saturn / PS1 (Shared extension, mapped to GenPlus by default)
 
 	// Sony
-	".iso": "pcsx_rearmed_libretro", // PS1 (also could be other CD systems, simplified for now)
+	".iso": "pcsx_rearmed_libretro", // PS1 / PSP (Shared, handling as PS1 by default)
 	".bin": "pcsx_rearmed_libretro", // PS1
-	".cue": "pcsx_rearmed_libretro", // PS1
+	".chd": "pcsx_rearmed_libretro", // PS1
+	".cso": "ppsspp_libretro",       // PSP
+
+	// Atari
+	".a26": "stella_libretro",        // 2600
+	".a52": "a5200_libretro",         // 5200
+	".a78": "prosystem_libretro",     // 7800
+	".lnx": "handy_libretro",         // Lynx
+	".jag": "virtualjaguar_libretro", // Jaguar
+
+	// Computers
+	".d64": "vice_x64sc_libretro", // C64
+	".prg": "vice_x64sc_libretro", // C64
+	".t64": "vice_x64sc_libretro", // C64
+	".adf": "puae_libretro",       // Amiga
+	".uae": "puae_libretro",       // Amiga
+
+	// Others
+	".pce": "mednafen_pce_fast_libretro", // PC Engine
+	".sgx": "mednafen_pce_fast_libretro", // PC Engine SuperGrafx
+	".ws":  "mednafen_wswan_libretro",    // WonderSwan
+	".wsc": "mednafen_wswan_libretro",    // WonderSwan Color
+	".ngp": "mednafen_ngp_libretro",      // Neo Geo Pocket
+	".ngc": "mednafen_ngp_libretro",      // Neo Geo Pocket Color
 }
 
 // getCoreExt returns the expected dynamic library extension for the current OS
@@ -84,7 +113,7 @@ func Launch(ctx context.Context, exePath, romPath string) error {
 				continue
 			}
 			innerExt := strings.ToLower(filepath.Ext(f.Name))
-			if _, ok := coreMap[innerExt]; ok {
+			if _, ok := CoreMap[innerExt]; ok {
 				foundExt = innerExt
 				// RetroArch requires the path to be formatted as: path/to/rom.zip#internal_rom.abc
 				romPath = fmt.Sprintf("%s#%s", romPath, f.Name)
@@ -98,7 +127,7 @@ func Launch(ctx context.Context, exePath, romPath string) error {
 		ext = foundExt
 	}
 
-	coreBaseName, ok := coreMap[ext]
+	coreBaseName, ok := CoreMap[ext]
 	if !ok {
 		return fmt.Errorf("no default core mapping found for extension: %s", ext)
 	}
@@ -137,9 +166,23 @@ func Launch(ctx context.Context, exePath, romPath string) error {
 	}
 
 	// Launch Retroarch
-	fmt.Printf("--- PRE-LAUNCH CHECK ---\nExe: '%s'\nCore: '%s'\nROM: '%s'\n", exePath, corePath, romPath)
+	// Determine ROM directory for saves/states
+	romBaseDir := filepath.Dir(romPath)
+	if strings.Contains(romPath, "#") {
+		// Handle zip archives by taking the part before #
+		romBaseDir = filepath.Dir(strings.Split(romPath, "#")[0])
+	}
+	savesDir := filepath.Join(romBaseDir, "saves")
+	statesDir := filepath.Join(romBaseDir, "states")
 
-	cmd := exec.Command(exePath, "-L", corePath, "-f", "-v", romPath)
+	// Ensure directories exist
+	os.MkdirAll(savesDir, 0755)
+	os.MkdirAll(statesDir, 0755)
+
+	fmt.Printf("--- PRE-LAUNCH CHECK ---\nExe: '%s'\nCore: '%s'\nROM: '%s'\nSaves: '%s'\nStates: '%s'\n",
+		exePath, corePath, romPath, savesDir, statesDir)
+
+	cmd := exec.Command(exePath, "-L", corePath, "-f", "-v", "-s", savesDir, "-S", statesDir, romPath)
 	cmd.Dir = baseDir // run in the retroarch dir so it finds its config
 
 	// Run in a goroutine so we don't block the Wails UI, but we can capture the output
