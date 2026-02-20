@@ -10,6 +10,16 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform: "linux/amd64"
+            tags: "-tags webkit2_41"
+          - os: windows-latest
+            platform: "windows/amd64"
+            tags: ""
+          - os: macos-latest
+            platform: "darwin/universal"
+            tags: ""
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -46,11 +56,12 @@ jobs:
           npm run build
 
       - name: Build application
-        run: wails build
+        run: wails build -platform ${{ matrix.platform }} ${{ matrix.tags }}
 
       - name: Package (Linux)
         if: runner.os == 'Linux'
         run: |
+          # The binary name might vary if tags are used, check build/bin
           mv build/bin/go-romm-sync go-romm-sync-linux
           tar -czvf go-romm-sync-linux-amd64.tar.gz go-romm-sync-linux
 

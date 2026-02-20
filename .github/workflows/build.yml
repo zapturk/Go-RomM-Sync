@@ -9,6 +9,16 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform: "linux/amd64"
+            tags: "-tags webkit2_41"
+          - os: windows-latest
+            platform: "windows/amd64"
+            tags: ""
+          - os: macos-latest
+            platform: "darwin/universal"
+            tags: ""
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
@@ -43,4 +53,4 @@ jobs:
           npm run build
 
       - name: Build application
-        run: wails build
+        run: wails build -platform ${{ matrix.platform }} ${{ matrix.tags }}
