@@ -46,6 +46,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
     const { ref: downloadRef, focused: downloadFocused, focusSelf: focusDownload } = useFocusable({
         focusKey: 'download-button',
+        onArrowPress: () => false, // Prevent focus loss by blocking all directional navigation from here
         onEnterPress: () => {
             if (game && !downloading && !isDownloaded) {
                 setDownloading(true);
@@ -70,6 +71,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
     const { ref: playRef, focused: playFocused, focusSelf: focusPlay } = useFocusable({
         focusKey: 'play-button',
+        onArrowPress: (direction: string) => direction === 'right', // Only allow moving to Delete
         onEnterPress: () => {
             if (game) {
                 setDownloadStatus("Starting RetroArch...");
@@ -89,6 +91,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
     const { ref: deleteRef, focused: deleteFocused, focusSelf: focusDelete } = useFocusable({
         focusKey: 'delete-button',
+        onArrowPress: (direction: string) => direction === 'left', // Only allow moving back to Play
         onEnterPress: () => {
             if (!game) return;
 

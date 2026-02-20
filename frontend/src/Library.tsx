@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { GetLibrary, GetPlatforms, SelectRetroArchExecutable, Quit } from "../wailsjs/go/main/App";
 import { types } from "../wailsjs/go/models";
 import { GameCard } from "./GameCard";
@@ -32,6 +32,8 @@ function Library({ onOpenSettings }: LibraryProps) {
     const [status, setStatus] = useState("Loading library...");
     const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
     const [selectedGameId, setSelectedGameId] = useState<number | null>(null);
+    const lastViewedGameId = useRef<number | null>(null);
+    const lastViewedPlatformId = useRef<number | null>(null);
     const [syncTrigger, setSyncTrigger] = useState(0);
 
     const { ref, focusKey } = useFocusable({
@@ -132,18 +134,23 @@ function Library({ onOpenSettings }: LibraryProps) {
 
     const visiblePlatforms = sortedPlatforms.filter(p => getGamesForPlatform(p).length > 0);
 
-    // Auto-focus first platform when configured
+    // Auto-focus first platform or last viewed platform when configured
     useEffect(() => {
         if (!selectedPlatform && visiblePlatforms.length > 0) {
             // Give a moment for the DOM to settle
             setTimeout(() => {
-                const key = `platform-${visiblePlatforms[0].id}`;
-                setFocus(key);
+                if (lastViewedPlatformId.current && visiblePlatforms.some(p => p.id === lastViewedPlatformId.current)) {
+                    setFocus(`platform-${lastViewedPlatformId.current}`);
+                    lastViewedPlatformId.current = null; // Clear after restoring
+                } else {
+                    const key = `platform-${visiblePlatforms[0].id}`;
+                    setFocus(key);
+                }
             }, 100);
         }
     }, [visiblePlatforms.length, selectedPlatform, setFocus]);
 
-    // Auto-focus first game when platform selected
+    // Auto-focus first game or last viewed game when platform selected
     useEffect(() => {
         if (selectedPlatform && !selectedGameId) {
             const platform = platforms.find(p => p.name === selectedPlatform);
@@ -151,8 +158,15 @@ function Library({ onOpenSettings }: LibraryProps) {
                 const platformGames = getGamesForPlatform(platform);
                 if (platformGames.length > 0) {
                     setTimeout(() => {
-                        const key = `game-${platformGames[0].id}`;
-                        setFocus(key);
+                        // Check if we have a last viewed game to restore focus to
+                        if (lastViewedGameId.current && platformGames.some(g => g.id === lastViewedGameId.current)) {
+                            setFocus(`game-${lastViewedGameId.current}`);
+                            lastViewedGameId.current = null; // Clear after restoring
+                        } else {
+                            // Default to first game
+                            const key = `game-${platformGames[0].id}`;
+                            setFocus(key);
+                        }
                     }, 100);
                 }
             }
@@ -205,9 +219,13 @@ function Library({ onOpenSettings }: LibraryProps) {
                             <PlatformCard
                                 key={platform.id}
                                 platform={platform}
-                                onClick={() => setSelectedPlatform(platform.name)}
+                                onClick={() => {
+                                    setSelectedPlatform(platform.name);
+                                    lastViewedPlatformId.current = platform.id;
+                                }}
                                 onEnterPress={() => {
                                     setSelectedPlatform(platform.name);
+                                    lastViewedPlatformId.current = platform.id;
                                 }}
                                 syncTrigger={syncTrigger}
                             />
@@ -226,7 +244,10 @@ function Library({ onOpenSettings }: LibraryProps) {
                                 <GameCard
                                     key={game.id}
                                     game={game}
-                                    onClick={() => setSelectedGameId(game.id)}
+                                    onClick={() => {
+                                        setSelectedGameId(game.id);
+                                        lastViewedGameId.current = game.id;
+                                    }}
                                 />
                             ))
                             : <p>No games found (mapping issue?)</p>
