@@ -264,6 +264,20 @@ body.mouse-mode .game-card:hover,
     margin-top: 20px;
 }
 
+.pill-icon {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 12px;
+    padding: 0 8px;
+    font-size: 10px;
+    font-weight: bold;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
 .game-actions-horizontal .play-btn {
     flex: 1;
     margin-top: 0;
@@ -275,7 +289,8 @@ body.mouse-mode .game-card:hover,
     background-color: #5d3fd3 !important;
 }
 
-.delete-btn, .config-btn {
+.delete-btn,
+.config-btn {
     padding: 0 !important;
     min-width: 50px;
     height: 48px;

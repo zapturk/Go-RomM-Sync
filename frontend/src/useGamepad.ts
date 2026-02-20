@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Quit } from "../wailsjs/go/main/App";
 
 // Map for standard controllers (Xbox/PlayStation via standard gamepad API)
 const BUTTON_MAPPING = {
@@ -59,6 +60,11 @@ export function useGamepad() {
             if (gp.buttons[BUTTON_MAPPING.A]?.pressed) triggerKey('Enter');
             if (gp.buttons[BUTTON_MAPPING.B]?.pressed) triggerKey('Backspace'); // Or Escape
             if (gp.buttons[BUTTON_MAPPING.X]?.pressed) triggerKey('r'); // Refresh/Sync
+
+            // Exit (Start + Select/Back)
+            if (gp.buttons[BUTTON_MAPPING.START]?.pressed && gp.buttons[BUTTON_MAPPING.BACK]?.pressed) {
+                Quit();
+            }
         }
 
         requestRef.current = requestAnimationFrame(scanGamepads);

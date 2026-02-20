@@ -28,6 +28,8 @@ export function Login():Promise<string>;
 
 export function PlayRom(arg1:number):Promise<void>;
 
+export function Quit():Promise<void>;
+
 export function SaveConfig(arg1:types.AppConfig):Promise<string>;
 
 export function SelectRetroArchExecutable():Promise<string>;

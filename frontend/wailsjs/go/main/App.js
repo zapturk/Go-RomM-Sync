@@ -54,6 +54,10 @@ export function PlayRom(arg1) {
   return window['go']['main']['App']['PlayRom'](arg1);
 }
 
+export function Quit() {
+  return window['go']['main']['App']['Quit']();
+}
+
 export function SaveConfig(arg1) {
   return window['go']['main']['App']['SaveConfig'](arg1);
 }

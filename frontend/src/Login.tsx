@@ -59,21 +59,27 @@ function Login({ onLoginSuccess }: LoginProps) {
             });
     }
 
+    const handleInputKeyDown = (e: React.KeyboardEvent) => {
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+            e.stopPropagation();
+        }
+    };
+
     return (
         <div id="login">
             <div id="result" className="result">{resultText}</div>
             <div id="input" className="input-box">
                 <div className="input-group">
                     <label htmlFor="server">RomM Server URL</label>
-                    <input id="server" className="input" onChange={(e) => setServer(e.target.value)} value={server} autoComplete="off" name="server" type="text" placeholder="http://localhost:8080" />
+                    <input id="server" className="input" onChange={(e) => setServer(e.target.value)} onKeyDown={handleInputKeyDown} value={server} autoComplete="off" name="server" type="text" placeholder="http://localhost:8080" />
                 </div>
                 <div className="input-group">
                     <label htmlFor="username">Username</label>
-                    <input id="username" className="input" onChange={(e) => setUsername(e.target.value)} value={username} autoComplete="off" name="username" type="text" />
+                    <input id="username" className="input" onChange={(e) => setUsername(e.target.value)} onKeyDown={handleInputKeyDown} value={username} autoComplete="off" name="username" type="text" />
                 </div>
                 <div className="input-group">
                     <label htmlFor="password">Password</label>
-                    <input id="password" className="input" onChange={(e) => setPassword(e.target.value)} value={password} autoComplete="off" name="password" type="password" />
+                    <input id="password" className="input" onChange={(e) => setPassword(e.target.value)} onKeyDown={handleInputKeyDown} value={password} autoComplete="off" name="password" type="password" />
                 </div>
                 <button className="btn" onClick={handleConnect} disabled={isLoggingIn}>
                     {isLoggingIn ? "Connecting..." : "Connect"}

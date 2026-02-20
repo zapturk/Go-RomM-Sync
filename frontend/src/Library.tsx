@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GetLibrary, GetPlatforms, SelectRetroArchExecutable } from "../wailsjs/go/main/App";
+import { GetLibrary, GetPlatforms, SelectRetroArchExecutable, Quit } from "../wailsjs/go/main/App";
 import { types } from "../wailsjs/go/models";
 import { GameCard } from "./GameCard";
 import { PlatformCard } from "./PlatformCard";
@@ -102,6 +102,20 @@ function Library() {
             if (e.key === 'r' || e.key === 'R') {
                 e.preventDefault();
                 refreshLibrary();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
+    // Handle "Exit" (Alt+F4 or similar)
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const isMac = navigator.userAgent.includes('Mac');
+            // Check for Alt+F4 (Windows/Linux) or Cmd+Q (Mac)
+            if ((e.altKey && e.key === 'F4') || (isMac && e.metaKey && e.key === 'q')) {
+                e.preventDefault();
+                Quit();
             }
         };
         window.addEventListener('keydown', handleKeyDown);
@@ -261,6 +275,19 @@ function Library() {
                         </div>
                         <div className="key-icon show-keyboard">ENTER</div>
                         <span>OK</span>
+                    </div>
+
+                    <div className="legend-item">
+                        <div className="show-gamepad">
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                                <div className="pill-icon">SELECT</div>
+                                <div className="pill-icon">START</div>
+                            </div>
+                        </div>
+                        <div className="key-icon show-keyboard" style={{ width: 'auto', padding: '0 4px' }}>
+                            {navigator.userAgent.includes('Mac') ? 'CMD + Q' : 'ALT + F4'}
+                        </div>
+                        <span>Exit</span>
                     </div>
                 </div>
             </div>
