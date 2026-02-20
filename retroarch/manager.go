@@ -111,11 +111,22 @@ func Launch(ctx context.Context, exePath, romPath string) error {
 	// Launch Retroarch
 	fmt.Printf("--- PRE-LAUNCH CHECK ---\nExe: '%s'\nCore: '%s'\nROM: '%s'\n", exePath, corePath, romPath)
 
-	cmd := exec.Command(exePath, "-L", corePath, "-v", romPath)
+	cmd := exec.Command(exePath, "-L", corePath, "-f", "-v", romPath)
 	cmd.Dir = baseDir // run in the retroarch dir so it finds its config
 
 	// Run in a goroutine so we don't block the Wails UI, but we can capture the output
 	go func() {
+		// Hide the Go-RomM-Sync window and disable its input while playing
+		wailsRuntime.WindowHide(ctx)
+		defer func() {
+			wailsRuntime.WindowShow(ctx)
+			// Bring to front on Windows/Linux (Wails APIs are sometimes finicky)
+			// Unminimise, show, and briefly set AlwaysOnTop then toggle off to force Z-order
+			wailsRuntime.WindowUnminimise(ctx)
+			wailsRuntime.WindowSetAlwaysOnTop(ctx, true)
+			wailsRuntime.WindowSetAlwaysOnTop(ctx, false)
+		}()
+
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			fmt.Printf("\n--- RETROARCH CRASHED ---\nError: %v\nOutput: %s\n", err, string(out))
