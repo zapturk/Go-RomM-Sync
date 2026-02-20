@@ -218,6 +218,10 @@ body.mouse-mode .game-card:hover,
     margin-bottom: 20px;
 }
 
+.game-genres {
+    margin-bottom: 20px;
+}
+
 .genre-tag {
     background: #333;
     padding: 4px 12px;
@@ -243,6 +247,15 @@ body.mouse-mode .game-card:hover,
     margin-top: 20px;
     color: #4CAF50;
     font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.save-icon {
+    display: flex;
+    align-items: center;
+    color: #4CAF50;
 }
 
 .game-actions-horizontal {
