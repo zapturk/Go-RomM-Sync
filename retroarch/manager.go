@@ -55,9 +55,15 @@ func getCoreExt() string {
 // Launch launches RetroArch for the given ROM path, given the selected executable.
 func Launch(ctx context.Context, exePath, romPath string) error {
 	baseDir := filepath.Dir(exePath)
-	if runtime.GOOS == "darwin" && strings.Contains(exePath, "RetroArch.app") {
-		// If they selected the macOS .app bundle or binary inside it, base dir is different
-		baseDir = filepath.Dir(filepath.Dir(filepath.Dir(exePath))) // Go up from Contents/MacOS
+	if runtime.GOOS == "darwin" {
+		if strings.HasSuffix(exePath, ".app") {
+			// If they selected the macOS .app bundle, use it as baseDir and find actual binary
+			baseDir = exePath
+			exePath = filepath.Join(exePath, "Contents", "MacOS", "RetroArch")
+		} else if strings.Contains(exePath, ".app/Contents/MacOS") {
+			// If they selected the binary inside the .app bundle
+			baseDir = filepath.Dir(filepath.Dir(filepath.Dir(exePath)))
+		}
 	}
 	coresDir := filepath.Join(baseDir, "cores")
 
@@ -98,11 +104,33 @@ func Launch(ctx context.Context, exePath, romPath string) error {
 	}
 
 	coreFile := coreBaseName + getCoreExt()
+
+	// macOS core directory standard
+	if runtime.GOOS == "darwin" {
+		homeDir, _ := os.UserHomeDir()
+		coresDir = filepath.Join(homeDir, "Library", "Application Support", "RetroArch", "cores")
+	}
 	corePath := filepath.Join(coresDir, coreFile)
 
 	if _, err := os.Stat(corePath); err != nil {
 		wailsRuntime.EventsEmit(ctx, "play-status", fmt.Sprintf("Emulator core %s not found locally. Attempting to download...", coreFile))
-		err = DownloadCore(ctx, coreFile, coresDir)
+
+		// Detect architecture for macOS specifically, otherwise use runtime.GOARCH
+		arch := runtime.GOARCH
+		if runtime.GOOS == "darwin" {
+			// Try to detect the architecture of the binary
+			out, err := exec.Command("file", exePath).Output()
+			if err == nil {
+				sout := string(out)
+				if strings.Contains(sout, "x86_64") {
+					arch = "amd64"
+				} else if strings.Contains(sout, "arm64") {
+					arch = "arm64"
+				}
+			}
+		}
+
+		err = DownloadCore(ctx, coreFile, coresDir, arch)
 		if err != nil {
 			return fmt.Errorf("emulator core not found at %s and auto-download failed: %w", corePath, err)
 		}
@@ -140,7 +168,7 @@ func Launch(ctx context.Context, exePath, romPath string) error {
 }
 
 // DownloadCore fetches a missing core from Libretro buildbot
-func DownloadCore(ctx context.Context, coreFile, coresDir string) error {
+func DownloadCore(ctx context.Context, coreFile, coresDir, arch string) error {
 	wailsRuntime.EventsEmit(ctx, "play-status", fmt.Sprintf("Downloading missing core: %s...", coreFile))
 
 	var osName, archName string
@@ -155,7 +183,7 @@ func DownloadCore(ctx context.Context, coreFile, coresDir string) error {
 		return fmt.Errorf("unsupported OS for core downloads: %s", runtime.GOOS)
 	}
 
-	switch runtime.GOARCH {
+	switch arch {
 	case "amd64":
 		archName = "x86_64"
 	case "arm64":
@@ -167,7 +195,7 @@ func DownloadCore(ctx context.Context, coreFile, coresDir string) error {
 	case "386":
 		archName = "x86"
 	default:
-		return fmt.Errorf("unsupported arch for core downloads: %s", runtime.GOARCH)
+		return fmt.Errorf("unsupported arch for core downloads: %s", arch)
 	}
 
 	urlStr := fmt.Sprintf("https://buildbot.libretro.com/nightly/%s/%s/latest/%s.zip", osName, archName, coreFile)

@@ -11,9 +11,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
@@ -366,10 +367,10 @@ func (a *App) DeleteRom(id uint) error {
 
 	if _, err := os.Stat(romDir); err == nil {
 		if err := os.RemoveAll(romDir); err != nil {
-			runtime.LogErrorf(a.ctx, "DeleteRom: Error during RemoveAll for ID %d: %v", id, err)
+			wailsRuntime.LogErrorf(a.ctx, "DeleteRom: Error during RemoveAll for ID %d: %v", id, err)
 			return fmt.Errorf("failed to delete ROM directory: %w", err)
 		}
-		runtime.LogInfof(a.ctx, "DeleteRom: Successfully deleted ROM %d from library", id)
+		wailsRuntime.LogInfof(a.ctx, "DeleteRom: Successfully deleted ROM %d from library", id)
 	}
 
 	return nil
@@ -431,21 +432,27 @@ func (a *App) PlayRom(id uint) error {
 
 // SelectRetroArchExecutable opens a file dialog for the user to select the RetroArch executable.
 func (a *App) SelectRetroArchExecutable() (string, error) {
-	options := runtime.OpenDialogOptions{
+	options := wailsRuntime.OpenDialogOptions{
 		Title: "Select RetroArch Executable",
-		Filters: []runtime.FileFilter{
-			{
-				DisplayName: "Executables",
-				Pattern:     "*.exe;*.app;retroarch",
-			},
+		Filters: []wailsRuntime.FileFilter{
 			{
 				DisplayName: "All Files",
 				Pattern:     "*.*",
 			},
+			{
+				DisplayName: "Executables",
+				Pattern:     "*.exe;*.app;retroarch",
+			},
 		},
 	}
 
-	selectedFile, err := runtime.OpenFileDialog(a.ctx, options)
+	if runtime.GOOS == "darwin" {
+		options.DefaultDirectory = "/Applications"
+		options.TreatPackagesAsDirectories = false // Allow selecting the .app bundle as a file
+		options.Filters = nil                      // Remove all filters on macOS
+	}
+
+	selectedFile, err := wailsRuntime.OpenFileDialog(a.ctx, options)
 	if err != nil {
 		return "", err
 	}
