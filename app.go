@@ -58,37 +58,19 @@ func (a *App) GetConfig() types.AppConfig {
 // SaveConfig saves the configuration
 func (a *App) SaveConfig(cfg types.AppConfig) string {
 	current := a.configManager.GetConfig()
-
 	oldHost := current.RommHost
 
-	// Merge values: only overwrite if the new value is non-empty
-	if cfg.RommHost != "" {
-		current.RommHost = cfg.RommHost
-	}
-	if cfg.Username != "" {
-		current.Username = cfg.Username
-	}
-	if cfg.Password != "" {
-		current.Password = cfg.Password
-	}
-	if cfg.LibraryPath != "" {
-		current.LibraryPath = cfg.LibraryPath
-	}
-	if cfg.RetroArchPath != "" {
-		current.RetroArchPath = cfg.RetroArchPath
-	}
-	if cfg.RetroArchExecutable != "" {
-		current.RetroArchExecutable = cfg.RetroArchExecutable
-	}
-	if cfg.CheevosUsername != "" {
-		current.CheevosUsername = cfg.CheevosUsername
-	}
-	if cfg.CheevosPassword != "" {
-		current.CheevosPassword = cfg.CheevosPassword
-	}
+	// Update fields if provided
+	updateIfNotEmpty(&current.RommHost, cfg.RommHost)
+	updateIfNotEmpty(&current.Username, cfg.Username)
+	updateIfNotEmpty(&current.Password, cfg.Password)
+	updateIfNotEmpty(&current.LibraryPath, cfg.LibraryPath)
+	updateIfNotEmpty(&current.RetroArchPath, cfg.RetroArchPath)
+	updateIfNotEmpty(&current.RetroArchExecutable, cfg.RetroArchExecutable)
+	updateIfNotEmpty(&current.CheevosUsername, cfg.CheevosUsername)
+	updateIfNotEmpty(&current.CheevosPassword, cfg.CheevosPassword)
 
-	err := a.configManager.Save(current)
-	if err != nil {
+	if err := a.configManager.Save(current); err != nil {
 		return fmt.Sprintf("Error saving config: %s", err.Error())
 	}
 
@@ -98,6 +80,13 @@ func (a *App) SaveConfig(cfg types.AppConfig) string {
 	}
 
 	return "Configuration saved successfully!"
+}
+
+// updateIfNotEmpty is a helper to only update a field if the new value is not empty
+func updateIfNotEmpty(target *string, value string) {
+	if value != "" {
+		*target = value
+	}
 }
 
 // Login authenticates with the RomM server

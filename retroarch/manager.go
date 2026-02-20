@@ -144,10 +144,11 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 	if _, err := os.Stat(corePath); err != nil {
 		wailsRuntime.EventsEmit(ctx, "play-status", fmt.Sprintf("Emulator core %s not found locally. Attempting to download...", coreFile))
 
-		// Detect architecture for macOS specifically, otherwise use runtime.GOARCH
+		// Detect architecture for macOS specifically to ensure we download the correct binary type.
+		// On Apple Silicon (arm64), we might still be running an x86_64 build of RetroArch via Rosetta.
 		arch := runtime.GOARCH
 		if runtime.GOOS == "darwin" {
-			// Try to detect the architecture of the binary
+			// Try to detect the architecture of the RetroArch binary itself
 			out, err := exec.Command("file", exePath).Output()
 			if err == nil {
 				sout := string(out)
@@ -179,7 +180,8 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 	os.MkdirAll(savesDir, 0755)
 	os.MkdirAll(statesDir, 0755)
 
-	// Prepare temporary config for RetroAchievements
+	// Prepare temporary config for RetroAchievements.
+	// We use --appendconfig to pass these credentials without modifying the user's main RetroArch config.
 	var appendConfigPath string
 	if cheevosUser != "" && cheevosPass != "" {
 		tmpFile, err := os.CreateTemp("", "retroarch_cheevos_*.cfg")

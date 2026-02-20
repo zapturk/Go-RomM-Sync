@@ -65,7 +65,7 @@ function App() {
             {!isLoggedIn ? (
                 <LoginView onLoginSuccess={() => setIsLoggedIn(true)} />
             ) : view === 'settings' ? (
-                <Settings onBack={() => setView('library')} />
+                <Settings />
             ) : (
                 <Library onOpenSettings={() => setView('settings')} />
             )}

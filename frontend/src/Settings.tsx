@@ -4,11 +4,7 @@ import { types } from "../wailsjs/go/models";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
 
-interface SettingsProps {
-    onBack: () => void;
-}
-
-function Settings({ onBack }: SettingsProps) {
+function Settings() {
     const [config, setConfig] = useState<types.AppConfig | null>(null);
     const [status, setStatus] = useState("Configure your application settings");
     const [isSaving, setIsSaving] = useState(false);
