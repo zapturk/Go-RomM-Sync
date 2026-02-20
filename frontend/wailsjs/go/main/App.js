@@ -62,6 +62,10 @@ export function SaveConfig(arg1) {
   return window['go']['main']['App']['SaveConfig'](arg1);
 }
 
+export function SelectLibraryPath() {
+  return window['go']['main']['App']['SelectLibraryPath']();
+}
+
 export function SelectRetroArchExecutable() {
   return window['go']['main']['App']['SelectRetroArchExecutable']();
 }

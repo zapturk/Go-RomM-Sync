@@ -495,3 +495,28 @@ func (a *App) SelectRetroArchExecutable() (string, error) {
 
 	return selectedFile, nil
 }
+
+// SelectLibraryPath opens a directory dialog for the user to select the ROM library path.
+func (a *App) SelectLibraryPath() (string, error) {
+	options := wailsRuntime.OpenDialogOptions{
+		Title:                "Select ROM Library Directory",
+		CanCreateDirectories: true,
+	}
+
+	selectedDir, err := wailsRuntime.OpenDirectoryDialog(a.ctx, options)
+	if err != nil {
+		return "", err
+	}
+
+	if selectedDir != "" {
+		// Save to config
+		cfg := a.configManager.GetConfig()
+		cfg.LibraryPath = selectedDir
+		err = a.configManager.Save(cfg)
+		if err != nil {
+			return "", fmt.Errorf("failed to save config: %w", err)
+		}
+	}
+
+	return selectedDir, nil
+}
