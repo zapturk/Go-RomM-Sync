@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GetConfig, SaveConfig, SelectRetroArchExecutable } from "../wailsjs/go/main/App";
+import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath } from "../wailsjs/go/main/App";
 import { types } from "../wailsjs/go/models";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
@@ -11,6 +11,7 @@ function Settings() {
 
     // Form states
     const [raPath, setRaPath] = useState('');
+    const [libPath, setLibPath] = useState('');
     const [cheevosUser, setCheevosUser] = useState('');
     const [cheevosPass, setCheevosPass] = useState('');
 
@@ -23,6 +24,7 @@ function Settings() {
             console.log("Settings loaded config:", cfg);
             setConfig(cfg);
             setRaPath(cfg.retroarch_path || '');
+            setLibPath(cfg.library_path || '');
             setCheevosUser(cfg.cheevos_username || '');
             setCheevosPass(cfg.cheevos_password || '');
         });
@@ -37,6 +39,15 @@ function Settings() {
         });
     };
 
+    const handleBrowseLib = () => {
+        SelectLibraryPath().then((path) => {
+            if (path) {
+                setLibPath(path);
+                setStatus("Library path updated.");
+            }
+        });
+    };
+
     const handleSave = () => {
         if (!config) return;
 
@@ -46,6 +57,7 @@ function Settings() {
         // We only send the updated fields, the backend SaveConfig handles merging
         const updatedConfig = new types.AppConfig({
             retroarch_path: raPath,
+            library_path: libPath,
             cheevos_username: cheevosUser,
             cheevos_password: cheevosPass
         });
@@ -69,16 +81,21 @@ function Settings() {
         }
     };
 
-    // Auto-focus browse button on load
+    // Auto-focus first browse button on load
     useEffect(() => {
         setTimeout(() => {
-            setFocus('browse-button');
+            setFocus('browse-ra-button');
         }, 100);
     }, []);
 
-    const { ref: browseRef, focused: browseFocused } = useFocusable({
-        focusKey: 'browse-button',
+    const { ref: browseRARef, focused: browseRAFocused } = useFocusable({
+        focusKey: 'browse-ra-button',
         onEnterPress: handleBrowseRA
+    });
+
+    const { ref: browseLibRef, focused: browseLibFocused } = useFocusable({
+        focusKey: 'browse-lib-button',
+        onEnterPress: handleBrowseLib
     });
 
     const { ref: saveRef, focused: saveFocused } = useFocusable({
@@ -97,6 +114,7 @@ function Settings() {
             <div id="result" className="result" style={{ marginBottom: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.7)', fontSize: '1.1rem' }}>{status}</div>
 
             <div className="settings-container" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', alignItems: 'center' }}>
+                {/* Emulator Section */}
                 <div className="section" style={{ width: '100%', maxWidth: '500px' }}>
                     <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', marginBottom: '1.5rem', color: 'rgba(255,255,255,0.9)' }}>Emulator Configuration</h3>
                     <div className="input-group" style={{ width: '100%' }}>
@@ -110,11 +128,11 @@ function Settings() {
                                 placeholder="Not configured"
                             />
                             <button
-                                ref={browseRef}
-                                className={`btn ${browseFocused ? 'focused' : ''}`}
+                                ref={browseRARef}
+                                className={`btn ${browseRAFocused ? 'focused' : ''}`}
                                 style={{ margin: 0, minWidth: '100px' }}
                                 onClick={handleBrowseRA}
-                                onMouseEnter={() => getMouseActive() && setFocus('browse-button')}
+                                onMouseEnter={() => getMouseActive() && setFocus('browse-ra-button')}
                             >
                                 Browse
                             </button>
@@ -122,6 +140,33 @@ function Settings() {
                     </div>
                 </div>
 
+                {/* Library Section */}
+                <div className="section" style={{ width: '100%', maxWidth: '500px' }}>
+                    <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', marginBottom: '1.5rem', color: 'rgba(255,255,255,0.9)' }}>Library Configuration</h3>
+                    <div className="input-group" style={{ width: '100%' }}>
+                        <label>Local ROM Library Path</label>
+                        <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+                            <input
+                                className="input"
+                                value={libPath}
+                                readOnly
+                                style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)' }}
+                                placeholder="Not configured"
+                            />
+                            <button
+                                ref={browseLibRef}
+                                className={`btn ${browseLibFocused ? 'focused' : ''}`}
+                                style={{ margin: 0, minWidth: '100px' }}
+                                onClick={handleBrowseLib}
+                                onMouseEnter={() => getMouseActive() && setFocus('browse-lib-button')}
+                            >
+                                Browse
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* RetroAchievements Section */}
                 <div className="section" style={{ width: '100%', maxWidth: '500px' }}>
                     <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', marginBottom: '1.5rem', color: 'rgba(255,255,255,0.9)' }}>RetroAchievements</h3>
                     <div className="input-group" style={{ width: '100%', marginBottom: '1rem' }}>
