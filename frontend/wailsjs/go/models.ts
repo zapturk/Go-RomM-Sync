@@ -7,6 +7,8 @@ export namespace types {
 	    library_path: string;
 	    retroarch_path: string;
 	    retroarch_executable: string;
+	    cheevos_username: string;
+	    cheevos_password: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppConfig(source);
@@ -20,6 +22,8 @@ export namespace types {
 	        this.library_path = source["library_path"];
 	        this.retroarch_path = source["retroarch_path"];
 	        this.retroarch_executable = source["retroarch_executable"];
+	        this.cheevos_username = source["cheevos_username"];
+	        this.cheevos_password = source["cheevos_password"];
 	    }
 	}
 	export class Game {

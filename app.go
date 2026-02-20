@@ -68,6 +68,12 @@ func (a *App) SaveConfig(cfg types.AppConfig) string {
 	if cfg.RetroArchExecutable == "" {
 		cfg.RetroArchExecutable = current.RetroArchExecutable
 	}
+	if cfg.CheevosUsername == "" {
+		cfg.CheevosUsername = current.CheevosUsername
+	}
+	if cfg.CheevosPassword == "" {
+		cfg.CheevosPassword = current.CheevosPassword
+	}
 
 	err := a.configManager.Save(cfg)
 	if err != nil {
@@ -439,7 +445,7 @@ func (a *App) PlayRom(id uint) error {
 	}
 
 	// 4. Launch the game
-	err = retroarch.Launch(a.ctx, exePath, romPath)
+	err = retroarch.Launch(a.ctx, exePath, romPath, cfg.CheevosUsername, cfg.CheevosPassword)
 	if err != nil {
 		return fmt.Errorf("failed to launch game: %w", err)
 	}

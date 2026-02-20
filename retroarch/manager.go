@@ -82,7 +82,7 @@ func getCoreExt() string {
 }
 
 // Launch launches RetroArch for the given ROM path, given the selected executable.
-func Launch(ctx context.Context, exePath, romPath string) error {
+func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass string) error {
 	baseDir := filepath.Dir(exePath)
 	if runtime.GOOS == "darwin" {
 		if strings.HasSuffix(exePath, ".app") {
@@ -179,10 +179,29 @@ func Launch(ctx context.Context, exePath, romPath string) error {
 	os.MkdirAll(savesDir, 0755)
 	os.MkdirAll(statesDir, 0755)
 
+	// Prepare temporary config for RetroAchievements
+	var appendConfigPath string
+	if cheevosUser != "" && cheevosPass != "" {
+		tmpFile, err := os.CreateTemp("", "retroarch_cheevos_*.cfg")
+		if err == nil {
+			appendConfigPath = tmpFile.Name()
+			content := fmt.Sprintf("cheevos_enable = \"true\"\ncheevos_username = \"%s\"\ncheevos_password = \"%s\"\n",
+				cheevosUser, cheevosPass)
+			os.WriteFile(appendConfigPath, []byte(content), 0644)
+			tmpFile.Close()
+		}
+	}
+
 	fmt.Printf("--- PRE-LAUNCH CHECK ---\nExe: '%s'\nCore: '%s'\nROM: '%s'\nSaves: '%s'\nStates: '%s'\n",
 		exePath, corePath, romPath, savesDir, statesDir)
 
-	cmd := exec.Command(exePath, "-L", corePath, "-f", "-v", "-s", savesDir, "-S", statesDir, romPath)
+	args := []string{"-L", corePath, "-f", "-v", "-s", savesDir, "-S", statesDir}
+	if appendConfigPath != "" {
+		args = append(args, "--appendconfig", appendConfigPath)
+	}
+	args = append(args, romPath)
+
+	cmd := exec.Command(exePath, args...)
 	cmd.Dir = baseDir // run in the retroarch dir so it finds its config
 
 	// Run in a goroutine so we don't block the Wails UI, but we can capture the output
@@ -190,6 +209,9 @@ func Launch(ctx context.Context, exePath, romPath string) error {
 		// Hide the Go-RomM-Sync window and disable its input while playing
 		wailsRuntime.WindowHide(ctx)
 		defer func() {
+			if appendConfigPath != "" {
+				os.Remove(appendConfigPath)
+			}
 			wailsRuntime.WindowShow(ctx)
 			// Bring to front on Windows/Linux (Wails APIs are sometimes finicky)
 			// Unminimise, show, and briefly set AlwaysOnTop then toggle off to force Z-order
