@@ -3,6 +3,10 @@
     text-align: center;
 }
 
+.hidden-view {
+    display: none !important;
+}
+
 #logo {
     display: block;
     width: 50%;

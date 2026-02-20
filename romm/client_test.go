@@ -22,8 +22,8 @@ func TestLogin(t *testing.T) {
 		if err := r.ParseForm(); err != nil {
 			t.Errorf("Failed to parse form: %v", err)
 		}
-		if r.FormValue("scope") != "roms.read" {
-			t.Errorf("Expected scope roms.read, got %s", r.FormValue("scope"))
+		if r.FormValue("scope") != "roms.read platforms.read" {
+			t.Errorf("Expected scope roms.read platforms.read, got %s", r.FormValue("scope"))
 		}
 
 		w.Header().Set("Content-Type", "application/json")

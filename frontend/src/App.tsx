@@ -64,10 +64,15 @@ function App() {
         <div id="App">
             {!isLoggedIn ? (
                 <LoginView onLoginSuccess={() => setIsLoggedIn(true)} />
-            ) : view === 'settings' ? (
-                <Settings />
             ) : (
-                <Library onOpenSettings={() => setView('settings')} />
+                <>
+                    <div className={view === 'settings' ? '' : 'hidden-view'}>
+                        <Settings />
+                    </div>
+                    <div className={view === 'library' ? '' : 'hidden-view'}>
+                        <Library onOpenSettings={() => setView('settings')} />
+                    </div>
+                </>
             )}
         </div>
     );
