@@ -67,7 +67,7 @@ func (cm *ConfigManager) Save(newConfig types.AppConfig) error {
 	cm.Mu.Lock()
 	defer cm.Mu.Unlock()
 
-	cm.Config = &newConfig
+	*cm.Config = newConfig
 
 	data, err := json.MarshalIndent(cm.Config, "", "  ")
 	if err != nil {
@@ -77,13 +77,27 @@ func (cm *ConfigManager) Save(newConfig types.AppConfig) error {
 	return os.WriteFile(cm.ConfigPath, data, 0644)
 }
 
+// GetDefaultLibraryPath returns the cross-platform default library path
+func GetDefaultLibraryPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %w", err)
+	}
+	return filepath.Join(home, "Documents", "Go-RomM-Sync", "Library"), nil
+}
+
 // createDefault generates a dummy config file if none exists
 func (cm *ConfigManager) createDefault() error {
+	defaultLibraryPath, _ := GetDefaultLibraryPath()
+	if defaultLibraryPath == "" {
+		defaultLibraryPath = filepath.Join(".", "Library")
+	}
+
 	defaultConfig := types.AppConfig{
 		RommHost:            "",
 		Username:            "",
 		Password:            "",
-		LibraryPath:         "",
+		LibraryPath:         defaultLibraryPath,
 		RetroArchPath:       "",
 		RetroArchExecutable: "",
 	}

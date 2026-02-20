@@ -28,6 +28,9 @@ export namespace types {
 	    rom_id: number;
 	    url_cover: string;
 	    full_path: string;
+	    summary: string;
+	    genres: string[];
+	    has_saves: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Game(source);
@@ -40,6 +43,9 @@ export namespace types {
 	        this.rom_id = source["rom_id"];
 	        this.url_cover = source["url_cover"];
 	        this.full_path = source["full_path"];
+	        this.summary = source["summary"];
+	        this.genres = source["genres"];
+	        this.has_saves = source["has_saves"];
 	    }
 	}
 	export class Platform {

@@ -255,3 +255,75 @@ func (c *Client) GetPlatforms() ([]types.Platform, error) {
 
 	return allPlatforms, nil
 }
+
+// GetRom fetches a single ROM by its ID
+func (c *Client) GetRom(id uint) (types.Game, error) {
+	if c.Token == "" {
+		return types.Game{}, fmt.Errorf("not authenticated")
+	}
+
+	url := fmt.Sprintf("%s/api/roms/%d", c.BaseURL, id)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return types.Game{}, fmt.Errorf("failed to create ROM request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return types.Game{}, fmt.Errorf("failed to perform ROM request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return types.Game{}, fmt.Errorf("ROM fetch failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var game types.Game
+	if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
+		return types.Game{}, fmt.Errorf("failed to decode ROM response: %w", err)
+	}
+
+	return game, nil
+}
+
+// DownloadFile fetches a file from RomM and returns a reader and the filename
+func (c *Client) DownloadFile(romID uint) (io.ReadCloser, string, error) {
+	if c.Token == "" {
+		return nil, "", fmt.Errorf("not authenticated")
+	}
+
+	url := fmt.Sprintf("%s/api/roms/download?rom_ids=%d", c.BaseURL, romID)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to create download request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to perform download request: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		return nil, "", fmt.Errorf("download failed with status %d", resp.StatusCode)
+	}
+
+	// Try to get filename from Content-Disposition
+	filename := ""
+	cd := resp.Header.Get("Content-Disposition")
+	if cd != "" {
+		if strings.Contains(cd, "filename=") {
+			parts := strings.Split(cd, "filename=")
+			if len(parts) > 1 {
+				filename = strings.Trim(parts[1], "\"")
+			}
+		}
+	}
+
+	return resp.Body, filename, nil
+}

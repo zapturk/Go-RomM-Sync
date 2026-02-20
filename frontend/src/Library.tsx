@@ -3,6 +3,7 @@ import { GetLibrary, GetPlatforms } from "../wailsjs/go/main/App";
 import { types } from "../wailsjs/go/models";
 import { GameCard } from "./GameCard";
 import { PlatformCard } from "./PlatformCard";
+import { GamePage } from "./GamePage";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 
 function Library() {
@@ -10,6 +11,7 @@ function Library() {
     const [platforms, setPlatforms] = useState<types.Platform[]>([]);
     const [status, setStatus] = useState("Loading library...");
     const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
+    const [selectedGameId, setSelectedGameId] = useState<number | null>(null);
     const [syncTrigger, setSyncTrigger] = useState(0);
 
     const { ref, focusKey } = useFocusable({
@@ -51,14 +53,19 @@ function Library() {
     // Handle "Back" navigation (Backspace/Escape)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if ((e.code === 'Backspace' || e.code === 'Escape') && selectedPlatform) {
-                e.preventDefault();
-                setSelectedPlatform(null);
+            if (e.code === 'Backspace' || e.code === 'Escape') {
+                if (selectedGameId) {
+                    e.preventDefault();
+                    setSelectedGameId(null);
+                } else if (selectedPlatform) {
+                    e.preventDefault();
+                    setSelectedPlatform(null);
+                }
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedPlatform]);
+    }, [selectedPlatform, selectedGameId]);
 
     // Handle "Refresh" (R key)
     useEffect(() => {
@@ -97,7 +104,7 @@ function Library() {
 
     // Auto-focus first game when platform selected
     useEffect(() => {
-        if (selectedPlatform) {
+        if (selectedPlatform && !selectedGameId) {
             const platform = platforms.find(p => p.name === selectedPlatform);
             if (platform) {
                 const platformGames = getGamesForPlatform(platform);
@@ -109,7 +116,16 @@ function Library() {
                 }
             }
         }
-    }, [selectedPlatform, games, platforms, setFocus]);
+    }, [selectedPlatform, selectedGameId, games, platforms, setFocus]);
+
+    if (selectedGameId) {
+        return (
+            <GamePage
+                gameId={selectedGameId}
+                onBack={() => setSelectedGameId(null)}
+            />
+        );
+    }
 
     return (
         <div id="library" ref={ref}>
@@ -143,6 +159,7 @@ function Library() {
                                 <GameCard
                                     key={game.id}
                                     game={game}
+                                    onClick={() => setSelectedGameId(game.id)}
                                 />
                             ))
                             : <p>No games found (mapping issue?)</p>

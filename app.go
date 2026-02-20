@@ -7,9 +7,12 @@ import (
 	"go-romm-sync/config"
 	"go-romm-sync/romm"
 	"go-romm-sync/types"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
@@ -240,4 +243,133 @@ func getMimeType(ext string) string {
 	default:
 		return "application/octet-stream"
 	}
+}
+
+// GetRom fetches a single ROM from RomM
+func (a *App) GetRom(id uint) (types.Game, error) {
+	return a.rommClient.GetRom(id)
+}
+
+// DownloadRom returns the download URL for a ROM
+func (a *App) DownloadRom(id uint) (string, error) {
+	cfg := a.configManager.GetConfig()
+	if cfg.RommHost == "" {
+		return "", fmt.Errorf("missing RomM host configuration")
+	}
+	// RomM download URL structure: {host}/api/roms/{id}/download
+	downloadURL := fmt.Sprintf("%s/api/roms/%d/download", strings.TrimRight(cfg.RommHost, "/"), id)
+	return downloadURL, nil
+}
+
+// getRomDir returns the local directory where a ROM is stored
+func (a *App) getRomDir(game *types.Game) string {
+	cfg := a.configManager.GetConfig()
+	return filepath.Join(cfg.LibraryPath, filepath.Dir(game.FullPath), fmt.Sprintf("%d", game.ID))
+}
+
+// DownloadRomToLibrary downloads a ROM directly to the configured library path
+func (a *App) DownloadRomToLibrary(id uint) error {
+	cfg := a.configManager.GetConfig()
+	if cfg.LibraryPath == "" {
+		defaultPath, err := config.GetDefaultLibraryPath()
+		if err != nil {
+			return fmt.Errorf("library path is not configured and failed to determine default: %w", err)
+		}
+		cfg.LibraryPath = defaultPath
+		// Save the default path so the user doesn't hit this again
+		if err := a.configManager.Save(cfg); err != nil {
+			fmt.Printf("Warning: failed to save default library path: %v\n", err)
+		}
+	}
+
+	// 1. Get ROM info to know where it belongs
+	game, err := a.rommClient.GetRom(id)
+	if err != nil {
+		return fmt.Errorf("failed to get ROM info: %w", err)
+	}
+
+	// 2. Start download
+	reader, filename, err := a.rommClient.DownloadFile(id)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	if filename == "" {
+		// Fallback to a name derived from game title if header missing
+		filename = game.Title
+	}
+
+	// 3. Determine destination
+	destDir := a.getRomDir(&game)
+	filename = filepath.Base(game.FullPath)
+	destPath := filepath.Join(destDir, filename)
+
+	// 4. Create directory and save file
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	out, err := os.Create(destPath)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, reader)
+	if err != nil {
+		return fmt.Errorf("failed to save file: %w", err)
+	}
+
+	return nil
+}
+
+// GetRomDownloadStatus checks if a ROM has been downloaded to the library
+func (a *App) GetRomDownloadStatus(id uint) (bool, error) {
+	cfg := a.configManager.GetConfig()
+	if cfg.LibraryPath == "" {
+		return false, nil
+	}
+
+	game, err := a.rommClient.GetRom(id)
+	if err != nil {
+		return false, nil // If we can't find the ROM info, assume not downloaded
+	}
+
+	romDir := a.getRomDir(&game)
+
+	if info, err := os.Stat(romDir); err == nil && info.IsDir() {
+		// Check if directory contains at least one file
+		files, err := os.ReadDir(romDir)
+		if err == nil && len(files) > 0 {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// DeleteRom removes a downloaded ROM from the local library
+func (a *App) DeleteRom(id uint) error {
+	cfg := a.configManager.GetConfig()
+	if cfg.LibraryPath == "" {
+		return fmt.Errorf("library path is not configured")
+	}
+
+	game, err := a.rommClient.GetRom(id)
+	if err != nil {
+		return fmt.Errorf("failed to get ROM info for deletion: %w", err)
+	}
+
+	romDir := a.getRomDir(&game)
+
+	if _, err := os.Stat(romDir); err == nil {
+		if err := os.RemoveAll(romDir); err != nil {
+			runtime.LogErrorf(a.ctx, "DeleteRom: Error during RemoveAll for ID %d: %v", id, err)
+			return fmt.Errorf("failed to delete ROM directory: %w", err)
+		}
+		runtime.LogInfof(a.ctx, "DeleteRom: Successfully deleted ROM %d from library", id)
+	}
+
+	return nil
 }
