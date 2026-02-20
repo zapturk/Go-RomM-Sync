@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import './App.css';
 import LoginView from './Login';
 import Library from './Library';
+import Settings from './Settings';
 import { Login } from "../wailsjs/go/main/App";
 import { init } from '@noriginmedia/norigin-spatial-navigation';
 import { useGamepad } from './useGamepad';
@@ -10,6 +11,7 @@ import './inputMode'; // Activate input mode tracking
 function App() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [view, setView] = useState<'library' | 'settings'>('library');
 
     useGamepad();
 
@@ -34,6 +36,22 @@ function App() {
             });
     }, []);
 
+    // Global back handling (only when logged in)
+    useEffect(() => {
+        if (!isLoggedIn) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.code === 'Backspace' || e.code === 'Escape') {
+                if (view === 'settings') {
+                    e.preventDefault();
+                    setView('library');
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isLoggedIn, view]);
+
     if (isLoading) {
         return (
             <div id="App" className="loading-screen">
@@ -47,7 +65,14 @@ function App() {
             {!isLoggedIn ? (
                 <LoginView onLoginSuccess={() => setIsLoggedIn(true)} />
             ) : (
-                <Library />
+                <>
+                    <div className={view === 'settings' ? '' : 'hidden-view'}>
+                        <Settings />
+                    </div>
+                    <div className={view === 'library' ? '' : 'hidden-view'}>
+                        <Library onOpenSettings={() => setView('settings')} />
+                    </div>
+                </>
             )}
         </div>
     );

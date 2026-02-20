@@ -57,33 +57,36 @@ func (a *App) GetConfig() types.AppConfig {
 
 // SaveConfig saves the configuration
 func (a *App) SaveConfig(cfg types.AppConfig) string {
-	// Preserve existing paths if they are empty in the incoming config (simple merge strategy)
 	current := a.configManager.GetConfig()
-	if cfg.LibraryPath == "" {
-		cfg.LibraryPath = current.LibraryPath
-	}
-	if cfg.RetroArchPath == "" {
-		cfg.RetroArchPath = current.RetroArchPath
-	}
-	if cfg.RetroArchExecutable == "" {
-		cfg.RetroArchExecutable = current.RetroArchExecutable
-	}
-	if cfg.CheevosUsername == "" {
-		cfg.CheevosUsername = current.CheevosUsername
-	}
-	if cfg.CheevosPassword == "" {
-		cfg.CheevosPassword = current.CheevosPassword
-	}
+	oldHost := current.RommHost
 
-	err := a.configManager.Save(cfg)
-	if err != nil {
+	// Update fields if provided
+	updateIfNotEmpty(&current.RommHost, cfg.RommHost)
+	updateIfNotEmpty(&current.Username, cfg.Username)
+	updateIfNotEmpty(&current.Password, cfg.Password)
+	updateIfNotEmpty(&current.LibraryPath, cfg.LibraryPath)
+	updateIfNotEmpty(&current.RetroArchPath, cfg.RetroArchPath)
+	updateIfNotEmpty(&current.RetroArchExecutable, cfg.RetroArchExecutable)
+	updateIfNotEmpty(&current.CheevosUsername, cfg.CheevosUsername)
+	updateIfNotEmpty(&current.CheevosPassword, cfg.CheevosPassword)
+
+	if err := a.configManager.Save(current); err != nil {
 		return fmt.Sprintf("Error saving config: %s", err.Error())
 	}
 
-	// Update client in case host changed
-	a.rommClient = romm.NewClient(cfg.RommHost)
+	// Update client only if host changed to preserve session token
+	if current.RommHost != oldHost {
+		a.rommClient = romm.NewClient(current.RommHost)
+	}
 
 	return "Configuration saved successfully!"
+}
+
+// updateIfNotEmpty is a helper to only update a field if the new value is not empty
+func updateIfNotEmpty(target *string, value string) {
+	if value != "" {
+		*target = value
+	}
 }
 
 // Login authenticates with the RomM server
