@@ -109,3 +109,7 @@ export function UploadSave(arg1, arg2, arg3) {
 export function UploadState(arg1, arg2, arg3) {
   return window['go']['main']['App']['UploadState'](arg1, arg2, arg3);
 }
+
+export function ValidateAssetPath(arg1, arg2) {
+  return window['go']['main']['App']['ValidateAssetPath'](arg1, arg2);
+}

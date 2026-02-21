@@ -478,40 +478,22 @@ func (a *App) DeleteState(id uint, core, filename string) error {
 
 // UploadSave reads a local save file and uploads it to RomM
 func (a *App) UploadSave(id uint, core, filename string) error {
-	game, err := a.rommClient.GetRom(id)
-	if err != nil {
-		return fmt.Errorf("failed to get ROM info: %w", err)
-	}
-
-	romDir := a.getRomDir(&game)
-	baseDir := filepath.Join(romDir, "saves")
-	filePath := filepath.Join(baseDir, core, filename)
-
-	cleanPath := filepath.Clean(filePath)
-	cleanBase := filepath.Clean(baseDir)
-
-	rel, err := filepath.Rel(cleanBase, cleanPath)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		return fmt.Errorf("invalid path traversal detected")
-	}
-
-	content, err := os.ReadFile(cleanPath)
-	if err != nil {
-		return fmt.Errorf("failed to read local save file: %w", err)
-	}
-
-	return a.rommClient.UploadSave(id, core, filename, content)
+	return a.uploadServerAsset(id, core, filename, "saves")
 }
 
 // UploadState reads a local save state file and uploads it to RomM
 func (a *App) UploadState(id uint, core, filename string) error {
+	return a.uploadServerAsset(id, core, filename, "states")
+}
+
+func (a *App) uploadServerAsset(id uint, core, filename, subDir string) error {
 	game, err := a.rommClient.GetRom(id)
 	if err != nil {
 		return fmt.Errorf("failed to get ROM info: %w", err)
 	}
 
 	romDir := a.getRomDir(&game)
-	baseDir := filepath.Join(romDir, "states")
+	baseDir := filepath.Join(romDir, subDir)
 	filePath := filepath.Join(baseDir, core, filename)
 
 	cleanPath := filepath.Clean(filePath)
@@ -524,9 +506,12 @@ func (a *App) UploadState(id uint, core, filename string) error {
 
 	content, err := os.ReadFile(cleanPath)
 	if err != nil {
-		return fmt.Errorf("failed to read local state file: %w", err)
+		return fmt.Errorf("failed to read local %s file: %w", subDir, err)
 	}
 
+	if subDir == "saves" {
+		return a.rommClient.UploadSave(id, core, filename, content)
+	}
 	return a.rommClient.UploadState(id, core, filename, content)
 }
 
@@ -690,14 +675,30 @@ func (a *App) GetServerStates(id uint) ([]types.ServerState, error) {
 
 // DownloadServerSave downloads a save from RomM and puts it in the local saves dir
 func (a *App) DownloadServerSave(gameID uint, filePath string, core string, filename string) error {
+	return a.downloadServerAsset(gameID, filePath, core, filename, "saves")
+}
+
+// DownloadServerState downloads a state from RomM and puts it in the local states dir
+func (a *App) DownloadServerState(gameID uint, filePath string, core string, filename string) error {
+	return a.downloadServerAsset(gameID, filePath, core, filename, "states")
+}
+
+func (a *App) downloadServerAsset(gameID uint, filePath string, core string, filename string, subDir string) error {
 	game, err := a.rommClient.GetRom(gameID)
 	if err != nil {
 		return fmt.Errorf("failed to get ROM info: %w", err)
 	}
 
-	reader, serverFilename, err := a.rommClient.DownloadSave(filePath)
+	var reader io.ReadCloser
+	var serverFilename string
+	if subDir == "saves" {
+		reader, serverFilename, err = a.rommClient.DownloadSave(filePath)
+	} else {
+		reader, serverFilename, err = a.rommClient.DownloadState(filePath)
+	}
+
 	if err != nil {
-		return fmt.Errorf("failed to download save from server: %w", err)
+		return fmt.Errorf("failed to download %s from server: %w", subDir, err)
 	}
 	defer reader.Close()
 
@@ -705,8 +706,22 @@ func (a *App) DownloadServerSave(gameID uint, filePath string, core string, file
 		filename = serverFilename
 	}
 
+	// Sanitize and Validate
+	core, filename, err = a.ValidateAssetPath(core, filename)
+	if err != nil {
+		return err
+	}
+
 	romDir := a.getRomDir(&game)
-	destDir := filepath.Join(romDir, "saves", core)
+	baseDir := filepath.Join(romDir, subDir)
+	destDir := filepath.Join(baseDir, core)
+
+	// Final safety check
+	rel, err := filepath.Rel(baseDir, destDir)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return fmt.Errorf("invalid path traversal detected")
+	}
+
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
@@ -714,50 +729,27 @@ func (a *App) DownloadServerSave(gameID uint, filePath string, core string, file
 	destPath := filepath.Join(destDir, filename)
 	out, err := os.Create(destPath)
 	if err != nil {
-		return fmt.Errorf("failed to create local save file: %w", err)
+		return fmt.Errorf("failed to create local %s file: %w", subDir, err)
 	}
 	defer out.Close()
 
 	if _, err := io.Copy(out, reader); err != nil {
-		return fmt.Errorf("failed to write local save file: %w", err)
+		return fmt.Errorf("failed to write local %s file: %w", subDir, err)
 	}
 
 	return nil
 }
 
-// DownloadServerState downloads a state from RomM and puts it in the local states dir
-func (a *App) DownloadServerState(gameID uint, filePath string, core string, filename string) error {
-	game, err := a.rommClient.GetRom(gameID)
-	if err != nil {
-		return fmt.Errorf("failed to get ROM info: %w", err)
+func (a *App) ValidateAssetPath(core, filename string) (string, string, error) {
+	core = filepath.Base(filepath.Clean(core))
+	if core == "." || core == ".." {
+		return "", "", fmt.Errorf("invalid core name")
 	}
 
-	reader, serverFilename, err := a.rommClient.DownloadState(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to download state from server: %w", err)
-	}
-	defer reader.Close()
-
-	if filename == "" {
-		filename = serverFilename
+	filename = filepath.Base(filepath.Clean(filename))
+	if filename == "." || filename == ".." {
+		return "", "", fmt.Errorf("invalid filename")
 	}
 
-	romDir := a.getRomDir(&game)
-	destDir := filepath.Join(romDir, "states", core)
-	if err := os.MkdirAll(destDir, 0755); err != nil {
-		return fmt.Errorf("failed to create destination directory: %w", err)
-	}
-
-	destPath := filepath.Join(destDir, filename)
-	out, err := os.Create(destPath)
-	if err != nil {
-		return fmt.Errorf("failed to create local state file: %w", err)
-	}
-	defer out.Close()
-
-	if _, err := io.Copy(out, reader); err != nil {
-		return fmt.Errorf("failed to write local state file: %w", err)
-	}
-
-	return nil
+	return core, filename, nil
 }

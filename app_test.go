@@ -77,3 +77,30 @@ func TestRommClientLifecycle(t *testing.T) {
 		t.Errorf("Expected client URL http://host2.com, got %s", app.rommClient.BaseURL)
 	}
 }
+func TestPathTraversalValidation(t *testing.T) {
+	app := &App{}
+
+	tests := []struct {
+		name     string
+		core     string
+		filename string
+		wantErr  bool
+	}{
+		{"Valid", "snes", "save.sav", false},
+		{"Traversal Core", "../outside", "save.sav", false},                   // sanitized to "outside"
+		{"Traversal Filename", "snes", "../outside.sav", false},               // sanitized to "outside.sav"
+		{"Absolute Core Windows", "C:\\Windows\\System32", "save.sav", false}, // sanitized to "System32"
+		{"Current Dir Core", ".", "save.sav", true},
+		{"Double Dot Core", "..", "save.sav", true},
+		{"Empty Core", "", "save.sav", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, err := app.ValidateAssetPath(tt.core, tt.filename)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateAssetPath() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

@@ -6,27 +6,14 @@ import { PlatformCard } from "./PlatformCard";
 import { GamePage } from "./GamePage";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
+import { SettingsIcon } from './components/Icons';
 
-const SettingsIcon = ({ size = 24 }: { size?: number }) => (
-    <svg
-        width={size}
-        height={size}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-    >
-        <circle cx="12" cy="12" r="3" />
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
-);
 interface LibraryProps {
     onOpenSettings: () => void;
+    isActive?: boolean;
 }
 
-function Library({ onOpenSettings }: LibraryProps) {
+function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     const [games, setGames] = useState<types.Game[]>([]);
     const [platforms, setPlatforms] = useState<types.Platform[]>([]);
     const [status, setStatus] = useState("Loading library...");
@@ -79,10 +66,10 @@ function Library({ onOpenSettings }: LibraryProps) {
         refreshLibrary();
     }, []);
 
-    // Handle "Back" navigation (Backspace/Escape)
+    // Handle "Back" navigation (Escape only)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.code === 'Backspace' || e.code === 'Escape') {
+            if (e.code === 'Escape') {
                 if (selectedGameId) {
                     e.preventDefault();
                     setSelectedGameId(null);
@@ -99,14 +86,20 @@ function Library({ onOpenSettings }: LibraryProps) {
     // Handle "Refresh" (R key)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'r' || e.key === 'R') {
+            if (!isActive) return;
+
+            // Don't trigger sync if we're typing in an input
+            const activeElement = document.activeElement;
+            const isTyping = activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA';
+
+            if (!isTyping && (e.key === 'r' || e.key === 'R')) {
                 e.preventDefault();
                 refreshLibrary();
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, []);
+    }, [isActive]);
 
     // Handle "Exit" (Alt+F4 or similar)
     useEffect(() => {

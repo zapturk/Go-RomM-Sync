@@ -60,7 +60,7 @@ function App() {
         if (!isLoggedIn || isPlaying) return;
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.code === 'Backspace' || e.code === 'Escape') {
+            if (e.code === 'Escape') {
                 if (view === 'settings') {
                     e.preventDefault();
                     setView('library');
@@ -102,7 +102,10 @@ function App() {
                         <Settings />
                     </div>
                     <div className={view === 'library' ? '' : 'hidden-view'}>
-                        <Library onOpenSettings={() => setView('settings')} />
+                        <Library
+                            onOpenSettings={() => setView('settings')}
+                            isActive={view === 'library'}
+                        />
                     </div>
                 </>
             )}

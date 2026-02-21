@@ -55,3 +55,5 @@ export function SelectRetroArchExecutable():Promise<string>;
 export function UploadSave(arg1:number,arg2:string,arg3:string):Promise<void>;
 
 export function UploadState(arg1:number,arg2:string,arg3:string):Promise<void>;
+
+export function ValidateAssetPath(arg1:string,arg2:string):Promise<string>;

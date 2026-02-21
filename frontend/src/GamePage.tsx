@@ -291,7 +291,11 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key.toLowerCase() === 'r') {
+            // Don't trigger sync if we're typing in an input
+            const activeElement = document.activeElement;
+            const isTyping = activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA';
+
+            if (!isTyping && e.key.toLowerCase() === 'r') {
                 handleSmartSync();
             }
         };
