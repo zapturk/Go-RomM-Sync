@@ -233,6 +233,7 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 			wailsRuntime.EventsEmit(ctx, "game-exited", nil)
 		}()
 
+		wailsRuntime.EventsEmit(ctx, "game-started", nil)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			fmt.Printf("\n--- RETROARCH CRASHED ---\nError: %v\nOutput: %s\n", err, string(out))

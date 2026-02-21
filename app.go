@@ -484,9 +484,18 @@ func (a *App) UploadSave(id uint, core, filename string) error {
 	}
 
 	romDir := a.getRomDir(&game)
-	filePath := filepath.Join(romDir, "saves", core, filename)
+	baseDir := filepath.Join(romDir, "saves")
+	filePath := filepath.Join(baseDir, core, filename)
 
-	content, err := os.ReadFile(filePath)
+	cleanPath := filepath.Clean(filePath)
+	cleanBase := filepath.Clean(baseDir)
+
+	rel, err := filepath.Rel(cleanBase, cleanPath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return fmt.Errorf("invalid path traversal detected")
+	}
+
+	content, err := os.ReadFile(cleanPath)
 	if err != nil {
 		return fmt.Errorf("failed to read local save file: %w", err)
 	}
@@ -502,9 +511,18 @@ func (a *App) UploadState(id uint, core, filename string) error {
 	}
 
 	romDir := a.getRomDir(&game)
-	filePath := filepath.Join(romDir, "states", core, filename)
+	baseDir := filepath.Join(romDir, "states")
+	filePath := filepath.Join(baseDir, core, filename)
 
-	content, err := os.ReadFile(filePath)
+	cleanPath := filepath.Clean(filePath)
+	cleanBase := filepath.Clean(baseDir)
+
+	rel, err := filepath.Rel(cleanBase, cleanPath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return fmt.Errorf("invalid path traversal detected")
+	}
+
+	content, err := os.ReadFile(cleanPath)
 	if err != nil {
 		return fmt.Errorf("failed to read local state file: %w", err)
 	}
@@ -519,10 +537,28 @@ func (a *App) deleteGameFile(id uint, subDir, core, filename string) error {
 	}
 
 	romDir := a.getRomDir(&game)
-	filePath := filepath.Join(romDir, subDir, core, filename)
+	baseDir := filepath.Join(romDir, subDir)
+	filePath := filepath.Join(baseDir, core, filename)
 
-	if _, err := os.Stat(filePath); err == nil {
-		return os.Remove(filePath)
+	cleanPath := filepath.Clean(filePath)
+	cleanBase := filepath.Clean(baseDir)
+
+	rel, err := filepath.Rel(cleanBase, cleanPath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return fmt.Errorf("invalid path traversal detected")
+	}
+
+	_, err = os.Stat(cleanPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to access file %s: %w", cleanPath, err)
+	}
+
+	err = os.Remove(cleanPath)
+	if err != nil {
+		return fmt.Errorf("failed to delete file %s: %w", cleanPath, err)
 	}
 	return nil
 }

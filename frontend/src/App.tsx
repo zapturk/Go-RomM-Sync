@@ -12,11 +12,30 @@ function App() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [view, setView] = useState<'library' | 'settings'>('library');
+    const [isPlaying, setIsPlaying] = useState(false);
 
     useGamepad();
 
     useEffect(() => {
         init();
+
+        // @ts-ignore
+        if (window.runtime) {
+            // @ts-ignore
+            window.runtime.EventsOn("game-started", () => setIsPlaying(true));
+            // @ts-ignore
+            window.runtime.EventsOn("game-exited", () => setIsPlaying(false));
+        }
+
+        return () => {
+            // @ts-ignore
+            if (window.runtime) {
+                // @ts-ignore
+                window.runtime.EventsOff("game-started");
+                // @ts-ignore
+                window.runtime.EventsOff("game-exited");
+            }
+        };
     }, []);
 
     useEffect(() => {
@@ -38,7 +57,7 @@ function App() {
 
     // Global back handling (only when logged in)
     useEffect(() => {
-        if (!isLoggedIn) return;
+        if (!isLoggedIn || isPlaying) return;
 
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.code === 'Backspace' || e.code === 'Escape') {
@@ -48,9 +67,22 @@ function App() {
                 }
             }
         };
+        // Use capture phase so we can stop propagation before norigin-spatial-navigation catches it
+        const captureKeyDown = (e: KeyboardEvent) => {
+            if (isPlaying) {
+                e.stopPropagation();
+                e.preventDefault();
+                return;
+            }
+        };
+
         window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isLoggedIn, view]);
+        window.addEventListener('keydown', captureKeyDown, true);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keydown', captureKeyDown, true);
+        };
+    }, [isLoggedIn, view, isPlaying]);
 
     if (isLoading) {
         return (

@@ -3,192 +3,10 @@ import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRom,
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { GameCover } from "./GameCover";
+import { TrashIcon } from "./components/Icons";
+import { FileItemRow } from "./FileItemRow";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
-
-const TrashIcon = ({ size = 24 }: { size?: number }) => (
-    <svg
-        width={size}
-        height={size}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-    >
-        <path d="M3 6h18" />
-        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-        <line x1="10" y1="11" x2="10" y2="17" />
-        <line x1="14" y1="11" x2="14" y2="17" />
-    </svg>
-);
-
-const SaveIcon = ({ size = 20 }: { size?: number }) => (
-    <svg
-        width={size}
-        height={size}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-    >
-        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v13a2 2 0 0 1-2 2z" />
-        <polyline points="17 21 17 13 7 13 7 21" />
-        <polyline points="7 3 7 8 15 8" />
-    </svg>
-);
-
-const UploadIcon = ({ size = 20 }: { size?: number }) => (
-    <svg
-        width={size}
-        height={size}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-    >
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-        <polyline points="17 8 12 3 7 8" />
-        <line x1="12" y1="3" x2="12" y2="15" />
-    </svg>
-);
-
-const SyncIcon = ({ size = 20 }: { size?: number }) => (
-    <svg
-        width={size}
-        height={size}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-    >
-        <polyline points="23 4 23 10 17 10" />
-        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-    </svg>
-);
-
-const DownloadIcon = ({ size = 20 }: { size?: number }) => (
-    <svg
-        width={size}
-        height={size}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-    >
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-        <polyline points="7 10 12 15 17 10" />
-        <line x1="12" y1="15" x2="12" y2="3" />
-    </svg>
-);
-
-const FileItemRow = ({ item, onDelete, onUpload, onDownload, focusKeyPrefix }: { item: any, onDelete?: () => void, onUpload?: () => void, onDownload?: () => void, focusKeyPrefix: string }) => {
-    const { ref: downloadRef, focused: downloadFocused } = useFocusable({
-        focusKey: onDownload ? `${focusKeyPrefix}-download` : undefined,
-        onEnterPress: onDownload,
-        onArrowPress: (direction: string) => {
-            if (direction === 'right' && onDelete) {
-                setFocus(`${focusKeyPrefix}-delete`);
-                return false;
-            }
-            return true;
-        }
-    });
-
-    const { ref: uploadRef, focused: uploadFocused } = useFocusable({
-        focusKey: onUpload ? `${focusKeyPrefix}-upload` : undefined,
-        onEnterPress: onUpload,
-        onArrowPress: (direction: string) => {
-            if (direction === 'right' && onDelete) {
-                setFocus(`${focusKeyPrefix}-delete`);
-                return false;
-            }
-            return true;
-        }
-    });
-
-    const { ref: deleteRef, focused: deleteFocused } = useFocusable({
-        focusKey: onDelete ? `${focusKeyPrefix}-delete` : undefined,
-        onEnterPress: onDelete,
-        onArrowPress: (direction: string) => {
-            if (direction === 'left') {
-                if (onUpload) setFocus(`${focusKeyPrefix}-upload`);
-                else if (onDownload) setFocus(`${focusKeyPrefix}-download`);
-                return false;
-            }
-            return true;
-        }
-    });
-
-    // Provide a default focus receiver if the prefix is targeted directly
-    const { ref: rowRef } = useFocusable({
-        focusKey: focusKeyPrefix,
-        onFocus: () => {
-            if (onUpload) setFocus(`${focusKeyPrefix}-upload`);
-            else if (onDownload) setFocus(`${focusKeyPrefix}-download`);
-            else if (onDelete) setFocus(`${focusKeyPrefix}-delete`);
-        }
-    });
-
-    return (
-        <div className="file-item-row" ref={rowRef}>
-            <span className="file-name" title={item.name || item.file_name}>{item.name || item.file_name}</span>
-            <span className="file-core">{item.core || item.emulator}</span>
-            <div className="file-item-actions">
-                {onDownload && (
-                    <button
-                        className={`file-action-btn file-download-btn ${downloadFocused ? 'focused' : ''}`}
-                        ref={downloadRef}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onDownload();
-                        }}
-                        title="Download from RomM"
-                    >
-                        <DownloadIcon size={16} />
-                    </button>
-                )}
-                {onUpload && (
-                    <button
-                        className={`file-action-btn file-upload-btn ${uploadFocused ? 'focused' : ''}`}
-                        ref={uploadRef}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onUpload();
-                        }}
-                        title="Upload save to RomM"
-                    >
-                        <UploadIcon size={16} />
-                    </button>
-                )}
-                {onDelete && (
-                    <button
-                        className={`file-action-btn file-delete-btn ${deleteFocused ? 'focused' : ''}`}
-                        ref={deleteRef}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onDelete();
-                        }}
-                        title="Delete locally"
-                    >
-                        <TrashIcon size={16} />
-                    </button>
-                )}
-            </div>
-        </div>
-    );
-};
-
 
 interface GamePageProps {
     gameId: number;
@@ -202,8 +20,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const [downloadStatus, setDownloadStatus] = useState<string | null>(null);
     const [isDownloaded, setIsDownloaded] = useState(false);
     const [statusChecked, setStatusChecked] = useState(false);
-    const [saves, setSaves] = useState<any[]>([]);
-    const [states, setStates] = useState<any[]>([]);
+    const [saves, setSaves] = useState<types.FileItem[]>([]);
+    const [states, setStates] = useState<types.FileItem[]>([]);
     const [serverSaves, setServerSaves] = useState<types.ServerSave[]>([]);
     const [serverStates, setServerStates] = useState<types.ServerState[]>([]);
 
@@ -269,7 +87,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 setIsDownloaded(false);
                 setDownloadStatus("ROM deleted from library.");
                 setTimeout(() => focusDownload(), 100);
-            }).catch((err: any) => {
+            }).catch((err: string) => {
                 setDownloadStatus(`Delete error: ${err}`);
             });
         },
@@ -298,7 +116,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 // Fetch saves and states
                 fetchAppData();
             })
-            .catch((err: any) => {
+            .catch((err: string) => {
                 setDownloadStatus(`Error fetching game: ${err}`);
             })
             .finally(() => {
@@ -337,7 +155,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 }, 50);
             }).catch(console.error);
             setDownloadStatus("Save deleted.");
-        }).catch(err => setDownloadStatus(`Error deleting save: ${err}`));
+        }).catch((err: string) => setDownloadStatus(`Error deleting save: ${err}`));
     };
 
     const handleDeleteState = (core: string, name: string, index: number) => {
@@ -357,7 +175,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 }, 50);
             }).catch(console.error);
             setDownloadStatus("State deleted.");
-        }).catch(err => setDownloadStatus(`Error deleting state: ${err}`));
+        }).catch((err: string) => setDownloadStatus(`Error deleting state: ${err}`));
     };
 
     const handleUploadSave = (core: string, name: string) => {
@@ -365,7 +183,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         UploadSave(gameId, core, name).then(() => {
             setDownloadStatus("Save uploaded successfully to RomM!");
             fetchAppData(); // Refresh server save list
-        }).catch((err: any) => {
+        }).catch((err: string) => {
             setDownloadStatus(`Upload error: ${err}`);
         });
     };
@@ -375,7 +193,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         UploadState(gameId, core, name).then(() => {
             setDownloadStatus("State uploaded successfully to RomM!");
             fetchAppData(); // Refresh server state list
-        }).catch((err: any) => {
+        }).catch((err: string) => {
             setDownloadStatus(`Upload error: ${err}`);
         });
     };
@@ -386,7 +204,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         DownloadServerSave(gameId, save.full_path, save.emulator, cleanFileName).then(() => {
             setDownloadStatus("Server save downloaded successfully!");
             fetchAppData(); // Refresh local saves list
-        }).catch((err: any) => {
+        }).catch((err: string) => {
             setDownloadStatus(`Download error: ${err}`);
         });
     };
@@ -397,7 +215,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         DownloadServerState(gameId, state.full_path, state.emulator, cleanFileName).then(() => {
             setDownloadStatus("Server state downloaded successfully!");
             fetchAppData(); // Refresh local states list
-        }).catch((err: any) => {
+        }).catch((err: string) => {
             setDownloadStatus(`Download error: ${err}`);
         });
     };
