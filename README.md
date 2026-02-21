@@ -1,3 +1,9 @@
+<p align="center">
+  <img src="build/appicon.png" alt="Go-RomM-Sync Icon" width="128">
+  <br>
+  <em>A seamless bridge between RomM and RetroArch for a console-like gaming experience.</em>
+</p>
+
 # Go-RomM-Sync
 
 > [!IMPORTANT]
