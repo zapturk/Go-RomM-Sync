@@ -1,3 +1,9 @@
+<p align="center">
+  <img src=".github/assets/appicon.png" alt="Go-RomM-Sync Icon" width="128">
+  <br>
+  <em>A seamless bridge between RomM and RetroArch for a console-like gaming experience.</em>
+</p>
+
 # Go-RomM-Sync
 
 > [!IMPORTANT]
@@ -17,7 +23,23 @@ Go-RomM-Sync is a desktop application built with Wails and React that synchroniz
 
 ## Screenshots
 
-*(Coming Soon: High-quality screenshots of the interface and navigation)*
+<p align="center">
+  <img src=".github/assets/platforms.png" alt="Platform Selection" width="800">
+  <br>
+  <em>Platform Selection Screen</em>
+</p>
+
+<p align="center">
+  <img src=".github/assets/games_list.png" alt="Game Selection" width="800">
+  <br>
+  <em>Game Selection for Game Boy Advance</em>
+</p>
+
+<p align="center">
+  <img src=".github/assets/game_page.png" alt="Game Detail Page" width="800">
+  <br>
+  <em>Game Detail Page with Server and Local Saves</em>
+</p>
 
 ## Technology Stack
 
@@ -82,6 +104,6 @@ wails build -tags webkit2_41
 
 ## Roadmap
 
-- [ ] **Save Syncing Management**: Bidirectional synchronization of saves and states between local storage and RomM.
+- [x] **Save Syncing Management**: Bidirectional synchronization of saves and states between local storage and RomM.
 - [ ] **Detailed Achievements**: View RetroAchievements progress and badges directly on the game page.
 - [ ] **Advanced Filtering**: Filter games by genre, platform, or download status.
