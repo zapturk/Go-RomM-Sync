@@ -38,3 +38,7 @@ frontend/dist
 .DS_Store
 config.json
 go-romm-sync
+
+# OpenAPI
+openapi.json
+tmp_romm/
