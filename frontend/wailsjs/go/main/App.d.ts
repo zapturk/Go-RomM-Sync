@@ -41,7 +41,9 @@ export function GetPlatformCover(arg1:number,arg2:string):Promise<string>;
 
 export function GetPlatforms():Promise<Array<types.Platform>>;
 
-export function GetRetroArchPath():Promise<string>;
+export function GetRetroArchDirectory():Promise<string>;
+
+export function GetRetroArchExecutable():Promise<string>;
 
 export function GetRom(arg1:number):Promise<types.Game>;
 

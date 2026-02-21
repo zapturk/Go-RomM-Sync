@@ -13,7 +13,8 @@ import (
 // ConfigProvider defines the configuration needed for launching games.
 type ConfigProvider interface {
 	GetLibraryPath() string
-	GetRetroArchPath() string
+	GetRetroArchDirectory() string
+	GetRetroArchExecutable() string
 	GetCheevosCredentials() (string, string)
 }
 
@@ -79,9 +80,11 @@ func (l *Launcher) PlayRom(id uint) error {
 	}
 
 	// 3. Check if RetroArch is Configured
-	exePath := l.config.GetRetroArchPath()
-	if exePath == "" {
+	raPath := l.config.GetRetroArchDirectory()
+	exePath := l.config.GetRetroArchExecutable()
+	if raPath == "" || exePath == "" {
 		// Prompt user manually if they haven't set it yet
+		var err error
 		exePath, err = l.ui.SelectRetroArchExecutable()
 		if err != nil {
 			return fmt.Errorf("retroarch not configured: %w", err)
@@ -89,6 +92,8 @@ func (l *Launcher) PlayRom(id uint) error {
 		if exePath == "" {
 			return fmt.Errorf("launch cancelled: RetroArch executable not selected")
 		}
+		// raPath will be updated in config after SelectRetroArchExecutable
+		raPath = l.config.GetRetroArchDirectory()
 	} else {
 		// Verify the configured path exists
 		if _, err := os.Stat(exePath); err != nil {
@@ -104,7 +109,7 @@ func (l *Launcher) PlayRom(id uint) error {
 	// The lifecycle of hiding/showing window is CURRENTLY inside retroarch.Launch's goroutine.
 	// We'll keep that for now to minimize changes to retroarch package.
 
-	err = retroarch.Launch(l.ctx, exePath, romPath, cheevosUser, cheevosPass)
+	err = retroarch.Launch(l.ctx, raPath, exePath, romPath, cheevosUser, cheevosPass)
 	if err != nil {
 		return fmt.Errorf("failed to launch game: %w", err)
 	}

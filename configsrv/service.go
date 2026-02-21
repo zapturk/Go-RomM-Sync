@@ -3,7 +3,9 @@ package configsrv
 import (
 	"fmt"
 	"go-romm-sync/types"
+	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 // ConfigManager defines the interface for managing the app configuration.
@@ -46,8 +48,22 @@ func (s *Service) SaveConfig(cfg types.AppConfig) (string, bool) {
 	updateIfNotEmpty(&current.Username, cfg.Username)
 	updateIfNotEmpty(&current.Password, cfg.Password)
 	updateIfNotEmpty(&current.LibraryPath, cfg.LibraryPath)
-	updateIfNotEmpty(&current.RetroArchPath, cfg.RetroArchPath)
-	updateIfNotEmpty(&current.RetroArchExecutable, cfg.RetroArchExecutable)
+
+	// Robust RetroArch path handling: Derive directory from executable if provided
+	if cfg.RetroArchExecutable != "" {
+		current.RetroArchExecutable = cfg.RetroArchExecutable
+		current.RetroArchPath = filepath.Dir(cfg.RetroArchExecutable)
+	} else if cfg.RetroArchPath != "" {
+		// If only path is provided, check if it's an executable
+		ext := filepath.Ext(cfg.RetroArchPath)
+		if ext == ".exe" || ext == ".app" || strings.HasSuffix(cfg.RetroArchPath, "retroarch") {
+			current.RetroArchExecutable = cfg.RetroArchPath
+			current.RetroArchPath = filepath.Dir(cfg.RetroArchPath)
+		} else {
+			current.RetroArchPath = cfg.RetroArchPath
+		}
+	}
+
 	updateIfNotEmpty(&current.CheevosUsername, cfg.CheevosUsername)
 	updateIfNotEmpty(&current.CheevosPassword, cfg.CheevosPassword)
 
@@ -79,7 +95,8 @@ func (s *Service) SelectRetroArchExecutable() (string, error) {
 
 	if selectedFile != "" {
 		cfg := s.cm.ConfigGetConfig()
-		cfg.RetroArchPath = selectedFile
+		cfg.RetroArchExecutable = selectedFile
+		cfg.RetroArchPath = filepath.Dir(selectedFile)
 		if err = s.cm.ConfigSave(cfg); err != nil {
 			return "", fmt.Errorf("failed to save config: %w", err)
 		}

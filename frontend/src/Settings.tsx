@@ -23,7 +23,7 @@ function Settings() {
         GetConfig().then((cfg) => {
             console.log("Settings loaded config:", cfg);
             setConfig(cfg);
-            setRaPath(cfg.retroarch_path || '');
+            setRaPath(cfg.retroarch_executable || cfg.retroarch_path || '');
             setLibPath(cfg.library_path || '');
             setCheevosUser(cfg.cheevos_username || '');
             setCheevosPass(cfg.cheevos_password || '');
@@ -56,7 +56,7 @@ function Settings() {
 
         // We only send the updated fields, the backend SaveConfig handles merging
         const updatedConfig = new types.AppConfig({
-            retroarch_path: raPath,
+            retroarch_executable: raPath,
             library_path: libPath,
             cheevos_username: cheevosUser,
             cheevos_password: cheevosPass

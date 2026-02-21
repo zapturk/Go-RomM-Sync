@@ -26,10 +26,10 @@ func TestSaveConfigMerge(t *testing.T) {
 
 	app := NewApp(cm)
 
-	// 1. Test partial update
+	// 1. Test partial update with RetroArch executable
 	update := types.AppConfig{
-		Username: "new-user",
-		// RommHost is empty, should be preserved
+		Username:            "new-user",
+		RetroArchExecutable: "C:\\RetroArch\\retroarch.exe",
 	}
 
 	res := app.SaveConfig(update)
@@ -42,7 +42,26 @@ func TestSaveConfigMerge(t *testing.T) {
 		t.Errorf("Expected username new-user, got %s", finalCfg.Username)
 	}
 	if finalCfg.RommHost != "http://initial.com" {
-		t.Errorf("Expected host to be preserved as http://initial.com, got %s", finalCfg.RommHost)
+		t.Errorf("Expected host to be preserved, got %s", finalCfg.RommHost)
+	}
+	if finalCfg.RetroArchExecutable != "C:\\RetroArch\\retroarch.exe" {
+		t.Errorf("Expected executable C:\\RetroArch\\retroarch.exe, got %s", finalCfg.RetroArchExecutable)
+	}
+	if finalCfg.RetroArchPath != "C:\\RetroArch" {
+		t.Errorf("Expected path C:\\RetroArch, got %s", finalCfg.RetroArchPath)
+	}
+
+	// 2. Test fix-up when executable is passed in the path field
+	update2 := types.AppConfig{
+		RetroArchPath: "D:\\RA\\retroarch.exe",
+	}
+	app.SaveConfig(update2)
+	finalCfg2 := cm.GetConfig()
+	if finalCfg2.RetroArchExecutable != "D:\\RA\\retroarch.exe" {
+		t.Errorf("Expected executable D:\\RA\\retroarch.exe, got %s", finalCfg2.RetroArchExecutable)
+	}
+	if finalCfg2.RetroArchPath != "D:\\RA" {
+		t.Errorf("Expected path D:\\RA, got %s", finalCfg2.RetroArchPath)
 	}
 }
 

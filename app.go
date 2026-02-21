@@ -195,8 +195,12 @@ func (a *App) SaveDefaultLibraryPath(path string) error {
 	return a.configManager.Save(cfg)
 }
 
-func (a *App) GetRetroArchPath() string {
+func (a *App) GetRetroArchDirectory() string {
 	return a.configManager.GetConfig().RetroArchPath
+}
+
+func (a *App) GetRetroArchExecutable() string {
+	return a.configManager.GetConfig().RetroArchExecutable
 }
 
 func (a *App) GetCheevosCredentials() (string, string) {

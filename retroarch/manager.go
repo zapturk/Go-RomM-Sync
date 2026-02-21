@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -82,19 +83,23 @@ func getCoreExt() string {
 }
 
 // Launch launches RetroArch for the given ROM path, given the selected executable.
-func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass string) error {
-	baseDir := filepath.Dir(exePath)
+func Launch(ctx context.Context, raPath, exePath, romPath, cheevosUser, cheevosPass string) error {
+	// Scrub the token from the main config before launching to avoid "Token Expired" issues.
+	if err := ScrubRetroArchToken(raPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to scrub RetroAchievements token: %v\n", err)
+	}
+
 	if runtime.GOOS == "darwin" {
 		if strings.HasSuffix(exePath, ".app") {
-			// If they selected the macOS .app bundle, use it as baseDir and find actual binary
-			baseDir = exePath
-			exePath = filepath.Join(exePath, "Contents", "MacOS", "RetroArch")
+			// If they selected the macOS .app bundle, use it as raPath and find actual binary
+			raPath = exePath
+			exePath = filepath.Join(raPath, "Contents", "MacOS", "RetroArch")
 		} else if strings.Contains(exePath, ".app/Contents/MacOS") {
 			// If they selected the binary inside the .app bundle
-			baseDir = filepath.Dir(filepath.Dir(filepath.Dir(exePath)))
+			raPath = filepath.Dir(filepath.Dir(filepath.Dir(exePath)))
 		}
 	}
-	coresDir := filepath.Join(baseDir, "cores")
+	coresDir := filepath.Join(raPath, "cores")
 
 	// Determine Core from extension
 	ext := strings.ToLower(filepath.Ext(romPath))
@@ -214,7 +219,7 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 	args = append(args, romPath)
 
 	cmd := exec.Command(exePath, args...)
-	cmd.Dir = baseDir // run in the retroarch dir so it finds its config
+	cmd.Dir = raPath // run in the retroarch dir so it finds its config
 
 	// Run in a goroutine so we don't block the Wails UI, but we can capture the output
 	go func() {
@@ -347,5 +352,33 @@ func unzipCore(src, dest string) error {
 			return err
 		}
 	}
+	return nil
+}
+
+// ScrubRetroArchToken removes the cheevos_token from retroarch.cfg to force a fresh login with credentials.
+func ScrubRetroArchToken(raPath string) error {
+	configPath := filepath.Join(raPath, "retroarch.cfg")
+
+	// Read config file
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read retroarch.cfg: %w", err)
+	}
+
+	content := string(data)
+	// Regex to match cheevos_token = "..." with optional whitespace
+	re := regexp.MustCompile(`(?m)^cheevos_token\s*=\s*".*?"`)
+	newContent := re.ReplaceAllString(content, `cheevos_token = ""`)
+
+	if content == newContent {
+		return nil // No change needed
+	}
+
+	// Write back
+	err = os.WriteFile(configPath, []byte(newContent), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write retroarch.cfg: %w", err)
+	}
+
 	return nil
 }

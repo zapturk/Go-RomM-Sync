@@ -78,8 +78,12 @@ export function GetPlatforms() {
   return window['go']['main']['App']['GetPlatforms']();
 }
 
-export function GetRetroArchPath() {
-  return window['go']['main']['App']['GetRetroArchPath']();
+export function GetRetroArchDirectory() {
+  return window['go']['main']['App']['GetRetroArchDirectory']();
+}
+
+export function GetRetroArchExecutable() {
+  return window['go']['main']['App']['GetRetroArchExecutable']();
 }
 
 export function GetRom(arg1) {
