@@ -104,6 +104,6 @@ wails build -tags webkit2_41
 
 ## Roadmap
 
-- [ ] **Save Syncing Management**: Bidirectional synchronization of saves and states between local storage and RomM.
+- [x] **Save Syncing Management**: Bidirectional synchronization of saves and states between local storage and RomM.
 - [ ] **Detailed Achievements**: View RetroAchievements progress and badges directly on the game page.
 - [ ] **Advanced Filtering**: Filter games by genre, platform, or download status.
