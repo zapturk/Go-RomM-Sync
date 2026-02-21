@@ -29,6 +29,7 @@ const INPUT_DELAY = 150;
 export function useGamepad() {
     const lastInputTime = useRef(0);
     const requestRef = useRef<number>();
+    const isPlayingRef = useRef(false);
 
     const triggerKey = (key: string) => {
         const now = Date.now();
@@ -39,6 +40,11 @@ export function useGamepad() {
     };
 
     const scanGamepads = () => {
+        if (isPlayingRef.current) {
+            requestRef.current = requestAnimationFrame(scanGamepads);
+            return;
+        }
+
         const gamepads = navigator.getGamepads();
 
         for (const gp of gamepads) {
@@ -58,7 +64,7 @@ export function useGamepad() {
 
             // Actions
             if (gp.buttons[BUTTON_MAPPING.A]?.pressed) triggerKey('Enter');
-            if (gp.buttons[BUTTON_MAPPING.B]?.pressed) triggerKey('Backspace'); // Or Escape
+            if (gp.buttons[BUTTON_MAPPING.B]?.pressed) triggerKey('Escape'); // Consistent with keyboard refined 'Back'
             if (gp.buttons[BUTTON_MAPPING.X]?.pressed) triggerKey('r'); // Refresh/Sync
 
             // Exit (Start + Select/Back)
@@ -75,10 +81,29 @@ export function useGamepad() {
             console.log("Gamepad connected!");
         });
 
+        // @ts-ignore
+        if (window.runtime) {
+            // @ts-ignore
+            window.runtime.EventsOn("game-started", () => {
+                isPlayingRef.current = true;
+            });
+            // @ts-ignore
+            window.runtime.EventsOn("game-exited", () => {
+                isPlayingRef.current = false;
+            });
+        }
+
         requestRef.current = requestAnimationFrame(scanGamepads);
 
         return () => {
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
+            // @ts-ignore
+            if (window.runtime) {
+                // @ts-ignore
+                window.runtime.EventsOff("game-started");
+                // @ts-ignore
+                window.runtime.EventsOff("game-exited");
+            }
         };
     }, []);
 }

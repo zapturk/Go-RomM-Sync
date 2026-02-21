@@ -86,7 +86,22 @@ function Login({ onLoginSuccess }: LoginProps) {
 
     return (
         <div id="login-page" ref={ref} style={{ padding: '2rem 4rem', textAlign: 'left', maxWidth: '900px', margin: '0 auto', height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <div className="nav-header" style={{ marginBottom: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="nav-header" style={{ marginBottom: '2.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
+                <a
+                    href="https://github.com/rommapp/romm"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Visit official RomM GitHub"
+                    style={{ transition: 'transform 0.2s' }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                >
+                    <img
+                        src="https://raw.githubusercontent.com/rommapp/romm/master/.github/resources/isotipo.svg"
+                        alt="RomM Logo"
+                        style={{ height: '80px', width: 'auto' }}
+                    />
+                </a>
                 <h1 style={{ margin: 0, fontSize: '3rem', letterSpacing: '2px', textTransform: 'uppercase' }}>Login</h1>
             </div>
 
@@ -158,6 +173,27 @@ function Login({ onLoginSuccess }: LoginProps) {
                 </div>
             </div>
 
+            <div className="branding-disclaimer" style={{
+                marginTop: 'auto',
+                padding: '2rem 0',
+                textAlign: 'center',
+                fontSize: '0.85rem',
+                color: 'rgba(255,255,255,0.4)',
+                maxWidth: '600px',
+                alignSelf: 'center',
+                lineHeight: '1.4'
+            }}>
+                This project is not affiliated with, endorsed by, or in any way officially connected with the
+                <a
+                    href="https://github.com/rommapp/romm"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: 'inherit', textDecoration: 'underline', marginLeft: '4px' }}
+                >
+                    RomM project
+                </a>.
+            </div>
+
             <div className="input-legend" style={{ position: 'fixed', bottom: 0, left: 0, right: 0 }}>
                 <div className="footer-left">
                     <span>{resultText}</span>
@@ -175,7 +211,7 @@ function Login({ onLoginSuccess }: LoginProps) {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }
 

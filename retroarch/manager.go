@@ -168,36 +168,46 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 
 	// Launch Retroarch
 	// Determine ROM directory for saves/states
+	wailsRuntime.LogInfof(ctx, "Launch: Determining romBaseDir from romPath: %s", romPath)
 	romBaseDir := filepath.Dir(romPath)
 	if strings.Contains(romPath, "#") {
 		// Handle zip archives by taking the part before #
 		romBaseDir = filepath.Dir(strings.Split(romPath, "#")[0])
+		wailsRuntime.LogInfof(ctx, "Launch: Detected zip archive. Base dir set to: %s", romBaseDir)
 	}
+
 	savesDir := filepath.Join(romBaseDir, "saves")
 	statesDir := filepath.Join(romBaseDir, "states")
+	wailsRuntime.LogInfof(ctx, "Launch: Saves dir: %s, States dir: %s", savesDir, statesDir)
 
 	// Ensure directories exist
 	os.MkdirAll(savesDir, 0755)
 	os.MkdirAll(statesDir, 0755)
 
-	// Prepare temporary config for RetroAchievements.
-	// We use --appendconfig to pass these credentials without modifying the user's main RetroArch config.
+	// Prepare temporary config for RetroAchievements and Directories.
+	// We use --appendconfig to pass these settings without modifying the user's main RetroArch config permanently.
 	var appendConfigPath string
-	if cheevosUser != "" && cheevosPass != "" {
-		tmpFile, err := os.CreateTemp("", "retroarch_cheevos_*.cfg")
-		if err == nil {
-			appendConfigPath = tmpFile.Name()
-			content := fmt.Sprintf("cheevos_enable = \"true\"\ncheevos_username = \"%s\"\ncheevos_password = \"%s\"\n",
+	tmpFile, err := os.CreateTemp("", "retroarch_config_*.cfg")
+	if err == nil {
+		appendConfigPath = tmpFile.Name()
+		content := fmt.Sprintf("savefile_directory = \"%s\"\nsavestate_directory = \"%s\"\n", savesDir, statesDir)
+		if cheevosUser != "" && cheevosPass != "" {
+			content += fmt.Sprintf("cheevos_enable = \"true\"\ncheevos_username = \"%s\"\ncheevos_password = \"%s\"\n",
 				cheevosUser, cheevosPass)
-			os.WriteFile(appendConfigPath, []byte(content), 0644)
-			tmpFile.Close()
 		}
+		// Ensure RetroArch doesn't save these temporary paths back to the main config on exit
+		content += "config_save_on_exit = \"false\"\n"
+
+		os.WriteFile(appendConfigPath, []byte(content), 0644)
+		tmpFile.Close()
+		wailsRuntime.LogInfof(ctx, "Launch: Created temporary config at: %s with content:\n%s", appendConfigPath, content)
 	}
 
-	fmt.Printf("--- PRE-LAUNCH CHECK ---\nExe: '%s'\nCore: '%s'\nROM: '%s'\nSaves: '%s'\nStates: '%s'\n",
-		exePath, corePath, romPath, savesDir, statesDir)
+	fmt.Fprintln(os.Stderr, "--- PRE-LAUNCH CHECK ---")
+	fmt.Fprintf(os.Stderr, "Exe: '%s'\nCore: '%s'\nROM: '%s'\nSaves: '%s'\nStates: '%s'\nAppend: '%s'\n",
+		exePath, corePath, romPath, savesDir, statesDir, appendConfigPath)
 
-	args := []string{"-L", corePath, "-f", "-v", "-s", savesDir, "-S", statesDir}
+	args := []string{"-L", corePath, "-f", "-v"}
 	if appendConfigPath != "" {
 		args = append(args, "--appendconfig", appendConfigPath)
 	}
@@ -220,8 +230,10 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 			wailsRuntime.WindowUnminimise(ctx)
 			wailsRuntime.WindowSetAlwaysOnTop(ctx, true)
 			wailsRuntime.WindowSetAlwaysOnTop(ctx, false)
+			wailsRuntime.EventsEmit(ctx, "game-exited", nil)
 		}()
 
+		wailsRuntime.EventsEmit(ctx, "game-started", nil)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			fmt.Printf("\n--- RETROARCH CRASHED ---\nError: %v\nOutput: %s\n", err, string(out))

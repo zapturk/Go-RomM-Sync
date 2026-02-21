@@ -17,12 +17,11 @@ func TestSaveConfigMerge(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	configPath := filepath.Join(tmpDir, "config.json")
-	cm := &config.ConfigManager{
-		ConfigPath: configPath,
-		Config: &types.AppConfig{
-			RommHost: "http://initial.com",
-			Username: "initial-user",
-		},
+	cm := config.NewConfigManager()
+	cm.ConfigPath = configPath // Set manual path for test
+	cm.Config = &types.AppConfig{
+		RommHost: "http://initial.com",
+		Username: "initial-user",
 	}
 
 	app := NewApp(cm)
@@ -47,33 +46,58 @@ func TestSaveConfigMerge(t *testing.T) {
 	}
 }
 
-func TestRommClientLifecycle(t *testing.T) {
+func TestRommSrvLifecycle(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "app-lifecycle-test")
 	defer os.RemoveAll(tmpDir)
 
 	configPath := filepath.Join(tmpDir, "config.json")
-	cm := &config.ConfigManager{
-		ConfigPath: configPath,
-		Config: &types.AppConfig{
-			RommHost: "http://host1.com",
-		},
+	cm := config.NewConfigManager()
+	cm.ConfigPath = configPath
+	cm.Config = &types.AppConfig{
+		RommHost: "http://host1.com",
 	}
 
 	app := NewApp(cm)
-	initialClient := app.rommClient
+	initialSrv := app.rommSrv
 
 	// 1. Save with same host
 	app.SaveConfig(types.AppConfig{Username: "user1"})
-	if app.rommClient != initialClient {
-		t.Error("RomM client should NOT have been recreated when host remained the same")
+	if app.rommSrv != initialSrv {
+		t.Error("RomM service should NOT have been recreated when host remained the same")
 	}
 
 	// 2. Save with different host
 	app.SaveConfig(types.AppConfig{RommHost: "http://host2.com"})
-	if app.rommClient == initialClient {
-		t.Error("RomM client SHOULD have been recreated when host changed")
+	if app.rommSrv == initialSrv {
+		t.Error("RomM service SHOULD have been recreated when host changed")
 	}
-	if app.rommClient.BaseURL != "http://host2.com" {
-		t.Errorf("Expected client URL http://host2.com, got %s", app.rommClient.BaseURL)
+}
+
+func TestPathTraversalValidation(t *testing.T) {
+	cm := config.NewConfigManager()
+	app := NewApp(cm)
+
+	tests := []struct {
+		name     string
+		core     string
+		filename string
+		wantErr  bool
+	}{
+		{"Valid", "snes", "save.sav", false},
+		{"Traversal Core", "../outside", "save.sav", false},                   // sanitized to "outside"
+		{"Traversal Filename", "snes", "../outside.sav", false},               // sanitized to "outside.sav"
+		{"Absolute Core Windows", "C:\\Windows\\System32", "save.sav", false}, // sanitized to "System32"
+		{"Current Dir Core", ".", "save.sav", true},
+		{"Double Dot Core", "..", "save.sav", true},
+		{"Empty Core", "", "save.sav", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, err := app.ValidateAssetPath(tt.core, tt.filename)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateAssetPath() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }

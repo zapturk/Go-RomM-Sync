@@ -1,10 +1,12 @@
 package romm
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"go-romm-sync/types"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -31,7 +33,7 @@ func (c *Client) Login(username, password string) (string, error) {
 	data := url.Values{}
 	data.Set("username", username)
 	data.Set("password", password)
-	data.Set("scope", "roms.read platforms.read")
+	data.Set("scope", "roms.read platforms.read assets.read assets.write")
 
 	req, err := http.NewRequest("POST", c.BaseURL+"/api/token", strings.NewReader(data.Encode()))
 	if err != nil {
@@ -318,6 +320,191 @@ func (c *Client) DownloadFile(game *types.Game) (io.ReadCloser, string, error) {
 	}
 
 	// Double check Content-Disposition if the backend assigned an explicit download name
+	cd := resp.Header.Get("Content-Disposition")
+	if cd != "" && strings.Contains(cd, "filename=") {
+		parts := strings.Split(cd, "filename=")
+		if len(parts) > 1 {
+			filename = strings.Trim(parts[1], "\"")
+		}
+	}
+
+	return resp.Body, filename, nil
+}
+
+// UploadSave uploads a save file to RomM
+func (c *Client) UploadSave(romID uint, emulator string, filename string, content []byte) error {
+	return c.uploadAsset(romID, emulator, filename, content, "saves", "saveFile")
+}
+
+// UploadState uploads a save state file to RomM
+func (c *Client) UploadState(romID uint, emulator string, filename string, content []byte) error {
+	return c.uploadAsset(romID, emulator, filename, content, "states", "stateFile")
+}
+
+func (c *Client) uploadAsset(romID uint, emulator string, filename string, content []byte, endpoint string, fieldName string) error {
+	if c.Token == "" {
+		return fmt.Errorf("not authenticated")
+	}
+
+	params := url.Values{}
+	params.Set("rom_id", fmt.Sprintf("%d", romID))
+	params.Set("emulator", emulator)
+
+	urlStr := fmt.Sprintf("%s/api/%s?%s", c.BaseURL, endpoint, params.Encode())
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile(fieldName, filename)
+	if err != nil {
+		return fmt.Errorf("failed to create form file: %w", err)
+	}
+	_, err = part.Write(content)
+	if err != nil {
+		return fmt.Errorf("failed to write content to form file: %w", err)
+	}
+	err = writer.Close()
+	if err != nil {
+		return fmt.Errorf("failed to close multipart writer: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", urlStr, body)
+	if err != nil {
+		return fmt.Errorf("failed to create upload request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("accept", "application/json")
+
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to perform upload request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("upload failed with status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
+// GetSaves fetches the list of saves from the RomM server for a given ROM
+func (c *Client) GetSaves(romID uint) ([]types.ServerSave, error) {
+	if c.Token == "" {
+		return nil, fmt.Errorf("not authenticated")
+	}
+
+	url := fmt.Sprintf("%s/api/saves?rom_id=%d", c.BaseURL, romID)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create saves request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform saves request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("saves fetch failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	// fmt.Printf("Raw Saves JSON: %s\n", string(bodyBytes))
+
+	if len(bodyBytes) == 0 {
+		return []types.ServerSave{}, nil
+	}
+
+	var saves []types.ServerSave
+	if err := json.Unmarshal(bodyBytes, &saves); err != nil {
+		return nil, fmt.Errorf("failed to decode saves response: %w", err)
+	}
+
+	return saves, nil
+}
+
+// GetStates fetches the list of states from the RomM server for a given ROM
+func (c *Client) GetStates(romID uint) ([]types.ServerState, error) {
+	if c.Token == "" {
+		return nil, fmt.Errorf("not authenticated")
+	}
+
+	url := fmt.Sprintf("%s/api/states?rom_id=%d", c.BaseURL, romID)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create states request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform states request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("states fetch failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	// fmt.Printf("Raw States JSON: %s\n", string(bodyBytes))
+
+	if len(bodyBytes) == 0 {
+		return []types.ServerState{}, nil
+	}
+
+	var states []types.ServerState
+	if err := json.Unmarshal(bodyBytes, &states); err != nil {
+		return nil, fmt.Errorf("failed to decode states response: %w", err)
+	}
+
+	return states, nil
+}
+
+// DownloadSave fetches a save file from RomM
+func (c *Client) DownloadSave(filePath string) (io.ReadCloser, string, error) {
+	return c.downloadAsset(filePath, "unknown.sav")
+}
+
+// DownloadState fetches a state file from RomM
+func (c *Client) DownloadState(filePath string) (io.ReadCloser, string, error) {
+	return c.downloadAsset(filePath, "unknown.state")
+}
+
+func (c *Client) downloadAsset(filePath string, fallbackFilename string) (io.ReadCloser, string, error) {
+	if c.Token == "" {
+		return nil, "", fmt.Errorf("not authenticated")
+	}
+
+	urlPath := fmt.Sprintf("%s/api/raw/assets/%s", c.BaseURL, strings.TrimPrefix(filePath, "/"))
+	req, err := http.NewRequest("GET", urlPath, nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to create download request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to perform download request: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, "", fmt.Errorf("download failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	filename := fallbackFilename
 	cd := resp.Header.Get("Content-Disposition")
 	if cd != "" && strings.Contains(cd, "filename=") {
 		parts := strings.Split(cd, "filename=")

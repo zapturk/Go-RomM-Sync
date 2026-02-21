@@ -26,6 +26,22 @@ export namespace types {
 	        this.cheevos_password = source["cheevos_password"];
 	    }
 	}
+	export class FileItem {
+	    name: string;
+	    core: string;
+	    updated_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FileItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.core = source["core"];
+	        this.updated_at = source["updated_at"];
+	    }
+	}
 	export class Game {
 	    id: number;
 	    name: string;
@@ -68,6 +84,50 @@ export namespace types {
 	        this.name = source["name"];
 	        this.slug = source["slug"];
 	        this.url_icon = source["url_icon"];
+	    }
+	}
+	export class ServerSave {
+	    id: number;
+	    file_name: string;
+	    full_path: string;
+	    emulator: string;
+	    updated_at: string;
+	    file_size_bytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ServerSave(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.file_name = source["file_name"];
+	        this.full_path = source["full_path"];
+	        this.emulator = source["emulator"];
+	        this.updated_at = source["updated_at"];
+	        this.file_size_bytes = source["file_size_bytes"];
+	    }
+	}
+	export class ServerState {
+	    id: number;
+	    file_name: string;
+	    full_path: string;
+	    emulator: string;
+	    updated_at: string;
+	    file_size_bytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ServerState(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.file_name = source["file_name"];
+	        this.full_path = source["full_path"];
+	        this.emulator = source["emulator"];
+	        this.updated_at = source["updated_at"];
+	        this.file_size_bytes = source["file_size_bytes"];
 	    }
 	}
 
