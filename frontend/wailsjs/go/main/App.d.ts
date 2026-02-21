@@ -4,6 +4,10 @@ import {types} from '../models';
 
 export function DeleteRom(arg1:number):Promise<void>;
 
+export function DeleteSave(arg1:number,arg2:string,arg3:string):Promise<void>;
+
+export function DeleteState(arg1:number,arg2:string,arg3:string):Promise<void>;
+
 export function DownloadRom(arg1:number):Promise<string>;
 
 export function DownloadRomToLibrary(arg1:number):Promise<void>;
@@ -21,6 +25,10 @@ export function GetPlatforms():Promise<Array<types.Platform>>;
 export function GetRom(arg1:number):Promise<types.Game>;
 
 export function GetRomDownloadStatus(arg1:number):Promise<boolean>;
+
+export function GetSaves(arg1:number):Promise<Array<types.FileItem>>;
+
+export function GetStates(arg1:number):Promise<Array<types.FileItem>>;
 
 export function Greet(arg1:string):Promise<string>;
 

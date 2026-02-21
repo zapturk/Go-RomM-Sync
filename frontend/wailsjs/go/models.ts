@@ -26,6 +26,20 @@ export namespace types {
 	        this.cheevos_password = source["cheevos_password"];
 	    }
 	}
+	export class FileItem {
+	    name: string;
+	    core: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FileItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.core = source["core"];
+	    }
+	}
 	export class Game {
 	    id: number;
 	    name: string;

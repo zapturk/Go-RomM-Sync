@@ -6,6 +6,14 @@ export function DeleteRom(arg1) {
   return window['go']['main']['App']['DeleteRom'](arg1);
 }
 
+export function DeleteSave(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DeleteSave'](arg1, arg2, arg3);
+}
+
+export function DeleteState(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DeleteState'](arg1, arg2, arg3);
+}
+
 export function DownloadRom(arg1) {
   return window['go']['main']['App']['DownloadRom'](arg1);
 }
@@ -40,6 +48,14 @@ export function GetRom(arg1) {
 
 export function GetRomDownloadStatus(arg1) {
   return window['go']['main']['App']['GetRomDownloadStatus'](arg1);
+}
+
+export function GetSaves(arg1) {
+  return window['go']['main']['App']['GetSaves'](arg1);
+}
+
+export function GetStates(arg1) {
+  return window['go']['main']['App']['GetStates'](arg1);
 }
 
 export function Greet(arg1) {

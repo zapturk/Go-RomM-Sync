@@ -409,6 +409,80 @@ func (a *App) DeleteRom(id uint) error {
 	return nil
 }
 
+// GetSaves returns a list of save files for a game
+func (a *App) GetSaves(id uint) ([]types.FileItem, error) {
+	return a.getGameFiles(id, "saves")
+}
+
+// GetStates returns a list of state files for a game
+func (a *App) GetStates(id uint) ([]types.FileItem, error) {
+	return a.getGameFiles(id, "states")
+}
+
+func (a *App) getGameFiles(id uint, subDir string) ([]types.FileItem, error) {
+	game, err := a.rommClient.GetRom(id)
+	if err != nil {
+		return nil, err
+	}
+
+	romDir := a.getRomDir(&game)
+	dirPath := filepath.Join(romDir, subDir)
+
+	items := []types.FileItem{}
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return items, nil
+		}
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			coreName := entry.Name()
+			coreDir := filepath.Join(dirPath, coreName)
+			files, err := os.ReadDir(coreDir)
+			if err != nil {
+				continue
+			}
+			for _, f := range files {
+				if !f.IsDir() && !strings.HasPrefix(f.Name(), ".") {
+					items = append(items, types.FileItem{
+						Name: f.Name(),
+						Core: coreName,
+					})
+				}
+			}
+		}
+	}
+	return items, nil
+}
+
+// DeleteSave deletes a save file
+func (a *App) DeleteSave(id uint, core, filename string) error {
+	return a.deleteGameFile(id, "saves", core, filename)
+}
+
+// DeleteState deletes a state file
+func (a *App) DeleteState(id uint, core, filename string) error {
+	return a.deleteGameFile(id, "states", core, filename)
+}
+
+func (a *App) deleteGameFile(id uint, subDir, core, filename string) error {
+	game, err := a.rommClient.GetRom(id)
+	if err != nil {
+		return err
+	}
+
+	romDir := a.getRomDir(&game)
+	filePath := filepath.Join(romDir, subDir, core, filename)
+
+	if _, err := os.Stat(filePath); err == nil {
+		return os.Remove(filePath)
+	}
+	return nil
+}
+
 // PlayRom attempts to launch the given ROM with RetroArch
 func (a *App) PlayRom(id uint) error {
 	cfg := a.configManager.GetConfig()
@@ -416,15 +490,18 @@ func (a *App) PlayRom(id uint) error {
 		return fmt.Errorf("library path is not configured")
 	}
 
-	// 1. Get ROM info
+	wailsRuntime.LogInfof(a.ctx, "PlayRom: Fetching game info for ID %d", id)
 	game, err := a.rommClient.GetRom(id)
 	if err != nil {
 		return fmt.Errorf("failed to get ROM info: %w", err)
 	}
+	wailsRuntime.LogInfof(a.ctx, "PlayRom: Game info fetched. Name: %s, ID in struct: %d, FullPath: %s", game.Title, game.ID, game.FullPath)
 
 	// 2. Find local ROM path
 	romDir := a.getRomDir(&game)
+	wailsRuntime.LogInfof(a.ctx, "PlayRom: Calculated romDir: %s", romDir)
 	romPath := a.findRomPath(romDir)
+	wailsRuntime.LogInfof(a.ctx, "PlayRom: Found romPath: %s", romPath)
 	if romPath == "" {
 		return fmt.Errorf("no valid ROM file found in %s. Please download it first.", romDir)
 	}

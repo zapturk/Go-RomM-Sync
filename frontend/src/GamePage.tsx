@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRom } from "../wailsjs/go/main/App";
+import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRom, GetSaves, GetStates, DeleteSave, DeleteState } from "../wailsjs/go/main/App";
+import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { GameCover } from "./GameCover";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
@@ -41,6 +42,29 @@ const SaveIcon = ({ size = 20 }: { size?: number }) => (
     </svg>
 );
 
+const FileItemRow = ({ item, onDelete, focusKey }: { item: any, onDelete: () => void, focusKey: string }) => {
+    const { ref, focused } = useFocusable({
+        focusKey,
+        onEnterPress: onDelete,
+    });
+
+    return (
+        <div className={`file-item-row ${focused ? 'focused' : ''}`} ref={ref}>
+            <span className="file-name" title={item.name}>{item.name}</span>
+            <span className="file-core">{item.core}</span>
+            <button
+                className="file-delete-btn"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                }}
+            >
+                <TrashIcon size={16} />
+            </button>
+        </div>
+    );
+};
+
 
 interface GamePageProps {
     gameId: number;
@@ -54,6 +78,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const [downloadStatus, setDownloadStatus] = useState<string | null>(null);
     const [isDownloaded, setIsDownloaded] = useState(false);
     const [statusChecked, setStatusChecked] = useState(false);
+    const [saves, setSaves] = useState<any[]>([]);
+    const [states, setStates] = useState<any[]>([]);
 
     const { ref } = useFocusable({
         onArrowPress: (direction: string) => {
@@ -64,7 +90,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
     const { ref: downloadRef, focused: downloadFocused, focusSelf: focusDownload } = useFocusable({
         focusKey: 'download-button',
-        onArrowPress: () => false, // Prevent focus loss by blocking all directional navigation from here
+        onArrowPress: (direction: string) => direction === 'down' || direction === 'right', // Allow moving down to Saves/States or right to Delete
         onEnterPress: () => {
             if (game && !downloading && !isDownloaded) {
                 setDownloading(true);
@@ -89,7 +115,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
     const { ref: playRef, focused: playFocused, focusSelf: focusPlay } = useFocusable({
         focusKey: 'play-button',
-        onArrowPress: (direction: string) => direction === 'right', // Only allow moving to Delete
+        onArrowPress: (direction: string) => direction === 'right' || direction === 'down', // Allow moving to Delete or down to Saves/States
         onEnterPress: () => {
             if (game) {
                 setDownloadStatus("Starting RetroArch...");
@@ -109,7 +135,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
     const { ref: deleteRef, focused: deleteFocused, focusSelf: focusDelete } = useFocusable({
         focusKey: 'delete-button',
-        onArrowPress: (direction: string) => direction === 'left', // Only allow moving back to Play
+        onArrowPress: (direction: string) => direction === 'left' || direction === 'down' || direction === 'right', // Allow moving back to Play, down to Saves/States, or right to Saves/States
         onEnterPress: () => {
             if (!game) return;
 
@@ -142,6 +168,9 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 }).catch(() => {
                     setStatusChecked(true); // Still mark as checked even on error
                 });
+
+                // Fetch saves and states
+                fetchAppData();
             })
             .catch((err: any) => {
                 setDownloadStatus(`Error fetching game: ${err}`);
@@ -150,6 +179,58 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 setLoading(false);
             });
     }, [gameId]);
+
+    useEffect(() => {
+        const unsubscribe = EventsOn("game-exited", () => {
+            fetchAppData();
+        });
+        return () => unsubscribe();
+    }, [gameId]);
+
+    const fetchAppData = () => {
+        GetSaves(gameId).then(res => setSaves(res || [])).catch(console.error);
+        GetStates(gameId).then(res => setStates(res || [])).catch(console.error);
+    };
+
+    const handleDeleteSave = (core: string, name: string, index: number) => {
+        DeleteSave(gameId, core, name).then(() => {
+            GetSaves(gameId).then(res => {
+                const newSaves = res || [];
+                setSaves(newSaves);
+                setTimeout(() => {
+                    if (newSaves.length > 0) {
+                        const nextIdx = Math.min(index, newSaves.length - 1);
+                        setFocus(`save-${nextIdx}`);
+                    } else if (states.length > 0) {
+                        setFocus(`state-0`);
+                    } else {
+                        setFocus('play-button');
+                    }
+                }, 50);
+            }).catch(console.error);
+            setDownloadStatus("Save deleted.");
+        }).catch(err => setDownloadStatus(`Error deleting save: ${err}`));
+    };
+
+    const handleDeleteState = (core: string, name: string, index: number) => {
+        DeleteState(gameId, core, name).then(() => {
+            GetStates(gameId).then(res => {
+                const newStates = res || [];
+                setStates(newStates);
+                setTimeout(() => {
+                    if (newStates.length > 0) {
+                        const nextIdx = Math.min(index, newStates.length - 1);
+                        setFocus(`state-${nextIdx}`);
+                    } else if (saves.length > 0) {
+                        setFocus(`save-0`);
+                    } else {
+                        setFocus('play-button');
+                    }
+                }, 50);
+            }).catch(console.error);
+            setDownloadStatus("State deleted.");
+        }).catch(err => setDownloadStatus(`Error deleting state: ${err}`));
+    };
 
     if (loading) {
         return <div className="game-page-loading">Loading game details...</div>;
@@ -269,13 +350,36 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                         <h3>Summary</h3>
                         <p>{game.summary || "No summary available."}</p>
                     </div>
-                    {game.has_saves && (
-                        <div className="game-saves-status">
-                            <span className="save-icon">
-                                <SaveIcon />
-                            </span> Saves available
+                    <div className="game-saves-states-section">
+                        <div className="game-saves-column">
+                            <h3>Saves</h3>
+                            <div className="file-list">
+                                {saves.map((save, idx) => (
+                                    <FileItemRow
+                                        key={`save-${idx}`}
+                                        focusKey={`save-${idx}`}
+                                        item={save}
+                                        onDelete={() => handleDeleteSave(save.core, save.name, idx)}
+                                    />
+                                ))}
+                                {saves.length === 0 && <p className="no-files">No saves found.</p>}
+                            </div>
                         </div>
-                    )}
+                        <div className="game-states-column">
+                            <h3>States</h3>
+                            <div className="file-list">
+                                {states.map((state, idx) => (
+                                    <FileItemRow
+                                        key={`state-${idx}`}
+                                        focusKey={`state-${idx}`}
+                                        item={state}
+                                        onDelete={() => handleDeleteState(state.core, state.name, idx)}
+                                    />
+                                ))}
+                                {states.length === 0 && <p className="no-files">No states found.</p>}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 

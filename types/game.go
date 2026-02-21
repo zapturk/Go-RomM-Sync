@@ -11,3 +11,9 @@ type Game struct {
 	Genres   []string `json:"genres"`
 	HasSaves bool     `json:"has_saves"` // Simplified for now, though API might return a list
 }
+
+// FileItem represents a save or state file
+type FileItem struct {
+	Name string `json:"name"`
+	Core string `json:"core"`
+}
