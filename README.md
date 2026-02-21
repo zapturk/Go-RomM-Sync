@@ -23,7 +23,23 @@ Go-RomM-Sync is a desktop application built with Wails and React that synchroniz
 
 ## Screenshots
 
-*(Coming Soon: High-quality screenshots of the interface and navigation)*
+<p align="center">
+  <img src=".github/assets/platforms.png" alt="Platform Selection" width="800">
+  <br>
+  <em>Platform Selection Screen</em>
+</p>
+
+<p align="center">
+  <img src=".github/assets/games_list.png" alt="Game Selection" width="800">
+  <br>
+  <em>Game Selection for Game Boy Advance</em>
+</p>
+
+<p align="center">
+  <img src=".github/assets/game_page.png" alt="Game Detail Page" width="800">
+  <br>
+  <em>Game Detail Page with Server and Local Saves</em>
+</p>
 
 ## Technology Stack
 
