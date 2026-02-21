@@ -7,6 +7,7 @@ import { TrashIcon } from "./components/Icons";
 import { FileItemRow } from "./FileItemRow";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
+import { TIMESTAMP_REGEX, APP_EVENTS } from './constants';
 
 interface GamePageProps {
     gameId: number;
@@ -125,7 +126,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     }, [gameId]);
 
     useEffect(() => {
-        const unsubscribe = EventsOn("game-exited", () => {
+        const unsubscribe = EventsOn(APP_EVENTS.GAME_EXITED, () => {
             fetchAppData();
         });
         return () => unsubscribe();
@@ -200,7 +201,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
     const handleDownloadServerSave = (save: types.ServerSave) => {
         setDownloadStatus(`Downloading save ${save.file_name}...`);
-        const cleanFileName = save.file_name.replace(/ \[\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-\d+)?\]/, "");
+        const cleanFileName = save.file_name.replace(TIMESTAMP_REGEX, "");
         DownloadServerSave(gameId, save.full_path, save.emulator, cleanFileName).then(() => {
             setDownloadStatus("Server save downloaded successfully!");
             fetchAppData(); // Refresh local saves list
@@ -211,7 +212,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
     const handleDownloadServerState = (state: types.ServerState) => {
         setDownloadStatus(`Downloading state ${state.file_name}...`);
-        const cleanFileName = state.file_name.replace(/ \[\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-\d+)?\]/, "");
+        const cleanFileName = state.file_name.replace(TIMESTAMP_REGEX, "");
         DownloadServerState(gameId, state.full_path, state.emulator, cleanFileName).then(() => {
             setDownloadStatus("Server state downloaded successfully!");
             fetchAppData(); // Refresh local states list
@@ -225,13 +226,13 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         const allNames = new Set<string>();
         saves.forEach(s => allNames.add(s.name));
         serverSaves.forEach(s => {
-            const cleanName = s.file_name.replace(/ \[\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-\d+)?\]/, "");
+            const cleanName = s.file_name.replace(TIMESTAMP_REGEX, "");
             allNames.add(cleanName);
         });
 
         for (const name of Array.from(allNames)) {
             const local = saves.find(s => s.name === name);
-            const serverClean = serverSaves.find(s => s.file_name.replace(/ \[\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-\d+)?\]/, "") === name);
+            const serverClean = serverSaves.find(s => s.file_name.replace(TIMESTAMP_REGEX, "") === name);
 
             if (local && serverClean) {
                 const localTime = new Date(local.updated_at || "").getTime();
@@ -256,13 +257,13 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         const allNames = new Set<string>();
         states.forEach(s => allNames.add(s.name));
         serverStates.forEach(s => {
-            const cleanName = s.file_name.replace(/ \[\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-\d+)?\]/, "");
+            const cleanName = s.file_name.replace(TIMESTAMP_REGEX, "");
             allNames.add(cleanName);
         });
 
         for (const name of Array.from(allNames)) {
             const local = states.find(s => s.name === name);
-            const serverClean = serverStates.find(s => s.file_name.replace(/ \[\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-\d+)?\]/, "") === name);
+            const serverClean = serverStates.find(s => s.file_name.replace(TIMESTAMP_REGEX, "") === name);
 
             if (local && serverClean) {
                 const localTime = new Date(local.updated_at || "").getTime();

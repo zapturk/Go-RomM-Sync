@@ -7,6 +7,7 @@ import { Login } from "../wailsjs/go/main/App";
 import { init } from '@noriginmedia/norigin-spatial-navigation';
 import { useGamepad } from './useGamepad';
 import './inputMode'; // Activate input mode tracking
+import { APP_EVENTS } from './constants';
 
 function App() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -22,18 +23,18 @@ function App() {
         // @ts-ignore
         if (window.runtime) {
             // @ts-ignore
-            window.runtime.EventsOn("game-started", () => setIsPlaying(true));
+            window.runtime.EventsOn(APP_EVENTS.GAME_STARTED, () => setIsPlaying(true));
             // @ts-ignore
-            window.runtime.EventsOn("game-exited", () => setIsPlaying(false));
+            window.runtime.EventsOn(APP_EVENTS.GAME_EXITED, () => setIsPlaying(false));
         }
 
         return () => {
             // @ts-ignore
             if (window.runtime) {
                 // @ts-ignore
-                window.runtime.EventsOff("game-started");
+                window.runtime.EventsOff(APP_EVENTS.GAME_STARTED);
                 // @ts-ignore
-                window.runtime.EventsOff("game-exited");
+                window.runtime.EventsOff(APP_EVENTS.GAME_EXITED);
             }
         };
     }, []);
