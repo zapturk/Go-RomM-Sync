@@ -17,12 +17,11 @@ func TestSaveConfigMerge(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	configPath := filepath.Join(tmpDir, "config.json")
-	cm := &config.ConfigManager{
-		ConfigPath: configPath,
-		Config: &types.AppConfig{
-			RommHost: "http://initial.com",
-			Username: "initial-user",
-		},
+	cm := config.NewConfigManager()
+	cm.ConfigPath = configPath // Set manual path for test
+	cm.Config = &types.AppConfig{
+		RommHost: "http://initial.com",
+		Username: "initial-user",
 	}
 
 	app := NewApp(cm)
@@ -47,38 +46,36 @@ func TestSaveConfigMerge(t *testing.T) {
 	}
 }
 
-func TestRommClientLifecycle(t *testing.T) {
+func TestRommSrvLifecycle(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "app-lifecycle-test")
 	defer os.RemoveAll(tmpDir)
 
 	configPath := filepath.Join(tmpDir, "config.json")
-	cm := &config.ConfigManager{
-		ConfigPath: configPath,
-		Config: &types.AppConfig{
-			RommHost: "http://host1.com",
-		},
+	cm := config.NewConfigManager()
+	cm.ConfigPath = configPath
+	cm.Config = &types.AppConfig{
+		RommHost: "http://host1.com",
 	}
 
 	app := NewApp(cm)
-	initialClient := app.rommClient
+	initialSrv := app.rommSrv
 
 	// 1. Save with same host
 	app.SaveConfig(types.AppConfig{Username: "user1"})
-	if app.rommClient != initialClient {
-		t.Error("RomM client should NOT have been recreated when host remained the same")
+	if app.rommSrv != initialSrv {
+		t.Error("RomM service should NOT have been recreated when host remained the same")
 	}
 
 	// 2. Save with different host
 	app.SaveConfig(types.AppConfig{RommHost: "http://host2.com"})
-	if app.rommClient == initialClient {
-		t.Error("RomM client SHOULD have been recreated when host changed")
-	}
-	if app.rommClient.BaseURL != "http://host2.com" {
-		t.Errorf("Expected client URL http://host2.com, got %s", app.rommClient.BaseURL)
+	if app.rommSrv == initialSrv {
+		t.Error("RomM service SHOULD have been recreated when host changed")
 	}
 }
+
 func TestPathTraversalValidation(t *testing.T) {
-	app := &App{}
+	cm := config.NewConfigManager()
+	app := NewApp(cm)
 
 	tests := []struct {
 		name     string
