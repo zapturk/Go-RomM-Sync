@@ -175,6 +175,7 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 		romBaseDir = filepath.Dir(strings.Split(romPath, "#")[0])
 		wailsRuntime.LogInfof(ctx, "Launch: Detected zip archive. Base dir set to: %s", romBaseDir)
 	}
+
 	savesDir := filepath.Join(romBaseDir, "saves")
 	statesDir := filepath.Join(romBaseDir, "states")
 	wailsRuntime.LogInfof(ctx, "Launch: Saves dir: %s, States dir: %s", savesDir, statesDir)

@@ -572,7 +572,8 @@ body.input-keyboard .show-keyboard {
 }
 
 .file-item-row:hover .file-item-actions,
-.file-item-row.focused .file-item-actions {
+.file-item-row.focused .file-item-actions,
+.file-item-row:has(.file-action-btn.focused) .file-item-actions {
     opacity: 1;
 }
 
@@ -589,17 +590,26 @@ body.input-keyboard .show-keyboard {
     transition: all 0.2s;
 }
 
-.file-action-btn:hover {
+.file-action-btn:hover,
+.file-action-btn.focused {
     background: rgba(255, 255, 255, 0.2);
     transform: scale(1.1);
 }
 
-.file-upload-btn:hover {
+.file-upload-btn:hover,
+.file-upload-btn.focused {
     color: #4CAF50;
     background: rgba(76, 175, 80, 0.2);
 }
 
-.file-delete-btn:hover {
+.file-download-btn:hover,
+.file-download-btn.focused {
+    color: #2196F3;
+    background: rgba(33, 150, 243, 0.2);
+}
+
+.file-delete-btn:hover,
+.file-delete-btn.focused {
     color: #ff4444;
     background: rgba(255, 68, 68, 0.2);
 }

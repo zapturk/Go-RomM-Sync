@@ -633,3 +633,87 @@ func (a *App) SelectLibraryPath() (string, error) {
 
 	return selectedDir, nil
 }
+
+// GetServerSaves gets a list of server saves from RomM
+func (a *App) GetServerSaves(id uint) ([]types.ServerSave, error) {
+	return a.rommClient.GetSaves(id)
+}
+
+// GetServerStates gets a list of server states from RomM
+func (a *App) GetServerStates(id uint) ([]types.ServerState, error) {
+	return a.rommClient.GetStates(id)
+}
+
+// DownloadServerSave downloads a save from RomM and puts it in the local saves dir
+func (a *App) DownloadServerSave(gameID uint, filePath string, core string, filename string) error {
+	game, err := a.rommClient.GetRom(gameID)
+	if err != nil {
+		return fmt.Errorf("failed to get ROM info: %w", err)
+	}
+
+	reader, serverFilename, err := a.rommClient.DownloadSave(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to download save from server: %w", err)
+	}
+	defer reader.Close()
+
+	if filename == "" {
+		filename = serverFilename
+	}
+
+	romDir := a.getRomDir(&game)
+	destDir := filepath.Join(romDir, "saves", core)
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	destPath := filepath.Join(destDir, filename)
+	out, err := os.Create(destPath)
+	if err != nil {
+		return fmt.Errorf("failed to create local save file: %w", err)
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, reader); err != nil {
+		return fmt.Errorf("failed to write local save file: %w", err)
+	}
+
+	return nil
+}
+
+// DownloadServerState downloads a state from RomM and puts it in the local states dir
+func (a *App) DownloadServerState(gameID uint, filePath string, core string, filename string) error {
+	game, err := a.rommClient.GetRom(gameID)
+	if err != nil {
+		return fmt.Errorf("failed to get ROM info: %w", err)
+	}
+
+	reader, serverFilename, err := a.rommClient.DownloadState(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to download state from server: %w", err)
+	}
+	defer reader.Close()
+
+	if filename == "" {
+		filename = serverFilename
+	}
+
+	romDir := a.getRomDir(&game)
+	destDir := filepath.Join(romDir, "states", core)
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	destPath := filepath.Join(destDir, filename)
+	out, err := os.Create(destPath)
+	if err != nil {
+		return fmt.Errorf("failed to create local state file: %w", err)
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, reader); err != nil {
+		return fmt.Errorf("failed to write local state file: %w", err)
+	}
+
+	return nil
+}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRom, GetSaves, GetStates, DeleteSave, DeleteState, UploadSave, UploadState } from "../wailsjs/go/main/App";
+import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRom, GetSaves, GetStates, DeleteSave, DeleteState, UploadSave, UploadState, GetServerSaves, GetServerStates, DownloadServerSave, DownloadServerState } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { GameCover } from "./GameCover";
@@ -59,20 +59,93 @@ const UploadIcon = ({ size = 20 }: { size?: number }) => (
     </svg>
 );
 
-const FileItemRow = ({ item, onDelete, onUpload, focusKey }: { item: any, onDelete: () => void, onUpload?: () => void, focusKey: string }) => {
-    const { ref, focused } = useFocusable({
-        focusKey,
+const DownloadIcon = ({ size = 20 }: { size?: number }) => (
+    <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+    >
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+);
+
+const FileItemRow = ({ item, onDelete, onUpload, onDownload, focusKeyPrefix }: { item: any, onDelete?: () => void, onUpload?: () => void, onDownload?: () => void, focusKeyPrefix: string }) => {
+    const { ref: downloadRef, focused: downloadFocused } = useFocusable({
+        focusKey: onDownload ? `${focusKeyPrefix}-download` : undefined,
+        onEnterPress: onDownload,
+        onArrowPress: (direction: string) => {
+            if (direction === 'right' && onDelete) {
+                setFocus(`${focusKeyPrefix}-delete`);
+                return false;
+            }
+            return true;
+        }
+    });
+
+    const { ref: uploadRef, focused: uploadFocused } = useFocusable({
+        focusKey: onUpload ? `${focusKeyPrefix}-upload` : undefined,
+        onEnterPress: onUpload,
+        onArrowPress: (direction: string) => {
+            if (direction === 'right' && onDelete) {
+                setFocus(`${focusKeyPrefix}-delete`);
+                return false;
+            }
+            return true;
+        }
+    });
+
+    const { ref: deleteRef, focused: deleteFocused } = useFocusable({
+        focusKey: onDelete ? `${focusKeyPrefix}-delete` : undefined,
         onEnterPress: onDelete,
+        onArrowPress: (direction: string) => {
+            if (direction === 'left') {
+                if (onUpload) setFocus(`${focusKeyPrefix}-upload`);
+                else if (onDownload) setFocus(`${focusKeyPrefix}-download`);
+                return false;
+            }
+            return true;
+        }
+    });
+
+    // Provide a default focus receiver if the prefix is targeted directly
+    const { ref: rowRef } = useFocusable({
+        focusKey: focusKeyPrefix,
+        onFocus: () => {
+            if (onUpload) setFocus(`${focusKeyPrefix}-upload`);
+            else if (onDownload) setFocus(`${focusKeyPrefix}-download`);
+            else if (onDelete) setFocus(`${focusKeyPrefix}-delete`);
+        }
     });
 
     return (
-        <div className={`file-item-row ${focused ? 'focused' : ''}`} ref={ref}>
-            <span className="file-name" title={item.name}>{item.name}</span>
-            <span className="file-core">{item.core}</span>
+        <div className="file-item-row" ref={rowRef}>
+            <span className="file-name" title={item.name || item.file_name}>{item.name || item.file_name}</span>
+            <span className="file-core">{item.core || item.emulator}</span>
             <div className="file-item-actions">
+                {onDownload && (
+                    <button
+                        className={`file-action-btn file-download-btn ${downloadFocused ? 'focused' : ''}`}
+                        ref={downloadRef}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDownload();
+                        }}
+                        title="Download from RomM"
+                    >
+                        <DownloadIcon size={16} />
+                    </button>
+                )}
                 {onUpload && (
                     <button
-                        className="file-action-btn file-upload-btn"
+                        className={`file-action-btn file-upload-btn ${uploadFocused ? 'focused' : ''}`}
+                        ref={uploadRef}
                         onClick={(e) => {
                             e.stopPropagation();
                             onUpload();
@@ -82,16 +155,19 @@ const FileItemRow = ({ item, onDelete, onUpload, focusKey }: { item: any, onDele
                         <UploadIcon size={16} />
                     </button>
                 )}
-                <button
-                    className="file-action-btn file-delete-btn"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete();
-                    }}
-                    title="Delete locally"
-                >
-                    <TrashIcon size={16} />
-                </button>
+                {onDelete && (
+                    <button
+                        className={`file-action-btn file-delete-btn ${deleteFocused ? 'focused' : ''}`}
+                        ref={deleteRef}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete();
+                        }}
+                        title="Delete locally"
+                    >
+                        <TrashIcon size={16} />
+                    </button>
+                )}
             </div>
         </div>
     );
@@ -112,6 +188,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const [statusChecked, setStatusChecked] = useState(false);
     const [saves, setSaves] = useState<any[]>([]);
     const [states, setStates] = useState<any[]>([]);
+    const [serverSaves, setServerSaves] = useState<types.ServerSave[]>([]);
+    const [serverStates, setServerStates] = useState<types.ServerState[]>([]);
 
     const { ref } = useFocusable({
         onArrowPress: (direction: string) => {
@@ -222,6 +300,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const fetchAppData = () => {
         GetSaves(gameId).then(res => setSaves(res || [])).catch(console.error);
         GetStates(gameId).then(res => setStates(res || [])).catch(console.error);
+        GetServerSaves(gameId).then(res => setServerSaves(res || [])).catch(console.error);
+        GetServerStates(gameId).then(res => setServerStates(res || [])).catch(console.error);
     };
 
     const handleDeleteSave = (core: string, name: string, index: number) => {
@@ -232,9 +312,9 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 setTimeout(() => {
                     if (newSaves.length > 0) {
                         const nextIdx = Math.min(index, newSaves.length - 1);
-                        setFocus(`save-${nextIdx}`);
+                        setFocus(`save-${nextIdx}-upload`);
                     } else if (states.length > 0) {
-                        setFocus(`state-0`);
+                        setFocus(`state-0-upload`);
                     } else {
                         setFocus('play-button');
                     }
@@ -252,9 +332,9 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 setTimeout(() => {
                     if (newStates.length > 0) {
                         const nextIdx = Math.min(index, newStates.length - 1);
-                        setFocus(`state-${nextIdx}`);
+                        setFocus(`state-${nextIdx}-upload`);
                     } else if (saves.length > 0) {
-                        setFocus(`save-0`);
+                        setFocus(`save-0-upload`);
                     } else {
                         setFocus('play-button');
                     }
@@ -268,6 +348,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         setDownloadStatus(`Uploading save ${name}...`);
         UploadSave(gameId, core, name).then(() => {
             setDownloadStatus("Save uploaded successfully to RomM!");
+            fetchAppData(); // Refresh server save list
         }).catch((err: any) => {
             setDownloadStatus(`Upload error: ${err}`);
         });
@@ -277,8 +358,31 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         setDownloadStatus(`Uploading state ${name}...`);
         UploadState(gameId, core, name).then(() => {
             setDownloadStatus("State uploaded successfully to RomM!");
+            fetchAppData(); // Refresh server state list
         }).catch((err: any) => {
             setDownloadStatus(`Upload error: ${err}`);
+        });
+    };
+
+    const handleDownloadServerSave = (save: types.ServerSave) => {
+        setDownloadStatus(`Downloading save ${save.file_name}...`);
+        const cleanFileName = save.file_name.replace(/ \[\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-\d+)?\]/, "");
+        DownloadServerSave(gameId, save.full_path, save.emulator, cleanFileName).then(() => {
+            setDownloadStatus("Server save downloaded successfully!");
+            fetchAppData(); // Refresh local saves list
+        }).catch((err: any) => {
+            setDownloadStatus(`Download error: ${err}`);
+        });
+    };
+
+    const handleDownloadServerState = (state: types.ServerState) => {
+        setDownloadStatus(`Downloading state ${state.file_name}...`);
+        const cleanFileName = state.file_name.replace(/ \[\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-\d+)?\]/, "");
+        DownloadServerState(gameId, state.full_path, state.emulator, cleanFileName).then(() => {
+            setDownloadStatus("Server state downloaded successfully!");
+            fetchAppData(); // Refresh local states list
+        }).catch((err: any) => {
+            setDownloadStatus(`Download error: ${err}`);
         });
     };
 
@@ -402,33 +506,59 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                     </div>
                     <div className="game-saves-states-section">
                         <div className="game-saves-column">
-                            <h3>Saves</h3>
+                            <h3>Local Saves</h3>
                             <div className="file-list">
                                 {saves.map((save, idx) => (
                                     <FileItemRow
                                         key={`save-${idx}`}
-                                        focusKey={`save-${idx}`}
+                                        focusKeyPrefix={`save-${idx}`}
                                         item={save}
                                         onDelete={() => handleDeleteSave(save.core, save.name, idx)}
                                         onUpload={() => handleUploadSave(save.core, save.name)}
                                     />
                                 ))}
-                                {saves.length === 0 && <p className="no-files">No saves found.</p>}
+                                {saves.length === 0 && <p className="no-files">No local saves found.</p>}
+                            </div>
+
+                            <h3 style={{ marginTop: '20px' }}>Server Saves</h3>
+                            <div className="file-list">
+                                {serverSaves.map((save, idx) => (
+                                    <FileItemRow
+                                        key={`server-save-${idx}`}
+                                        focusKeyPrefix={`server-save-${idx}`}
+                                        item={save}
+                                        onDownload={() => handleDownloadServerSave(save)}
+                                    />
+                                ))}
+                                {serverSaves.length === 0 && <p className="no-files">No server saves found.</p>}
                             </div>
                         </div>
                         <div className="game-states-column">
-                            <h3>States</h3>
+                            <h3>Local States</h3>
                             <div className="file-list">
                                 {states.map((state, idx) => (
                                     <FileItemRow
                                         key={`state-${idx}`}
-                                        focusKey={`state-${idx}`}
+                                        focusKeyPrefix={`state-${idx}`}
                                         item={state}
                                         onDelete={() => handleDeleteState(state.core, state.name, idx)}
                                         onUpload={() => handleUploadState(state.core, state.name)}
                                     />
                                 ))}
-                                {states.length === 0 && <p className="no-files">No states found.</p>}
+                                {states.length === 0 && <p className="no-files">No local states found.</p>}
+                            </div>
+
+                            <h3 style={{ marginTop: '20px' }}>Server States</h3>
+                            <div className="file-list">
+                                {serverStates.map((state, idx) => (
+                                    <FileItemRow
+                                        key={`server-state-${idx}`}
+                                        focusKeyPrefix={`server-state-${idx}`}
+                                        item={state}
+                                        onDownload={() => handleDownloadServerState(state)}
+                                    />
+                                ))}
+                                {serverStates.length === 0 && <p className="no-files">No server states found.</p>}
                             </div>
                         </div>
                     </div>

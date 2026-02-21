@@ -12,8 +12,28 @@ type Game struct {
 	HasSaves bool     `json:"has_saves"` // Simplified for now, though API might return a list
 }
 
-// FileItem represents a save or state file
+// FileItem represents a local save or state file
 type FileItem struct {
 	Name string `json:"name"`
 	Core string `json:"core"`
+}
+
+// ServerSave represents a save file on the RomM server
+type ServerSave struct {
+	ID        uint   `json:"id"`
+	FileName  string `json:"file_name"`
+	FullPath  string `json:"full_path"`
+	Emulator  string `json:"emulator"`
+	UpdatedAt string `json:"updated_at"` // ISO8601 string
+	FileSize  int64  `json:"file_size_bytes"`
+}
+
+// ServerState represents a save state on the RomM server
+type ServerState struct {
+	ID        uint   `json:"id"`
+	FileName  string `json:"file_name"`
+	FullPath  string `json:"full_path"`
+	Emulator  string `json:"emulator"`
+	UpdatedAt string `json:"updated_at"` // ISO8601 string
+	FileSize  int64  `json:"file_size_bytes"`
 }

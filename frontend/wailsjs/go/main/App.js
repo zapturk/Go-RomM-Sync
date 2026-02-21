@@ -22,6 +22,14 @@ export function DownloadRomToLibrary(arg1) {
   return window['go']['main']['App']['DownloadRomToLibrary'](arg1);
 }
 
+export function DownloadServerSave(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['DownloadServerSave'](arg1, arg2, arg3, arg4);
+}
+
+export function DownloadServerState(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['DownloadServerState'](arg1, arg2, arg3, arg4);
+}
+
 export function GetConfig() {
   return window['go']['main']['App']['GetConfig']();
 }
@@ -52,6 +60,14 @@ export function GetRomDownloadStatus(arg1) {
 
 export function GetSaves(arg1) {
   return window['go']['main']['App']['GetSaves'](arg1);
+}
+
+export function GetServerSaves(arg1) {
+  return window['go']['main']['App']['GetServerSaves'](arg1);
+}
+
+export function GetServerStates(arg1) {
+  return window['go']['main']['App']['GetServerStates'](arg1);
 }
 
 export function GetStates(arg1) {

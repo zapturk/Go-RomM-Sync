@@ -84,6 +84,50 @@ export namespace types {
 	        this.url_icon = source["url_icon"];
 	    }
 	}
+	export class ServerSave {
+	    id: number;
+	    file_name: string;
+	    full_path: string;
+	    emulator: string;
+	    updated_at: string;
+	    file_size_bytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ServerSave(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.file_name = source["file_name"];
+	        this.full_path = source["full_path"];
+	        this.emulator = source["emulator"];
+	        this.updated_at = source["updated_at"];
+	        this.file_size_bytes = source["file_size_bytes"];
+	    }
+	}
+	export class ServerState {
+	    id: number;
+	    file_name: string;
+	    full_path: string;
+	    emulator: string;
+	    updated_at: string;
+	    file_size_bytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ServerState(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.file_name = source["file_name"];
+	        this.full_path = source["full_path"];
+	        this.emulator = source["emulator"];
+	        this.updated_at = source["updated_at"];
+	        this.file_size_bytes = source["file_size_bytes"];
+	    }
+	}
 
 }
 

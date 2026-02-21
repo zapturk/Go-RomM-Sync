@@ -12,6 +12,10 @@ export function DownloadRom(arg1:number):Promise<string>;
 
 export function DownloadRomToLibrary(arg1:number):Promise<void>;
 
+export function DownloadServerSave(arg1:number,arg2:string,arg3:string,arg4:string):Promise<void>;
+
+export function DownloadServerState(arg1:number,arg2:string,arg3:string,arg4:string):Promise<void>;
+
 export function GetConfig():Promise<types.AppConfig>;
 
 export function GetCover(arg1:number,arg2:string):Promise<string>;
@@ -27,6 +31,10 @@ export function GetRom(arg1:number):Promise<types.Game>;
 export function GetRomDownloadStatus(arg1:number):Promise<boolean>;
 
 export function GetSaves(arg1:number):Promise<Array<types.FileItem>>;
+
+export function GetServerSaves(arg1:number):Promise<Array<types.ServerSave>>;
+
+export function GetServerStates(arg1:number):Promise<Array<types.ServerState>>;
 
 export function GetStates(arg1:number):Promise<Array<types.FileItem>>;
 
