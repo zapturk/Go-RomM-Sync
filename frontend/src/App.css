@@ -558,29 +558,50 @@ body.input-keyboard .show-keyboard {
     text-align: left;
 }
 
-.file-core {
-    font-size: 0.75rem;
-    color: #aaa;
-    background: rgba(255, 255, 255, 0.1);
-    padding: 2px 6px;
-    border-radius: 10px;
+.file-item-row .file-core {
+    font-size: 0.8em;
+    color: rgba(255, 255, 255, 0.4);
+    margin-right: 10px;
 }
 
-.file-delete-btn {
-    background: transparent;
+.file-item-actions {
+    display: flex;
+    gap: 8px;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.file-item-row:hover .file-item-actions,
+.file-item-row.focused .file-item-actions {
+    opacity: 1;
+}
+
+.file-action-btn {
+    background: rgba(255, 255, 255, 0.1);
     border: none;
-    color: #ff5252;
+    color: white;
     cursor: pointer;
-    padding: 4px;
+    padding: 6px;
+    border-radius: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 4px;
-    transition: background 0.2s;
+    transition: all 0.2s;
+}
+
+.file-action-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.1);
+}
+
+.file-upload-btn:hover {
+    color: #4CAF50;
+    background: rgba(76, 175, 80, 0.2);
 }
 
 .file-delete-btn:hover {
-    background: rgba(255, 82, 82, 0.2);
+    color: #ff4444;
+    background: rgba(255, 68, 68, 0.2);
 }
 
 .no-files {

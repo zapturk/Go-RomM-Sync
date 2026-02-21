@@ -43,3 +43,7 @@ export function SaveConfig(arg1:types.AppConfig):Promise<string>;
 export function SelectLibraryPath():Promise<string>;
 
 export function SelectRetroArchExecutable():Promise<string>;
+
+export function UploadSave(arg1:number,arg2:string,arg3:string):Promise<void>;
+
+export function UploadState(arg1:number,arg2:string,arg3:string):Promise<void>;

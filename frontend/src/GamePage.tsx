@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRom, GetSaves, GetStates, DeleteSave, DeleteState } from "../wailsjs/go/main/App";
+import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRom, GetSaves, GetStates, DeleteSave, DeleteState, UploadSave, UploadState } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { GameCover } from "./GameCover";
@@ -42,7 +42,24 @@ const SaveIcon = ({ size = 20 }: { size?: number }) => (
     </svg>
 );
 
-const FileItemRow = ({ item, onDelete, focusKey }: { item: any, onDelete: () => void, focusKey: string }) => {
+const UploadIcon = ({ size = 20 }: { size?: number }) => (
+    <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+    >
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="17 8 12 3 7 8" />
+        <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
+);
+
+const FileItemRow = ({ item, onDelete, onUpload, focusKey }: { item: any, onDelete: () => void, onUpload?: () => void, focusKey: string }) => {
     const { ref, focused } = useFocusable({
         focusKey,
         onEnterPress: onDelete,
@@ -52,15 +69,30 @@ const FileItemRow = ({ item, onDelete, focusKey }: { item: any, onDelete: () => 
         <div className={`file-item-row ${focused ? 'focused' : ''}`} ref={ref}>
             <span className="file-name" title={item.name}>{item.name}</span>
             <span className="file-core">{item.core}</span>
-            <button
-                className="file-delete-btn"
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete();
-                }}
-            >
-                <TrashIcon size={16} />
-            </button>
+            <div className="file-item-actions">
+                {onUpload && (
+                    <button
+                        className="file-action-btn file-upload-btn"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onUpload();
+                        }}
+                        title="Upload save to RomM"
+                    >
+                        <UploadIcon size={16} />
+                    </button>
+                )}
+                <button
+                    className="file-action-btn file-delete-btn"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete();
+                    }}
+                    title="Delete locally"
+                >
+                    <TrashIcon size={16} />
+                </button>
+            </div>
         </div>
     );
 };
@@ -232,6 +264,24 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         }).catch(err => setDownloadStatus(`Error deleting state: ${err}`));
     };
 
+    const handleUploadSave = (core: string, name: string) => {
+        setDownloadStatus(`Uploading save ${name}...`);
+        UploadSave(gameId, core, name).then(() => {
+            setDownloadStatus("Save uploaded successfully to RomM!");
+        }).catch((err: any) => {
+            setDownloadStatus(`Upload error: ${err}`);
+        });
+    };
+
+    const handleUploadState = (core: string, name: string) => {
+        setDownloadStatus(`Uploading state ${name}...`);
+        UploadState(gameId, core, name).then(() => {
+            setDownloadStatus("State uploaded successfully to RomM!");
+        }).catch((err: any) => {
+            setDownloadStatus(`Upload error: ${err}`);
+        });
+    };
+
     if (loading) {
         return <div className="game-page-loading">Loading game details...</div>;
     }
@@ -360,6 +410,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                         focusKey={`save-${idx}`}
                                         item={save}
                                         onDelete={() => handleDeleteSave(save.core, save.name, idx)}
+                                        onUpload={() => handleUploadSave(save.core, save.name)}
                                     />
                                 ))}
                                 {saves.length === 0 && <p className="no-files">No saves found.</p>}
@@ -374,6 +425,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                         focusKey={`state-${idx}`}
                                         item={state}
                                         onDelete={() => handleDeleteState(state.core, state.name, idx)}
+                                        onUpload={() => handleUploadState(state.core, state.name)}
                                     />
                                 ))}
                                 {states.length === 0 && <p className="no-files">No states found.</p>}

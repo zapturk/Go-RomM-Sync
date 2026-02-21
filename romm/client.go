@@ -1,10 +1,12 @@
 package romm
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"go-romm-sync/types"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -31,7 +33,7 @@ func (c *Client) Login(username, password string) (string, error) {
 	data := url.Values{}
 	data.Set("username", username)
 	data.Set("password", password)
-	data.Set("scope", "roms.read platforms.read")
+	data.Set("scope", "roms.read platforms.read assets.write")
 
 	req, err := http.NewRequest("POST", c.BaseURL+"/api/token", strings.NewReader(data.Encode()))
 	if err != nil {
@@ -327,4 +329,104 @@ func (c *Client) DownloadFile(game *types.Game) (io.ReadCloser, string, error) {
 	}
 
 	return resp.Body, filename, nil
+}
+
+// UploadSave uploads a save file to RomM
+func (c *Client) UploadSave(romID uint, emulator string, filename string, content []byte) error {
+	if c.Token == "" {
+		return fmt.Errorf("not authenticated")
+	}
+
+	params := url.Values{}
+	params.Set("rom_id", fmt.Sprintf("%d", romID))
+	params.Set("emulator", emulator)
+
+	urlStr := fmt.Sprintf("%s/api/saves?%s", c.BaseURL, params.Encode())
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("saveFile", filename)
+	if err != nil {
+		return fmt.Errorf("failed to create form file: %w", err)
+	}
+	_, err = part.Write(content)
+	if err != nil {
+		return fmt.Errorf("failed to write content to form file: %w", err)
+	}
+	err = writer.Close()
+	if err != nil {
+		return fmt.Errorf("failed to close multipart writer: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", urlStr, body)
+	if err != nil {
+		return fmt.Errorf("failed to create upload request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("accept", "application/json")
+
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to perform upload request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("upload failed with status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
+// UploadState uploads a save state file to RomM
+func (c *Client) UploadState(romID uint, emulator string, filename string, content []byte) error {
+	if c.Token == "" {
+		return fmt.Errorf("not authenticated")
+	}
+
+	params := url.Values{}
+	params.Set("rom_id", fmt.Sprintf("%d", romID))
+	params.Set("emulator", emulator)
+
+	urlStr := fmt.Sprintf("%s/api/states?%s", c.BaseURL, params.Encode())
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("stateFile", filename)
+	if err != nil {
+		return fmt.Errorf("failed to create form file: %w", err)
+	}
+	_, err = part.Write(content)
+	if err != nil {
+		return fmt.Errorf("failed to write content to form file: %w", err)
+	}
+	err = writer.Close()
+	if err != nil {
+		return fmt.Errorf("failed to close multipart writer: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", urlStr, body)
+	if err != nil {
+		return fmt.Errorf("failed to create upload request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("accept", "application/json")
+
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to perform upload request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("upload failed with status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
 }

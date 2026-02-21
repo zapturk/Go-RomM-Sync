@@ -85,3 +85,11 @@ export function SelectLibraryPath() {
 export function SelectRetroArchExecutable() {
   return window['go']['main']['App']['SelectRetroArchExecutable']();
 }
+
+export function UploadSave(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UploadSave'](arg1, arg2, arg3);
+}
+
+export function UploadState(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UploadState'](arg1, arg2, arg3);
+}

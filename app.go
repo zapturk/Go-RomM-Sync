@@ -468,6 +468,42 @@ func (a *App) DeleteState(id uint, core, filename string) error {
 	return a.deleteGameFile(id, "states", core, filename)
 }
 
+// UploadSave reads a local save file and uploads it to RomM
+func (a *App) UploadSave(id uint, core, filename string) error {
+	game, err := a.rommClient.GetRom(id)
+	if err != nil {
+		return fmt.Errorf("failed to get ROM info: %w", err)
+	}
+
+	romDir := a.getRomDir(&game)
+	filePath := filepath.Join(romDir, "saves", core, filename)
+
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to read local save file: %w", err)
+	}
+
+	return a.rommClient.UploadSave(id, core, filename, content)
+}
+
+// UploadState reads a local save state file and uploads it to RomM
+func (a *App) UploadState(id uint, core, filename string) error {
+	game, err := a.rommClient.GetRom(id)
+	if err != nil {
+		return fmt.Errorf("failed to get ROM info: %w", err)
+	}
+
+	romDir := a.getRomDir(&game)
+	filePath := filepath.Join(romDir, "states", core, filename)
+
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to read local state file: %w", err)
+	}
+
+	return a.rommClient.UploadState(id, core, filename, content)
+}
+
 func (a *App) deleteGameFile(id uint, subDir, core, filename string) error {
 	game, err := a.rommClient.GetRom(id)
 	if err != nil {
