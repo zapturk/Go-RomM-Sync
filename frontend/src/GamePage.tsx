@@ -464,6 +464,24 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         fetchAppData();
     };
 
+    const handleSmartSync = async () => {
+        setDownloadStatus("Starting full smart sync...");
+        await handleSyncSaves();
+        await handleSyncStates();
+        setDownloadStatus("Smart sync complete!");
+    };
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key.toLowerCase() === 'r') {
+                handleSmartSync();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [saves, serverSaves, states, serverStates, gameId]);
+
     if (loading) {
         return <div className="game-page-loading">Loading game details...</div>;
     }
@@ -584,12 +602,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                     </div>
                     <div className="game-saves-states-section">
                         <div className="game-saves-column">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <h3>Server Saves</h3>
-                                <button className="btn sync-btn" onClick={handleSyncSaves} title="Smart Sync Saves">
-                                    <SyncIcon size={16} /> Sync
-                                </button>
-                            </div>
+                            <h3>Server Saves</h3>
                             <div className="file-list">
                                 {serverSaves.map((save, idx) => (
                                     <FileItemRow
@@ -617,12 +630,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                             </div>
                         </div>
                         <div className="game-states-column">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <h3>Server States</h3>
-                                <button className="btn sync-btn" onClick={handleSyncStates} title="Smart Sync States">
-                                    <SyncIcon size={16} /> Sync
-                                </button>
-                            </div>
+                            <h3>Server States</h3>
                             <div className="file-list">
                                 {serverStates.map((state, idx) => (
                                     <FileItemRow
@@ -658,6 +666,17 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                     <span>{game.name}</span>
                 </div>
                 <div className="footer-right">
+                    <div className="legend-item">
+                        <div className="btn-icon show-gamepad">
+                            <div className="btn-dot north"></div>
+                            <div className="btn-dot east"></div>
+                            <div className="btn-dot south"></div>
+                            <div className="btn-dot west active"></div>
+                        </div>
+                        <div className="key-icon show-keyboard">R</div>
+                        <span>Sync</span>
+                    </div>
+
                     <div className="legend-item">
                         <div className="btn-icon show-gamepad">
                             <div className="btn-dot north"></div>

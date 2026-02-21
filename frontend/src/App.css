@@ -598,33 +598,8 @@ body.input-keyboard .show-keyboard {
 
 .file-upload-btn:hover,
 .file-upload-btn.focused {
-    background: rgba(33, 150, 243, 0.4);
-    color: #90caf9;
-}
-
-.sync-btn {
-    padding: 4px 12px;
-    font-size: 0.85rem;
-    height: 32px;
-    border-radius: 6px;
-    border: none;
-    background: rgba(33, 150, 243, 0.2);
-    color: #90caf9;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: all 0.2s;
-}
-
-.sync-btn:hover,
-.sync-btn.focused {
-    background: rgba(33, 150, 243, 0.4);
-    transform: scale(1.05);
-}
-
-color: #4CAF50;
-background: rgba(76, 175, 80, 0.2);
+    color: #4CAF50;
+    background: rgba(76, 175, 80, 0.2);
 }
 
 .file-download-btn:hover,
