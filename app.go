@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -447,9 +448,16 @@ func (a *App) getGameFiles(id uint, subDir string) ([]types.FileItem, error) {
 			}
 			for _, f := range files {
 				if !f.IsDir() && !strings.HasPrefix(f.Name(), ".") {
+					info, err := f.Info()
+					updatedAt := ""
+					if err == nil {
+						updatedAt = info.ModTime().UTC().Format(time.RFC3339)
+					}
+
 					items = append(items, types.FileItem{
-						Name: f.Name(),
-						Core: coreName,
+						Name:      f.Name(),
+						Core:      coreName,
+						UpdatedAt: updatedAt,
 					})
 				}
 			}

@@ -29,6 +29,7 @@ export namespace types {
 	export class FileItem {
 	    name: string;
 	    core: string;
+	    updated_at: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new FileItem(source);
@@ -38,6 +39,7 @@ export namespace types {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
 	        this.core = source["core"];
+	        this.updated_at = source["updated_at"];
 	    }
 	}
 	export class Game {

@@ -59,6 +59,22 @@ const UploadIcon = ({ size = 20 }: { size?: number }) => (
     </svg>
 );
 
+const SyncIcon = ({ size = 20 }: { size?: number }) => (
+    <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+    >
+        <polyline points="23 4 23 10 17 10" />
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+    </svg>
+);
+
 const DownloadIcon = ({ size = 20 }: { size?: number }) => (
     <svg
         width={size}
@@ -386,6 +402,68 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         });
     };
 
+    const handleSyncSaves = async () => {
+        setDownloadStatus("Starting smart sync for saves...");
+        const allNames = new Set<string>();
+        saves.forEach(s => allNames.add(s.name));
+        serverSaves.forEach(s => {
+            const cleanName = s.file_name.replace(/ \[\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-\d+)?\]/, "");
+            allNames.add(cleanName);
+        });
+
+        for (const name of Array.from(allNames)) {
+            const local = saves.find(s => s.name === name);
+            const serverClean = serverSaves.find(s => s.file_name.replace(/ \[\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-\d+)?\]/, "") === name);
+
+            if (local && serverClean) {
+                const localTime = new Date(local.updated_at || "").getTime();
+                const serverTime = new Date(serverClean.updated_at || "").getTime();
+                if (localTime > serverTime) {
+                    await UploadSave(gameId, local.core, local.name).catch(console.error);
+                } else if (serverTime > localTime) {
+                    await DownloadServerSave(gameId, serverClean.full_path, serverClean.emulator, name).catch(console.error);
+                }
+            } else if (local && !serverClean) {
+                await UploadSave(gameId, local.core, local.name).catch(console.error);
+            } else if (!local && serverClean) {
+                await DownloadServerSave(gameId, serverClean.full_path, serverClean.emulator, name).catch(console.error);
+            }
+        }
+        setDownloadStatus("Smart sync for saves complete!");
+        fetchAppData();
+    };
+
+    const handleSyncStates = async () => {
+        setDownloadStatus("Starting smart sync for states...");
+        const allNames = new Set<string>();
+        states.forEach(s => allNames.add(s.name));
+        serverStates.forEach(s => {
+            const cleanName = s.file_name.replace(/ \[\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-\d+)?\]/, "");
+            allNames.add(cleanName);
+        });
+
+        for (const name of Array.from(allNames)) {
+            const local = states.find(s => s.name === name);
+            const serverClean = serverStates.find(s => s.file_name.replace(/ \[\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-\d+)?\]/, "") === name);
+
+            if (local && serverClean) {
+                const localTime = new Date(local.updated_at || "").getTime();
+                const serverTime = new Date(serverClean.updated_at || "").getTime();
+                if (localTime > serverTime) {
+                    await UploadState(gameId, local.core, local.name).catch(console.error);
+                } else if (serverTime > localTime) {
+                    await DownloadServerState(gameId, serverClean.full_path, serverClean.emulator, name).catch(console.error);
+                }
+            } else if (local && !serverClean) {
+                await UploadState(gameId, local.core, local.name).catch(console.error);
+            } else if (!local && serverClean) {
+                await DownloadServerState(gameId, serverClean.full_path, serverClean.emulator, name).catch(console.error);
+            }
+        }
+        setDownloadStatus("Smart sync for states complete!");
+        fetchAppData();
+    };
+
     if (loading) {
         return <div className="game-page-loading">Loading game details...</div>;
     }
@@ -506,7 +584,25 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                     </div>
                     <div className="game-saves-states-section">
                         <div className="game-saves-column">
-                            <h3>Local Saves</h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <h3>Server Saves</h3>
+                                <button className="btn sync-btn" onClick={handleSyncSaves} title="Smart Sync Saves">
+                                    <SyncIcon size={16} /> Sync
+                                </button>
+                            </div>
+                            <div className="file-list">
+                                {serverSaves.map((save, idx) => (
+                                    <FileItemRow
+                                        key={`server-save-${idx}`}
+                                        focusKeyPrefix={`server-save-${idx}`}
+                                        item={save}
+                                        onDownload={() => handleDownloadServerSave(save)}
+                                    />
+                                ))}
+                                {serverSaves.length === 0 && <p className="no-files">No server saves found.</p>}
+                            </div>
+
+                            <h3 style={{ marginTop: '20px' }}>Local Saves</h3>
                             <div className="file-list">
                                 {saves.map((save, idx) => (
                                     <FileItemRow
@@ -519,22 +615,27 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                 ))}
                                 {saves.length === 0 && <p className="no-files">No local saves found.</p>}
                             </div>
-
-                            <h3 style={{ marginTop: '20px' }}>Server Saves</h3>
-                            <div className="file-list">
-                                {serverSaves.map((save, idx) => (
-                                    <FileItemRow
-                                        key={`server-save-${idx}`}
-                                        focusKeyPrefix={`server-save-${idx}`}
-                                        item={save}
-                                        onDownload={() => handleDownloadServerSave(save)}
-                                    />
-                                ))}
-                                {serverSaves.length === 0 && <p className="no-files">No server saves found.</p>}
-                            </div>
                         </div>
                         <div className="game-states-column">
-                            <h3>Local States</h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <h3>Server States</h3>
+                                <button className="btn sync-btn" onClick={handleSyncStates} title="Smart Sync States">
+                                    <SyncIcon size={16} /> Sync
+                                </button>
+                            </div>
+                            <div className="file-list">
+                                {serverStates.map((state, idx) => (
+                                    <FileItemRow
+                                        key={`server-state-${idx}`}
+                                        focusKeyPrefix={`server-state-${idx}`}
+                                        item={state}
+                                        onDownload={() => handleDownloadServerState(state)}
+                                    />
+                                ))}
+                                {serverStates.length === 0 && <p className="no-files">No server states found.</p>}
+                            </div>
+
+                            <h3 style={{ marginTop: '20px' }}>Local States</h3>
                             <div className="file-list">
                                 {states.map((state, idx) => (
                                     <FileItemRow
@@ -546,19 +647,6 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                     />
                                 ))}
                                 {states.length === 0 && <p className="no-files">No local states found.</p>}
-                            </div>
-
-                            <h3 style={{ marginTop: '20px' }}>Server States</h3>
-                            <div className="file-list">
-                                {serverStates.map((state, idx) => (
-                                    <FileItemRow
-                                        key={`server-state-${idx}`}
-                                        focusKeyPrefix={`server-state-${idx}`}
-                                        item={state}
-                                        onDownload={() => handleDownloadServerState(state)}
-                                    />
-                                ))}
-                                {serverStates.length === 0 && <p className="no-files">No server states found.</p>}
                             </div>
                         </div>
                     </div>

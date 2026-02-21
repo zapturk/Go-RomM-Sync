@@ -14,8 +14,9 @@ type Game struct {
 
 // FileItem represents a local save or state file
 type FileItem struct {
-	Name string `json:"name"`
-	Core string `json:"core"`
+	Name      string `json:"name"`
+	Core      string `json:"core"`
+	UpdatedAt string `json:"updated_at"` // ISO8601 string
 }
 
 // ServerSave represents a save file on the RomM server
