@@ -251,18 +251,10 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 
 	// Run in a goroutine so we don't block the Wails UI, but we can capture the output
 	go func() {
-		// Hide the Go-RomM-Sync window and disable its input while playing
-		wailsRuntime.WindowHide(ctx)
 		defer func() {
 			if appendConfigPath != "" {
 				os.Remove(appendConfigPath)
 			}
-			wailsRuntime.WindowShow(ctx)
-			// Bring to front on Windows/Linux (Wails APIs are sometimes finicky)
-			// Unminimise, show, and briefly set AlwaysOnTop then toggle off to force Z-order
-			wailsRuntime.WindowUnminimise(ctx)
-			wailsRuntime.WindowSetAlwaysOnTop(ctx, true)
-			wailsRuntime.WindowSetAlwaysOnTop(ctx, false)
 			wailsRuntime.EventsEmit(ctx, "game-exited", nil)
 		}()
 

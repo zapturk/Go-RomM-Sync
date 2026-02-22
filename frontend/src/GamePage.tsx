@@ -64,6 +64,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const [serverStates, setServerStates] = useState<types.ServerState[]>([]);
     const [downloadProgress, setDownloadProgress] = useState<number>(0);
     const [statusFading, setStatusFading] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(false);
     const fadeTimeoutRef = useRef<any>(null);
     const clearStatusTimeoutRef = useRef<any>(null);
 
@@ -101,7 +102,15 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 setDownloadProgress(data.percentage);
             }
         });
-        return () => unlisten();
+
+        const unlistenStarted = EventsOn(APP_EVENTS.GAME_STARTED, () => setIsPlaying(true));
+        const unlistenExited = EventsOn(APP_EVENTS.GAME_EXITED, () => setIsPlaying(false));
+
+        return () => {
+            unlisten();
+            unlistenStarted();
+            unlistenExited();
+        };
     }, [gameId]);
 
     const { ref } = useFocusable({
@@ -410,14 +419,14 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                         !isDownloaded ? (
                             <button
                                 ref={downloadRef}
-                                className={`btn download-btn ${downloadFocused ? 'focused' : ''} ${downloading ? 'disabled' : ''}`}
+                                className={`btn download-btn ${downloadFocused ? 'focused' : ''} ${downloading || isPlaying ? 'disabled' : ''}`}
                                 onMouseEnter={() => {
-                                    if (getMouseActive()) {
+                                    if (getMouseActive() && !downloading && !isPlaying) {
                                         focusDownload();
                                     }
                                 }}
                                 onClick={() => {
-                                    if (!downloading) {
+                                    if (!downloading && !isPlaying) {
                                         setDownloading(true);
                                         setDownloadStatus("Starting download...");
                                         DownloadRomToLibrary(game.id)
@@ -443,14 +452,14 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                             <div className="game-actions-horizontal">
                                 <button
                                     ref={playRef}
-                                    className={`btn play-btn ${playFocused ? 'focused' : ''}`}
+                                    className={`btn play-btn ${playFocused ? 'focused' : ''} ${isPlaying ? 'disabled' : ''}`}
                                     onMouseEnter={() => {
-                                        if (getMouseActive()) {
+                                        if (getMouseActive() && !isPlaying) {
                                             focusPlay();
                                         }
                                     }}
                                     onClick={() => {
-                                        if (game) {
+                                        if (game && !isPlaying) {
                                             setDownloadStatus("Starting RetroArch...");
                                             PlayRom(game.id).then(() => {
                                                 setSuccessStatus("Game launched successfully!");
@@ -468,15 +477,15 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                 </button>
                                 <button
                                     ref={deleteRef}
-                                    className={`btn delete-btn ${deleteFocused ? 'focused' : ''}`}
+                                    className={`btn delete-btn ${deleteFocused ? 'focused' : ''} ${isPlaying ? 'disabled' : ''}`}
                                     title="Delete ROM"
                                     onMouseEnter={() => {
-                                        if (getMouseActive()) {
+                                        if (getMouseActive() && !isPlaying) {
                                             focusDelete();
                                         }
                                     }}
                                     onClick={() => {
-                                        if (!game) return;
+                                        if (!game || isPlaying) return;
 
                                         DeleteRom(game.id).then(() => {
                                             setIsDownloaded(false);
@@ -527,6 +536,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                         item={save}
                                         onDownload={() => handleDownloadServerSave(save)}
                                         status={getFileStatus(save, saves)}
+                                        isDisabled={isPlaying}
                                     />
                                 ))}
                                 {serverSaves.length === 0 && <p className="no-files">No server saves found.</p>}
@@ -542,6 +552,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                         onDelete={() => handleDeleteSave(save.core, save.name, idx)}
                                         onUpload={() => handleUploadSave(save.core, save.name)}
                                         status={getFileStatus(save, serverSaves)}
+                                        isDisabled={isPlaying}
                                     />
                                 ))}
                                 {saves.length === 0 && <p className="no-files">No local saves found.</p>}
@@ -557,6 +568,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                         item={state}
                                         onDownload={() => handleDownloadServerState(state)}
                                         status={getFileStatus(state, states)}
+                                        isDisabled={isPlaying}
                                     />
                                 ))}
                                 {serverStates.length === 0 && <p className="no-files">No server states found.</p>}
@@ -572,6 +584,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                         onDelete={() => handleDeleteState(state.core, state.name, idx)}
                                         onUpload={() => handleUploadState(state.core, state.name)}
                                         status={getFileStatus(state, serverStates)}
+                                        isDisabled={isPlaying}
                                     />
                                 ))}
                                 {states.length === 0 && <p className="no-files">No local states found.</p>}
