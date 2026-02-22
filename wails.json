@@ -7,7 +7,14 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "Scott McKeefer",
+    "name": "Zapturk",
     "email": "scottmckeefer@gmail.com"
+  },
+  "info": {
+    "companyName": "Zapturk",
+    "productName": "Go RomM Sync",
+    "productVersion": "0.2.2",
+    "copyright": "Copyright © 2026 Zapturk",
+    "comments": "A seamless bridge between RomM and RetroArch for a console-like gaming experience."
   }
 }
