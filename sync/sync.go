@@ -3,6 +3,7 @@ package sync
 import (
 	"fmt"
 	"go-romm-sync/types"
+	"go-romm-sync/utils"
 	"io"
 	"os"
 	"path/filepath"
@@ -24,17 +25,26 @@ type RomMProvider interface {
 	RomMDownloadState(filePath string) (io.ReadCloser, string, error)
 }
 
+// UIProvider defines logging and event emission.
+type UIProvider interface {
+	LogInfof(format string, args ...interface{})
+	LogErrorf(format string, args ...interface{})
+	EventsEmit(eventName string, args ...interface{})
+}
+
 // Service manages the synchronization of saves and states.
 type Service struct {
 	library LibraryProvider
 	romm    RomMProvider
+	ui      UIProvider
 }
 
 // New creates a new Sync service.
-func New(lib LibraryProvider, romm RomMProvider) *Service {
+func New(lib LibraryProvider, romm RomMProvider, ui UIProvider) *Service {
 	return &Service{
 		library: lib,
 		romm:    romm,
+		ui:      ui,
 	}
 }
 
@@ -127,10 +137,24 @@ func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) erro
 		return fmt.Errorf("failed to read local %s file: %w", subDir, err)
 	}
 
+	err = nil
 	if subDir == "saves" {
-		return s.romm.RomMUploadSave(id, core, filename, content)
+		err = s.romm.RomMUploadSave(id, core, filename, content)
+	} else {
+		err = s.romm.RomMUploadState(id, core, filename, content)
 	}
-	return s.romm.RomMUploadState(id, core, filename, content)
+
+	if err != nil {
+		return err
+	}
+
+	// Update local file time after successful upload to align with server
+	now := time.Now()
+	if err := os.Chtimes(cleanPath, now, now); err != nil {
+		s.ui.LogErrorf("uploadServerAsset: Failed to update local file time: %v", err)
+	}
+
+	return nil
 }
 
 // DeleteGameFile deletes a local save or state file.
@@ -168,16 +192,16 @@ func (s *Service) DeleteGameFile(id uint, subDir, core, filename string) error {
 }
 
 // DownloadServerSave downloads a save from RomM.
-func (s *Service) DownloadServerSave(gameID uint, filePath string, core string, filename string) error {
-	return s.downloadServerAsset(gameID, filePath, core, filename, "saves")
+func (s *Service) DownloadServerSave(gameID uint, filePath string, core string, filename string, updatedAt string) error {
+	return s.downloadServerAsset(gameID, filePath, core, filename, updatedAt, "saves")
 }
 
 // DownloadServerState downloads a state from RomM.
-func (s *Service) DownloadServerState(gameID uint, filePath string, core string, filename string) error {
-	return s.downloadServerAsset(gameID, filePath, core, filename, "states")
+func (s *Service) DownloadServerState(gameID uint, filePath string, core string, filename string, updatedAt string) error {
+	return s.downloadServerAsset(gameID, filePath, core, filename, updatedAt, "states")
 }
 
-func (s *Service) downloadServerAsset(gameID uint, filePath string, core string, filename string, subDir string) error {
+func (s *Service) downloadServerAsset(gameID uint, filePath string, core string, filename string, updatedAt string, subDir string) error {
 	game, err := s.romm.GetRom(gameID)
 	if err != nil {
 		return fmt.Errorf("failed to get ROM info: %w", err)
@@ -226,7 +250,20 @@ func (s *Service) downloadServerAsset(gameID uint, filePath string, core string,
 	defer out.Close()
 
 	if _, err := io.Copy(out, reader); err != nil {
+		out.Close()
 		return fmt.Errorf("failed to write local %s file: %w", subDir, err)
+	}
+
+	if err := out.Close(); err != nil {
+		return fmt.Errorf("failed to close local %s file: %w", subDir, err)
+	}
+
+	if updatedAt != "" {
+		if t, err := utils.ParseTimestamp(updatedAt); err == nil {
+			if err := os.Chtimes(destPath, t, t); err != nil {
+				s.ui.LogErrorf("downloadServerAsset: Failed to update local file time: %v", err)
+			}
+		}
 	}
 
 	return nil

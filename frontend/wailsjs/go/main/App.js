@@ -34,12 +34,12 @@ export function DownloadRomToLibrary(arg1) {
   return window['go']['main']['App']['DownloadRomToLibrary'](arg1);
 }
 
-export function DownloadServerSave(arg1, arg2, arg3, arg4) {
-  return window['go']['main']['App']['DownloadServerSave'](arg1, arg2, arg3, arg4);
+export function DownloadServerSave(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['DownloadServerSave'](arg1, arg2, arg3, arg4, arg5);
 }
 
-export function DownloadServerState(arg1, arg2, arg3, arg4) {
-  return window['go']['main']['App']['DownloadServerState'](arg1, arg2, arg3, arg4);
+export function DownloadServerState(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['DownloadServerState'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function EventsEmit(arg1, arg2) {

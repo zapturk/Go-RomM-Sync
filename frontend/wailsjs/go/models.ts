@@ -51,6 +51,7 @@ export namespace types {
 	    summary: string;
 	    genres: string[];
 	    has_saves: boolean;
+	    fs_size_bytes: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Game(source);
@@ -66,6 +67,7 @@ export namespace types {
 	        this.summary = source["summary"];
 	        this.genres = source["genres"];
 	        this.has_saves = source["has_saves"];
+	        this.fs_size_bytes = source["fs_size_bytes"];
 	    }
 	}
 	export class Platform {

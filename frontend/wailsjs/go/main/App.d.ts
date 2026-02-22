@@ -19,9 +19,9 @@ export function DownloadRom(arg1:number):Promise<string>;
 
 export function DownloadRomToLibrary(arg1:number):Promise<void>;
 
-export function DownloadServerSave(arg1:number,arg2:string,arg3:string,arg4:string):Promise<void>;
+export function DownloadServerSave(arg1:number,arg2:string,arg3:string,arg4:string,arg5:string):Promise<void>;
 
-export function DownloadServerState(arg1:number,arg2:string,arg3:string,arg4:string):Promise<void>;
+export function DownloadServerState(arg1:number,arg2:string,arg3:string,arg4:string,arg5:string):Promise<void>;
 
 export function EventsEmit(arg1:string,arg2:Array<any>):Promise<void>;
 

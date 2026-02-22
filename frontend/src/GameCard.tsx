@@ -8,12 +8,23 @@ interface GameCardProps {
     game: types.Game;
     onClick?: () => void;
     onEnterPress?: () => void;
+    isLeftmost?: boolean;
+    isTopRow?: boolean;
 }
 
-export function GameCard({ game, onClick, onEnterPress }: GameCardProps) {
+export function GameCard({ game, onClick, onEnterPress, isLeftmost = false, isTopRow = false }: GameCardProps) {
     const { ref, focused, focusSelf } = useFocusable({
         onEnterPress: onEnterPress || onClick,
         focusKey: `game-${game.id}`,
+        onArrowPress: (direction: string) => {
+            if (isLeftmost && direction === 'left') {
+                return false;
+            }
+            if (isTopRow && direction === 'up') {
+                return false;
+            }
+            return true;
+        }
     });
 
     useEffect(() => {

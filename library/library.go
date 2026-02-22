@@ -26,6 +26,27 @@ type RomMProvider interface {
 type UIProvider interface {
 	LogInfof(format string, args ...interface{})
 	LogErrorf(format string, args ...interface{})
+	EventsEmit(eventName string, args ...interface{})
+}
+
+type ProgressWriter struct {
+	Total      int64
+	Downloaded int64
+	GameID     uint
+	UI         UIProvider
+}
+
+func (pw *ProgressWriter) Write(p []byte) (int, error) {
+	n := len(p)
+	pw.Downloaded += int64(n)
+	if pw.Total > 0 {
+		percentage := float64(pw.Downloaded) / float64(pw.Total) * 100
+		pw.UI.EventsEmit("download-progress", map[string]interface{}{
+			"game_id":    pw.GameID,
+			"percentage": percentage,
+		})
+	}
+	return n, nil
 }
 
 // Service manages the local ROM library.
@@ -84,7 +105,13 @@ func (s *Service) DownloadRomToLibrary(id uint) error {
 	}
 	defer out.Close()
 
-	if _, err := io.Copy(out, reader); err != nil {
+	pw := &ProgressWriter{
+		Total:  game.FileSize,
+		GameID: game.ID,
+		UI:     s.ui,
+	}
+
+	if _, err := io.Copy(io.MultiWriter(out, pw), reader); err != nil {
 		return fmt.Errorf("failed to save file: %w", err)
 	}
 

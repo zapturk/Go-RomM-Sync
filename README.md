@@ -10,6 +10,8 @@
 > This application is a client for synchronizing and playing games from your RomM library locally on your device. It is **not** intended for managing or adding new games to your self-hosted RomM instance. Please use the RomM web interface for administrative tasks.
 >
 > **Note:** This project is not affiliated with, endorsed by, or in any way officially connected with the [RomM project](https://github.com/rommapp/romm).
+>
+> **Supported RomM Version:** [4.6.1](https://github.com/rommapp/romm/releases/tag/4.6.1)
 
 Go-RomM-Sync is a desktop application built with Wails and React that synchronizes your RomM library with a local RetroArch installation. It provides a gaming-console-like experience with full controller navigation support, making it perfect for use with gamepads on a home theater setup.
 
@@ -105,5 +107,6 @@ wails build -tags webkit2_41
 ## Roadmap
 
 - [x] **Save Syncing Management**: Bidirectional synchronization of saves and states between local storage and RomM.
+- [ ] **Add Pico-8 Support**: Add support for Pico-8 games.
 - [ ] **Detailed Achievements**: View RetroAchievements progress and badges directly on the game page.
 - [ ] **Advanced Filtering**: Filter games by genre, platform, or download status.

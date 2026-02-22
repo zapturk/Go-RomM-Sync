@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRom, GetSaves, GetStates, DeleteSave, DeleteState, UploadSave, UploadState, GetServerSaves, GetServerStates, DownloadServerSave, DownloadServerState } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
@@ -9,10 +9,47 @@ import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation
 import { getMouseActive } from './inputMode';
 import { TIMESTAMP_REGEX, APP_EVENTS } from './constants';
 
+const decodeHtml = (html: string) => {
+    if (!html) return '';
+    const txt = document.createElement("textarea");
+    txt.innerHTML = html;
+    return txt.value;
+};
+
 interface GamePageProps {
     gameId: number;
     onBack: () => void;
 }
+
+const formatFileSize = (bytes: number) => {
+    if (!bytes || bytes === 0) return '';
+    const MB = 1024 * 1024;
+    const GB = 1024 * MB;
+
+    if (bytes < MB) {
+        return `File Size: ${bytes.toLocaleString()} Bytes`;
+    } else if (bytes < GB) {
+        return `File Size: ${(bytes / MB).toFixed(2)} MB`;
+    } else {
+        return `File Size: ${(bytes / GB).toFixed(2)} GB`;
+    }
+};
+
+const getFileStatus = (item: any, otherList: any[]) => {
+    const name = item.name || item.file_name;
+    const core = item.core || item.emulator;
+    if (!name || !core || !item.updated_at) return undefined;
+
+    const other = otherList.find(o => (o.name === name || o.file_name === name) && (o.core === core || o.emulator === core));
+    if (!other || !other.updated_at) return undefined;
+
+    const currentDate = new Date(item.updated_at).getTime();
+    const otherDate = new Date(other.updated_at).getTime();
+
+    const diff = currentDate - otherDate;
+    if (Math.abs(diff) < 5000) return 'equal'; // 5s buffer for clock drift/transfer latency
+    return diff > 0 ? 'newer' : 'older';
+};
 
 export function GamePage({ gameId, onBack }: GamePageProps) {
     const [game, setGame] = useState<types.Game | null>(null);
@@ -25,6 +62,63 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const [states, setStates] = useState<types.FileItem[]>([]);
     const [serverSaves, setServerSaves] = useState<types.ServerSave[]>([]);
     const [serverStates, setServerStates] = useState<types.ServerState[]>([]);
+    const [downloadProgress, setDownloadProgress] = useState<number>(0);
+    const [statusFading, setStatusFading] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const fadeTimeoutRef = useRef<any>(null);
+    const clearStatusTimeoutRef = useRef<any>(null);
+    const statusSequenceRef = useRef(0);
+
+    const setSuccessStatus = (msg: string) => {
+        const sequence = ++statusSequenceRef.current;
+
+        // Clear any existing timeouts to reset the cycle
+        if (fadeTimeoutRef.current) clearTimeout(fadeTimeoutRef.current);
+        if (clearStatusTimeoutRef.current) clearTimeout(clearStatusTimeoutRef.current);
+
+        setStatusFading(false);
+        setDownloadStatus(msg);
+
+        // Start fading after 1 second (opaque for 1s, then fades via CSS)
+        fadeTimeoutRef.current = setTimeout(() => {
+            if (statusSequenceRef.current === sequence) {
+                setStatusFading(true);
+            }
+        }, 1000);
+
+        // Clear status after 3 seconds
+        clearStatusTimeoutRef.current = setTimeout(() => {
+            if (statusSequenceRef.current === sequence) {
+                setDownloadStatus(prev => prev === msg ? null : prev);
+                setStatusFading(false);
+            }
+        }, 3000);
+    };
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (fadeTimeoutRef.current) clearTimeout(fadeTimeoutRef.current);
+            if (clearStatusTimeoutRef.current) clearTimeout(clearStatusTimeoutRef.current);
+        };
+    }, []);
+
+    useEffect(() => {
+        const unlisten = EventsOn("download-progress", (data: { game_id: number; percentage: number }) => {
+            if (data.game_id === gameId) {
+                setDownloadProgress(data.percentage);
+            }
+        });
+
+        const unlistenStarted = EventsOn(APP_EVENTS.GAME_STARTED, () => setIsPlaying(true));
+        const unlistenExited = EventsOn(APP_EVENTS.GAME_EXITED, () => setIsPlaying(false));
+
+        return () => {
+            unlisten();
+            unlistenStarted();
+            unlistenExited();
+        };
+    }, [gameId]);
 
     const { ref } = useFocusable({
         onArrowPress: (direction: string) => {
@@ -42,7 +136,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 setDownloadStatus("Starting download...");
                 DownloadRomToLibrary(game.id)
                     .then(() => {
-                        setDownloadStatus("Download complete!");
+                        setSuccessStatus("Download complete!");
+                        setDownloadProgress(100);
                         setIsDownloaded(true);
                         setTimeout(() => {
                             setFocus('play-button');
@@ -65,7 +160,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
             if (game) {
                 setDownloadStatus("Starting RetroArch...");
                 PlayRom(game.id).then(() => {
-                    setDownloadStatus("Game launched successfully!");
+                    setSuccessStatus("Game launched successfully!");
                 }).catch((err: string) => {
                     // Check if it's the RetroArch cancelled error
                     if (err.includes("launch cancelled")) {
@@ -86,7 +181,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
             DeleteRom(game.id).then(() => {
                 setIsDownloaded(false);
-                setDownloadStatus("ROM deleted from library.");
+                setSuccessStatus("ROM deleted from library.");
                 setTimeout(() => focusDownload(), 100);
             }).catch((err: string) => {
                 setDownloadStatus(`Delete error: ${err}`);
@@ -150,12 +245,14 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                         setFocus(`save-${nextIdx}-upload`);
                     } else if (states.length > 0) {
                         setFocus(`state-0-upload`);
-                    } else {
+                    } else if (isDownloaded) {
                         setFocus('play-button');
+                    } else {
+                        setFocus('download-button');
                     }
                 }, 50);
             }).catch(console.error);
-            setDownloadStatus("Save deleted.");
+            setSuccessStatus("Save deleted.");
         }).catch((err: string) => setDownloadStatus(`Error deleting save: ${err}`));
     };
 
@@ -170,19 +267,21 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                         setFocus(`state-${nextIdx}-upload`);
                     } else if (saves.length > 0) {
                         setFocus(`save-0-upload`);
-                    } else {
+                    } else if (isDownloaded) {
                         setFocus('play-button');
+                    } else {
+                        setFocus('download-button');
                     }
                 }, 50);
             }).catch(console.error);
-            setDownloadStatus("State deleted.");
+            setSuccessStatus("State deleted.");
         }).catch((err: string) => setDownloadStatus(`Error deleting state: ${err}`));
     };
 
     const handleUploadSave = (core: string, name: string) => {
         setDownloadStatus(`Uploading save ${name}...`);
         UploadSave(gameId, core, name).then(() => {
-            setDownloadStatus("Save uploaded successfully to RomM!");
+            setSuccessStatus("Save uploaded successfully to RomM!");
             fetchAppData(); // Refresh server save list
         }).catch((err: string) => {
             setDownloadStatus(`Upload error: ${err}`);
@@ -192,7 +291,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const handleUploadState = (core: string, name: string) => {
         setDownloadStatus(`Uploading state ${name}...`);
         UploadState(gameId, core, name).then(() => {
-            setDownloadStatus("State uploaded successfully to RomM!");
+            setSuccessStatus("State uploaded successfully to RomM!");
             fetchAppData(); // Refresh server state list
         }).catch((err: string) => {
             setDownloadStatus(`Upload error: ${err}`);
@@ -202,8 +301,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const handleDownloadServerSave = (save: types.ServerSave) => {
         setDownloadStatus(`Downloading save ${save.file_name}...`);
         const cleanFileName = save.file_name.replace(TIMESTAMP_REGEX, "");
-        DownloadServerSave(gameId, save.full_path, save.emulator, cleanFileName).then(() => {
-            setDownloadStatus("Server save downloaded successfully!");
+        DownloadServerSave(gameId, save.full_path, save.emulator, cleanFileName, save.updated_at).then(() => {
+            setSuccessStatus("Server save downloaded successfully!");
             fetchAppData(); // Refresh local saves list
         }).catch((err: string) => {
             setDownloadStatus(`Download error: ${err}`);
@@ -213,8 +312,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const handleDownloadServerState = (state: types.ServerState) => {
         setDownloadStatus(`Downloading state ${state.file_name}...`);
         const cleanFileName = state.file_name.replace(TIMESTAMP_REGEX, "");
-        DownloadServerState(gameId, state.full_path, state.emulator, cleanFileName).then(() => {
-            setDownloadStatus("Server state downloaded successfully!");
+        DownloadServerState(gameId, state.full_path, state.emulator, cleanFileName, state.updated_at).then(() => {
+            setSuccessStatus("Server state downloaded successfully!");
             fetchAppData(); // Refresh local states list
         }).catch((err: string) => {
             setDownloadStatus(`Download error: ${err}`);
@@ -240,15 +339,15 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 if (localTime > serverTime) {
                     await UploadSave(gameId, local.core, local.name).catch(console.error);
                 } else if (serverTime > localTime) {
-                    await DownloadServerSave(gameId, serverClean.full_path, serverClean.emulator, name).catch(console.error);
+                    await DownloadServerSave(gameId, serverClean.full_path, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
                 }
             } else if (local && !serverClean) {
                 await UploadSave(gameId, local.core, local.name).catch(console.error);
             } else if (!local && serverClean) {
-                await DownloadServerSave(gameId, serverClean.full_path, serverClean.emulator, name).catch(console.error);
+                await DownloadServerSave(gameId, serverClean.full_path, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
             }
         }
-        setDownloadStatus("Smart sync for saves complete!");
+        setSuccessStatus("Smart sync for saves complete!");
         fetchAppData();
     };
 
@@ -271,15 +370,15 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 if (localTime > serverTime) {
                     await UploadState(gameId, local.core, local.name).catch(console.error);
                 } else if (serverTime > localTime) {
-                    await DownloadServerState(gameId, serverClean.full_path, serverClean.emulator, name).catch(console.error);
+                    await DownloadServerState(gameId, serverClean.full_path, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
                 }
             } else if (local && !serverClean) {
                 await UploadState(gameId, local.core, local.name).catch(console.error);
             } else if (!local && serverClean) {
-                await DownloadServerState(gameId, serverClean.full_path, serverClean.emulator, name).catch(console.error);
+                await DownloadServerState(gameId, serverClean.full_path, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
             }
         }
-        setDownloadStatus("Smart sync for states complete!");
+        setSuccessStatus("Smart sync for states complete!");
         fetchAppData();
     };
 
@@ -287,7 +386,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         setDownloadStatus("Starting full smart sync...");
         await handleSyncSaves();
         await handleSyncStates();
-        setDownloadStatus("Smart sync complete!");
+        setSuccessStatus("Smart sync complete!");
     };
 
     useEffect(() => {
@@ -318,23 +417,29 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
             <div className="game-page-content">
                 <div className="game-sidebar">
                     <GameCover game={game} className="game-page-cover" />
+                    {game.fs_size_bytes > 0 && (
+                        <div className="game-file-size">
+                            {formatFileSize(game.fs_size_bytes)}
+                        </div>
+                    )}
                     {statusChecked && (
                         !isDownloaded ? (
                             <button
                                 ref={downloadRef}
-                                className={`btn download-btn ${downloadFocused ? 'focused' : ''} ${downloading ? 'disabled' : ''}`}
+                                className={`btn download-btn ${downloadFocused ? 'focused' : ''} ${downloading || isPlaying ? 'disabled' : ''}`}
+                                disabled={downloading || isPlaying}
                                 onMouseEnter={() => {
-                                    if (getMouseActive()) {
+                                    if (getMouseActive() && !downloading && !isPlaying) {
                                         focusDownload();
                                     }
                                 }}
                                 onClick={() => {
-                                    if (!downloading) {
+                                    if (!downloading && !isPlaying) {
                                         setDownloading(true);
                                         setDownloadStatus("Starting download...");
                                         DownloadRomToLibrary(game.id)
                                             .then(() => {
-                                                setDownloadStatus("Download complete!");
+                                                setSuccessStatus("Download complete!");
                                                 setIsDownloaded(true);
                                                 setTimeout(() => {
                                                     setFocus('play-button');
@@ -355,17 +460,18 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                             <div className="game-actions-horizontal">
                                 <button
                                     ref={playRef}
-                                    className={`btn play-btn ${playFocused ? 'focused' : ''}`}
+                                    className={`btn play-btn ${playFocused ? 'focused' : ''} ${isPlaying ? 'disabled' : ''}`}
+                                    disabled={isPlaying}
                                     onMouseEnter={() => {
-                                        if (getMouseActive()) {
+                                        if (getMouseActive() && !isPlaying) {
                                             focusPlay();
                                         }
                                     }}
                                     onClick={() => {
-                                        if (game) {
+                                        if (game && !isPlaying) {
                                             setDownloadStatus("Starting RetroArch...");
                                             PlayRom(game.id).then(() => {
-                                                setDownloadStatus("Game launched successfully!");
+                                                setSuccessStatus("Game launched successfully!");
                                             }).catch((err: string) => {
                                                 if (err.includes("launch cancelled")) {
                                                     setDownloadStatus("");
@@ -380,19 +486,20 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                 </button>
                                 <button
                                     ref={deleteRef}
-                                    className={`btn delete-btn ${deleteFocused ? 'focused' : ''}`}
+                                    className={`btn delete-btn ${deleteFocused ? 'focused' : ''} ${isPlaying ? 'disabled' : ''}`}
+                                    disabled={isPlaying}
                                     title="Delete ROM"
                                     onMouseEnter={() => {
-                                        if (getMouseActive()) {
+                                        if (getMouseActive() && !isPlaying) {
                                             focusDelete();
                                         }
                                     }}
                                     onClick={() => {
-                                        if (!game) return;
+                                        if (!game || isPlaying) return;
 
                                         DeleteRom(game.id).then(() => {
                                             setIsDownloaded(false);
-                                            setDownloadStatus("ROM deleted from library.");
+                                            setSuccessStatus("ROM deleted from library.");
                                             setTimeout(() => focusDownload(), 100);
                                         }).catch((err: any) => {
                                             setDownloadStatus(`Delete error: ${err}`);
@@ -405,8 +512,13 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                         )
                     )}
                     {downloadStatus && (
-                        <div className={`download-status ${downloadStatus.includes("Error") ? "error" : "success"}`}>
+                        <div className={`download-status ${downloadStatus.includes("Error") ? "error" : "success"} ${statusFading && !downloadStatus.includes("Error") ? "fading" : ""}`}>
                             {downloadStatus}
+                            {downloading && downloadProgress > 0 && downloadProgress < 100 && (
+                                <span style={{ marginLeft: "10px", fontWeight: "bold" }}>
+                                    ({Math.round(downloadProgress)}%)
+                                </span>
+                            )}
                         </div>
                     )}
                 </div>
@@ -421,7 +533,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                     )}
                     <div className="game-summary">
                         <h3>Summary</h3>
-                        <p>{game.summary || "No summary available."}</p>
+                        <p>{decodeHtml(game.summary) || "No summary available."}</p>
                     </div>
                     <div className="game-saves-states-section">
                         <div className="game-saves-column">
@@ -433,6 +545,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                         focusKeyPrefix={`server-save-${idx}`}
                                         item={save}
                                         onDownload={() => handleDownloadServerSave(save)}
+                                        status={getFileStatus(save, saves)}
+                                        isDisabled={isPlaying}
                                     />
                                 ))}
                                 {serverSaves.length === 0 && <p className="no-files">No server saves found.</p>}
@@ -447,6 +561,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                         item={save}
                                         onDelete={() => handleDeleteSave(save.core, save.name, idx)}
                                         onUpload={() => handleUploadSave(save.core, save.name)}
+                                        status={getFileStatus(save, serverSaves)}
+                                        isDisabled={isPlaying}
                                     />
                                 ))}
                                 {saves.length === 0 && <p className="no-files">No local saves found.</p>}
@@ -461,6 +577,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                         focusKeyPrefix={`server-state-${idx}`}
                                         item={state}
                                         onDownload={() => handleDownloadServerState(state)}
+                                        status={getFileStatus(state, states)}
+                                        isDisabled={isPlaying}
                                     />
                                 ))}
                                 {serverStates.length === 0 && <p className="no-files">No server states found.</p>}
@@ -475,6 +593,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                         item={state}
                                         onDelete={() => handleDeleteState(state.core, state.name, idx)}
                                         onUpload={() => handleUploadState(state.core, state.name)}
+                                        status={getFileStatus(state, serverStates)}
+                                        isDisabled={isPlaying}
                                     />
                                 ))}
                                 {states.length === 0 && <p className="no-files">No local states found.</p>}

@@ -55,6 +55,13 @@ jobs:
           npm install
           npm run build
 
+      - name: Set Version
+        shell: bash
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG#v}
+          perl -pi -e "s/\"productVersion\": \".*?\"/\"productVersion\": \"$VERSION\"/" wails.json
+
       - name: Build application
         run: wails build -platform ${{ matrix.platform }} ${{ matrix.tags }}
 
