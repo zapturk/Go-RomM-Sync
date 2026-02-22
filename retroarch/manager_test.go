@@ -64,8 +64,10 @@ cheevos_username = "testuser"
 		t.Fatalf("Failed to write mock config: %v", err)
 	}
 
-	// Mock exePath to point to the temp dir
+	// Mock exePath to point to the temp dir.
+	// The function calls os.Stat(exePath), so the file must exist.
 	exePath := filepath.Join(tmpDir, "retroarch.exe")
+	os.WriteFile(exePath, []byte(""), 0644)
 
 	err = ClearCheevosToken(exePath)
 	if err != nil {

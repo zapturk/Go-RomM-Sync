@@ -84,28 +84,35 @@ func getCoreExt() string {
 
 // Launch launches RetroArch for the given ROM path, given the selected executable.
 func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass string) error {
-	// If exePath is a directory, try to find the executable inside it
+	// If exePath is a directory, try to find the actual executable inside it
 	if info, err := os.Stat(exePath); err == nil && info.IsDir() {
+		found := false
 		target := filepath.Join(exePath, "retroarch.exe")
 		if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
 			target = filepath.Join(exePath, "retroarch")
 		}
+
 		if runtime.GOOS == "darwin" {
-			// Check for .app bundle in the directory
 			appPath := filepath.Join(exePath, "RetroArch.app")
 			if _, err := os.Stat(appPath); err == nil {
 				exePath = appPath
+				found = true
 			} else {
-				// Fallback to binary in the directory
 				target = filepath.Join(exePath, "RetroArch")
 				if _, err := os.Stat(target); err == nil {
 					exePath = target
+					found = true
 				}
 			}
 		} else {
 			if _, err := os.Stat(target); err == nil {
 				exePath = target
+				found = true
 			}
+		}
+
+		if !found {
+			return fmt.Errorf("retroarch executable not found in directory: %s", exePath)
 		}
 	}
 
@@ -404,6 +411,9 @@ func ClearCheevosToken(exePath string) error {
 		}
 	}
 
+	// Matches the line starting with cheevos_token = (case-insensitive, allowing leading whitespace)
+	re := regexp.MustCompile(`(?mi)^\s*cheevos_token\s*=\s*.*`)
+
 	// Try to find and clear the token in each potential config path
 	for _, path := range configPaths {
 		if _, err := os.Stat(path); err == nil {
@@ -412,14 +422,7 @@ func ClearCheevosToken(exePath string) error {
 				continue
 			}
 
-			// Use regex to find and clear the token.
-			// Matches cheevos_token = "..." or cheevos_token = value
-			re := regexp.MustCompile(`(?m)^cheevos_token\s*=\s*".*?"`)
 			newContent := re.ReplaceAllString(string(content), `cheevos_token = ""`)
-
-			// Also handle the case without quotes
-			reNoQuotes := regexp.MustCompile(`(?m)^cheevos_token\s*=\s*[^"\s\r\n]+`)
-			newContent = reNoQuotes.ReplaceAllString(newContent, `cheevos_token = ""`)
 
 			if string(content) != newContent {
 				err = os.WriteFile(path, []byte(newContent), 0644)
