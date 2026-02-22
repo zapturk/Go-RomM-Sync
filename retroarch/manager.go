@@ -133,8 +133,16 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 	}
 	coresDir := filepath.Join(baseDir, "cores")
 
+	// Store original ROM base directory for saves/states early, before we potentially move romPath to a temp file
+	romBaseDir := filepath.Dir(romPath)
+	if strings.Contains(romPath, "#") {
+		// Handle path if accidentally passed with #
+		romBaseDir = filepath.Dir(strings.Split(romPath, "#")[0])
+	}
+
 	// Determine Core from extension
 	ext := strings.ToLower(filepath.Ext(romPath))
+	var tempRomPath string
 
 	// If it's a zip file, we peek inside to find the first recognizable ROM extension
 	if ext == ".zip" {
@@ -150,10 +158,35 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 				continue
 			}
 			innerExt := strings.ToLower(filepath.Ext(f.Name))
-			if _, ok := CoreMap[innerExt]; ok {
+			if coreName, ok := CoreMap[innerExt]; ok {
 				foundExt = innerExt
-				// RetroArch requires the path to be formatted as: path/to/rom.zip#internal_rom.abc
-				romPath = fmt.Sprintf("%s#%s", romPath, f.Name)
+				// Special case: Pico-8 .png carts inside ZIPs need manual extraction to a .p8 extension
+				// to prevent RetroArch from defaulting to its internal image-viewer core.
+				if innerExt == ".png" && coreName == "retro8_libretro" {
+					tmpFile, err := os.CreateTemp("", "pico8_*.p8")
+					if err != nil {
+						return fmt.Errorf("failed to create temporary file for pico-8 extraction: %v", err)
+					}
+					rc, err := f.Open()
+					if err != nil {
+						tmpFile.Close()
+						os.Remove(tmpFile.Name())
+						return fmt.Errorf("failed to open zip member for extraction: %v", err)
+					}
+					_, err = io.Copy(tmpFile, rc)
+					rc.Close()
+					tmpFile.Close()
+					if err != nil {
+						os.Remove(tmpFile.Name())
+						return fmt.Errorf("failed to extract pico-8 cart from zip: %v", err)
+					}
+					romPath = tmpFile.Name()
+					tempRomPath = romPath
+					wailsRuntime.LogInfof(ctx, "Launch: Manually extracted Pico-8 .png cart from ZIP to %s", romPath)
+				} else {
+					// RetroArch requires the path to be formatted as: path/to/rom.zip#internal_rom.abc
+					romPath = fmt.Sprintf("%s#%s", romPath, f.Name)
+				}
 				break
 			}
 		}
@@ -203,19 +236,8 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 		}
 	}
 
-	// Launch Retroarch
-	// Determine ROM directory for saves/states
-	wailsRuntime.LogInfof(ctx, "Launch: Determining romBaseDir from romPath: %s", romPath)
-	romBaseDir := filepath.Dir(romPath)
-	if strings.Contains(romPath, "#") {
-		// Handle zip archives by taking the part before #
-		romBaseDir = filepath.Dir(strings.Split(romPath, "#")[0])
-		wailsRuntime.LogInfof(ctx, "Launch: Detected zip archive. Base dir set to: %s", romBaseDir)
-	}
-
-	// Workaround for Pico-8 .png carts being treated as images by RetroArch
-	var tempRomPath string
-	if strings.ToLower(filepath.Ext(romPath)) == ".png" && (coreBaseName == "retro8_libretro" || coreBaseName == "fake08_libretro") {
+	// Workaround for Pico-8 .png carts being treated as images by RetroArch (physical files)
+	if tempRomPath == "" && !strings.Contains(romPath, "#") && strings.ToLower(filepath.Ext(romPath)) == ".png" && coreBaseName == "retro8_libretro" {
 		tempRomPath = romPath + ".p8"
 		// Remove existing if it somehow exists
 		os.Remove(tempRomPath)
