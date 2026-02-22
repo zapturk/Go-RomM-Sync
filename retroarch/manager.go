@@ -238,12 +238,13 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 
 	// Workaround for Pico-8 .png carts being treated as images by RetroArch (physical files)
 	if tempRomPath == "" && !strings.Contains(romPath, "#") && strings.ToLower(filepath.Ext(romPath)) == ".png" && coreBaseName == "retro8_libretro" {
-		tempRomPath = romPath + ".p8"
+		target := romPath + ".p8"
 		// Remove existing if it somehow exists
-		os.Remove(tempRomPath)
-		if err := os.Link(romPath, tempRomPath); err == nil {
-			wailsRuntime.LogInfof(ctx, "Launch: Created temporary hardlink %s for Pico-8 .png cart", tempRomPath)
-			romPath = tempRomPath
+		os.Remove(target)
+		if err := os.Link(romPath, target); err == nil {
+			wailsRuntime.LogInfof(ctx, "Launch: Created temporary hardlink %s for Pico-8 .png cart", target)
+			romPath = target
+			tempRomPath = target
 		} else {
 			wailsRuntime.LogErrorf(ctx, "Launch: Failed to create temporary hardlink: %v. Falling back to original path.", err)
 		}
