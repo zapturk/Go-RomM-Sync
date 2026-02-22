@@ -154,12 +154,12 @@ func (a *App) UploadState(id uint, core, filename string) error {
 	return a.syncSrv.UploadState(id, core, filename)
 }
 
-func (a *App) DownloadServerSave(gameID uint, filePath string, core string, filename string) error {
-	return a.syncSrv.DownloadServerSave(gameID, filePath, core, filename)
+func (a *App) DownloadServerSave(gameID uint, filePath string, core string, filename string, updatedAt string) error {
+	return a.syncSrv.DownloadServerSave(gameID, filePath, core, filename, updatedAt)
 }
 
-func (a *App) DownloadServerState(gameID uint, filePath string, core string, filename string) error {
-	return a.syncSrv.DownloadServerState(gameID, filePath, core, filename)
+func (a *App) DownloadServerState(gameID uint, filePath string, core string, filename string, updatedAt string) error {
+	return a.syncSrv.DownloadServerState(gameID, filePath, core, filename, updatedAt)
 }
 
 func (a *App) ValidateAssetPath(core, filename string) (string, string, error) {

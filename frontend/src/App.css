@@ -341,6 +341,12 @@ body.mouse-mode .game-card:hover,
     padding: 8px;
     border-radius: 4px;
     text-align: center;
+    transition: opacity 2s ease-out;
+    opacity: 1;
+}
+
+.download-status.fading {
+    opacity: 0;
 }
 
 .download-status.success {
@@ -635,4 +641,32 @@ body.input-keyboard .show-keyboard {
     margin: 15px 0;
     text-align: center;
     border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.file-status {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-right: 10px;
+}
+
+.file-status.newer {
+    background: rgba(76, 175, 80, 0.2);
+    color: #4CAF50;
+    border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.file-status.older {
+    background: rgba(255, 152, 0, 0.1);
+    color: #FF9800;
+    opacity: 0.8;
+}
+
+.file-status.equal {
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    font-weight: normal;
 }

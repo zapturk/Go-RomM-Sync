@@ -127,10 +127,22 @@ func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) erro
 		return fmt.Errorf("failed to read local %s file: %w", subDir, err)
 	}
 
+	err = nil
 	if subDir == "saves" {
-		return s.romm.RomMUploadSave(id, core, filename, content)
+		err = s.romm.RomMUploadSave(id, core, filename, content)
+	} else {
+		err = s.romm.RomMUploadState(id, core, filename, content)
 	}
-	return s.romm.RomMUploadState(id, core, filename, content)
+
+	if err != nil {
+		return err
+	}
+
+	// Update local file time after successful upload to align with server
+	now := time.Now()
+	_ = os.Chtimes(cleanPath, now, now)
+
+	return nil
 }
 
 // DeleteGameFile deletes a local save or state file.
@@ -168,16 +180,16 @@ func (s *Service) DeleteGameFile(id uint, subDir, core, filename string) error {
 }
 
 // DownloadServerSave downloads a save from RomM.
-func (s *Service) DownloadServerSave(gameID uint, filePath string, core string, filename string) error {
-	return s.downloadServerAsset(gameID, filePath, core, filename, "saves")
+func (s *Service) DownloadServerSave(gameID uint, filePath string, core string, filename string, updatedAt string) error {
+	return s.downloadServerAsset(gameID, filePath, core, filename, updatedAt, "saves")
 }
 
 // DownloadServerState downloads a state from RomM.
-func (s *Service) DownloadServerState(gameID uint, filePath string, core string, filename string) error {
-	return s.downloadServerAsset(gameID, filePath, core, filename, "states")
+func (s *Service) DownloadServerState(gameID uint, filePath string, core string, filename string, updatedAt string) error {
+	return s.downloadServerAsset(gameID, filePath, core, filename, updatedAt, "states")
 }
 
-func (s *Service) downloadServerAsset(gameID uint, filePath string, core string, filename string, subDir string) error {
+func (s *Service) downloadServerAsset(gameID uint, filePath string, core string, filename string, updatedAt string, subDir string) error {
 	game, err := s.romm.GetRom(gameID)
 	if err != nil {
 		return fmt.Errorf("failed to get ROM info: %w", err)
@@ -227,6 +239,14 @@ func (s *Service) downloadServerAsset(gameID uint, filePath string, core string,
 
 	if _, err := io.Copy(out, reader); err != nil {
 		return fmt.Errorf("failed to write local %s file: %w", subDir, err)
+	}
+
+	out.Close() // Close before Chtimes
+
+	if updatedAt != "" {
+		if t, err := time.Parse(time.RFC3339, updatedAt); err == nil {
+			os.Chtimes(destPath, t, t)
+		}
 	}
 
 	return nil

@@ -10,9 +10,10 @@ interface FileItemRowProps {
     onUpload?: () => void;
     onDownload?: () => void;
     focusKeyPrefix: string;
+    status?: 'newer' | 'older' | 'equal' | 'unsynced';
 }
 
-export const FileItemRow = ({ item, onDelete, onUpload, onDownload, focusKeyPrefix }: FileItemRowProps) => {
+export const FileItemRow = ({ item, onDelete, onUpload, onDownload, focusKeyPrefix, status }: FileItemRowProps) => {
     const { ref: downloadRef, focused: downloadFocused } = useFocusable({
         focusKey: onDownload ? `${focusKeyPrefix}-download` : undefined,
         onEnterPress: onDownload,
@@ -72,6 +73,11 @@ export const FileItemRow = ({ item, onDelete, onUpload, onDownload, focusKeyPref
     return (
         <div className="file-item-row" ref={rowRef}>
             <span className="file-name" title={fileName}>{fileName}</span>
+            {status && (
+                <span className={`file-status ${status}`}>
+                    {status === 'equal' ? 'synced' : status}
+                </span>
+            )}
             <span className="file-core">{coreName}</span>
             <div className="file-item-actions">
                 {onDownload && (

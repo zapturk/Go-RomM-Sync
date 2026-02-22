@@ -94,22 +94,31 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         refreshLibrary();
     }, []);
 
-    // Handle "Back" navigation (Escape only)
+    // Handle "Back" navigation (Escape/B Button)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.code === 'Escape') {
+            if (!isActive) return;
+
+            if (e.code === 'Escape' || e.key === 'Escape') {
+                // If we are in any part of the library, we want to at least consume the Escape
+                // so it doesn't bubble out to the browser/Wails system level.
+                e.preventDefault();
+
                 if (selectedGameId) {
-                    e.preventDefault();
                     setSelectedGameId(null);
                 } else if (selectedPlatform) {
-                    e.preventDefault();
                     setSelectedPlatform(null);
+                } else {
+                    // Already at root platform page, ensure focus stays here
+                    if (!document.querySelector('.focused')) {
+                        focusConfig();
+                    }
                 }
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedPlatform, selectedGameId]);
+    }, [selectedPlatform, selectedGameId, isActive, focusConfig]);
 
     // Handle "Refresh" (R key)
     useEffect(() => {
