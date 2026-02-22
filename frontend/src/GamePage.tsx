@@ -67,8 +67,11 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const [isPlaying, setIsPlaying] = useState(false);
     const fadeTimeoutRef = useRef<any>(null);
     const clearStatusTimeoutRef = useRef<any>(null);
+    const statusSequenceRef = useRef(0);
 
     const setSuccessStatus = (msg: string) => {
+        const sequence = ++statusSequenceRef.current;
+
         // Clear any existing timeouts to reset the cycle
         if (fadeTimeoutRef.current) clearTimeout(fadeTimeoutRef.current);
         if (clearStatusTimeoutRef.current) clearTimeout(clearStatusTimeoutRef.current);
@@ -76,15 +79,19 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         setStatusFading(false);
         setDownloadStatus(msg);
 
-        // Start fading after 1 second (opaque for 1s, then 2s fade = 3s total)
+        // Start fading after 1 second (opaque for 1s, then fades via CSS)
         fadeTimeoutRef.current = setTimeout(() => {
-            setStatusFading(true);
+            if (statusSequenceRef.current === sequence) {
+                setStatusFading(true);
+            }
         }, 1000);
 
         // Clear status after 3 seconds
         clearStatusTimeoutRef.current = setTimeout(() => {
-            setDownloadStatus(prev => prev === msg ? null : prev);
-            setStatusFading(false);
+            if (statusSequenceRef.current === sequence) {
+                setDownloadStatus(prev => prev === msg ? null : prev);
+                setStatusFading(false);
+            }
         }, 3000);
     };
 
@@ -420,6 +427,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                             <button
                                 ref={downloadRef}
                                 className={`btn download-btn ${downloadFocused ? 'focused' : ''} ${downloading || isPlaying ? 'disabled' : ''}`}
+                                disabled={downloading || isPlaying}
                                 onMouseEnter={() => {
                                     if (getMouseActive() && !downloading && !isPlaying) {
                                         focusDownload();
@@ -453,6 +461,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                 <button
                                     ref={playRef}
                                     className={`btn play-btn ${playFocused ? 'focused' : ''} ${isPlaying ? 'disabled' : ''}`}
+                                    disabled={isPlaying}
                                     onMouseEnter={() => {
                                         if (getMouseActive() && !isPlaying) {
                                             focusPlay();
@@ -478,6 +487,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                 <button
                                     ref={deleteRef}
                                     className={`btn delete-btn ${deleteFocused ? 'focused' : ''} ${isPlaying ? 'disabled' : ''}`}
+                                    disabled={isPlaying}
                                     title="Delete ROM"
                                     onMouseEnter={() => {
                                         if (getMouseActive() && !isPlaying) {

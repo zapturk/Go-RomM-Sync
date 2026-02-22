@@ -135,10 +135,11 @@ function Settings({ isActive = false }: SettingsProps) {
                             />
                             <button
                                 ref={browseRARef}
-                                className={`btn ${browseRAFocused ? 'focused' : ''}`}
+                                className={`btn ${browseRAFocused ? 'focused' : ''} ${isSaving ? 'disabled' : ''}`}
                                 style={{ margin: 0, minWidth: '100px' }}
                                 onClick={handleBrowseRA}
-                                onMouseEnter={() => getMouseActive() && setFocus('browse-ra-button')}
+                                disabled={isSaving}
+                                onMouseEnter={() => getMouseActive() && !isSaving && setFocus('browse-ra-button')}
                             >
                                 Browse
                             </button>
@@ -161,10 +162,11 @@ function Settings({ isActive = false }: SettingsProps) {
                             />
                             <button
                                 ref={browseLibRef}
-                                className={`btn ${browseLibFocused ? 'focused' : ''}`}
+                                className={`btn ${browseLibFocused ? 'focused' : ''} ${isSaving ? 'disabled' : ''}`}
                                 style={{ margin: 0, minWidth: '100px' }}
                                 onClick={handleBrowseLib}
-                                onMouseEnter={() => getMouseActive() && setFocus('browse-lib-button')}
+                                disabled={isSaving}
+                                onMouseEnter={() => getMouseActive() && !isSaving && setFocus('browse-lib-button')}
                             >
                                 Browse
                             </button>

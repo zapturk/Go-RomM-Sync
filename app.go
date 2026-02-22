@@ -37,7 +37,7 @@ func NewApp(cm *config.ConfigManager) *App {
 	app.configSrv = configsrv.New(app, app)
 	app.rommSrv = rommsrv.New(app)
 	app.librarySrv = library.New(app, app, app)
-	app.syncSrv = sync.New(app, app)
+	app.syncSrv = sync.New(app, app, app)
 	app.launcher = launcher.New(app, app, app)
 	return app
 }

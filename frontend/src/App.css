@@ -341,7 +341,7 @@ body.mouse-mode .game-card:hover,
     padding: 8px;
     border-radius: 4px;
     text-align: center;
-    transition: opacity 2s ease-out;
+    transition: opacity 0.5s ease-out;
     opacity: 1;
 }
 
@@ -669,4 +669,54 @@ body.input-keyboard .show-keyboard {
     color: rgba(255, 255, 255, 0.4);
     border: 1px solid rgba(255, 255, 255, 0.1);
     font-weight: normal;
+}
+
+/* Empty State Style */
+.empty-state-container {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+    width: 100%;
+}
+
+.empty-state-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 3rem;
+    text-align: center;
+    max-width: 500px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    animation: fadeIn 0.5s ease-out;
+}
+
+.empty-state-icon {
+    font-size: 4rem;
+    margin-bottom: 1.5rem;
+    opacity: 0.8;
+}
+
+.empty-state-card h2 {
+    margin-bottom: 1rem;
+    color: #fff;
+}
+
+.empty-state-card p {
+    color: rgba(255, 255, 255, 0.6);
+    line-height: 1.6;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }

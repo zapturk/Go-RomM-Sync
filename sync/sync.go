@@ -3,6 +3,7 @@ package sync
 import (
 	"fmt"
 	"go-romm-sync/types"
+	"go-romm-sync/utils"
 	"io"
 	"os"
 	"path/filepath"
@@ -24,17 +25,26 @@ type RomMProvider interface {
 	RomMDownloadState(filePath string) (io.ReadCloser, string, error)
 }
 
+// UIProvider defines logging and event emission.
+type UIProvider interface {
+	LogInfof(format string, args ...interface{})
+	LogErrorf(format string, args ...interface{})
+	EventsEmit(eventName string, args ...interface{})
+}
+
 // Service manages the synchronization of saves and states.
 type Service struct {
 	library LibraryProvider
 	romm    RomMProvider
+	ui      UIProvider
 }
 
 // New creates a new Sync service.
-func New(lib LibraryProvider, romm RomMProvider) *Service {
+func New(lib LibraryProvider, romm RomMProvider, ui UIProvider) *Service {
 	return &Service{
 		library: lib,
 		romm:    romm,
+		ui:      ui,
 	}
 }
 
@@ -140,7 +150,9 @@ func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) erro
 
 	// Update local file time after successful upload to align with server
 	now := time.Now()
-	_ = os.Chtimes(cleanPath, now, now)
+	if err := os.Chtimes(cleanPath, now, now); err != nil {
+		s.ui.LogErrorf("uploadServerAsset: Failed to update local file time: %v", err)
+	}
 
 	return nil
 }
@@ -238,14 +250,19 @@ func (s *Service) downloadServerAsset(gameID uint, filePath string, core string,
 	defer out.Close()
 
 	if _, err := io.Copy(out, reader); err != nil {
+		out.Close()
 		return fmt.Errorf("failed to write local %s file: %w", subDir, err)
 	}
 
-	out.Close() // Close before Chtimes
+	if err := out.Close(); err != nil {
+		return fmt.Errorf("failed to close local %s file: %w", subDir, err)
+	}
 
 	if updatedAt != "" {
-		if t, err := time.Parse(time.RFC3339, updatedAt); err == nil {
-			os.Chtimes(destPath, t, t)
+		if t, err := utils.ParseTimestamp(updatedAt); err == nil {
+			if err := os.Chtimes(destPath, t, t); err != nil {
+				s.ui.LogErrorf("downloadServerAsset: Failed to update local file time: %v", err)
+			}
 		}
 	}
 

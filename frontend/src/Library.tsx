@@ -19,6 +19,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     const [status, setStatus] = useState("Loading library...");
     const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
     const [selectedGameId, setSelectedGameId] = useState<number | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
     const lastViewedGameId = useRef<number | null>(null);
     const lastViewedPlatformId = useRef<number | null>(null);
     const [syncTrigger, setSyncTrigger] = useState(0);
@@ -63,11 +64,11 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     });
 
     const refreshLibrary = () => {
+        setIsLoading(true);
         setStatus("Syncing...");
         setSyncTrigger(prev => prev + 1);
 
-        // Fetch games
-        GetLibrary()
+        const gamesPromise = GetLibrary()
             .then((result) => {
                 console.log("Library fetched:", result);
                 setGames(result);
@@ -77,8 +78,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
                 setStatus("Error: " + err);
             });
 
-        // Fetch platforms
-        GetPlatforms()
+        const platformsPromise = GetPlatforms()
             .then((result) => {
                 console.log("Platforms fetched:", result);
                 setPlatforms(result);
@@ -88,6 +88,10 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
                 console.error("Failed to fetch platforms:", err);
                 setStatus("Error: " + err);
             });
+
+        Promise.allSettled([gamesPromise, platformsPromise]).finally(() => {
+            setIsLoading(false);
+        });
     };
 
     useEffect(() => {
@@ -243,8 +247,9 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
                     <div className="nav-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: '60px' }}>
                         <button
                             ref={configRef}
-                            className={`btn config-btn ${configFocused ? 'focused' : ''}`}
+                            className={`btn config-btn ${configFocused ? 'focused' : ''} ${isLoading ? 'disabled' : ''}`}
                             title="Open Settings"
+                            disabled={isLoading}
                             style={{
                                 margin: 0,
                                 padding: '5px',
@@ -257,7 +262,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
                                 left: '40px'
                             }}
                             onMouseEnter={() => {
-                                if (getMouseActive()) {
+                                if (getMouseActive() && !isLoading) {
                                     focusConfig();
                                 }
                             }}
@@ -284,6 +289,22 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
                                 syncTrigger={syncTrigger}
                             />
                         ))}
+                        {!isLoading && visiblePlatforms.length === 0 && (
+                            <div className="empty-state-container">
+                                <div className="empty-state-card">
+                                    <div className="empty-state-icon">🎮</div>
+                                    <h2>No platforms found</h2>
+                                    <p>Your library is empty. Please check your RomM host and local library path in settings to connect your collection.</p>
+                                    <button
+                                        className="btn play-btn"
+                                        style={{ marginTop: '1.5rem', width: 'auto', padding: '10px 30px' }}
+                                        onClick={onOpenSettings}
+                                    >
+                                        Open Settings
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </>
             ) : (

@@ -231,7 +231,9 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 		// Ensure RetroArch doesn't save these temporary paths back to the main config on exit
 		content += "config_save_on_exit = \"false\"\n"
 
-		os.WriteFile(appendConfigPath, []byte(content), 0644)
+		if _, err := tmpFile.WriteString(content); err != nil {
+			wailsRuntime.LogErrorf(ctx, "Launch: Failed to write temporary config: %v", err)
+		}
 		tmpFile.Close()
 		wailsRuntime.LogInfof(ctx, "Launch: Created temporary config at: %s with content:\n%s", appendConfigPath, content)
 	}
