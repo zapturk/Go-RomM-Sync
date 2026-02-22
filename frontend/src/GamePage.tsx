@@ -39,6 +39,16 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const [states, setStates] = useState<types.FileItem[]>([]);
     const [serverSaves, setServerSaves] = useState<types.ServerSave[]>([]);
     const [serverStates, setServerStates] = useState<types.ServerState[]>([]);
+    const [downloadProgress, setDownloadProgress] = useState<number>(0);
+
+    useEffect(() => {
+        const unlisten = EventsOn("download-progress", (data: { game_id: number; percentage: number }) => {
+            if (data.game_id === gameId) {
+                setDownloadProgress(data.percentage);
+            }
+        });
+        return () => unlisten();
+    }, [gameId]);
 
     const { ref } = useFocusable({
         onArrowPress: (direction: string) => {
@@ -57,6 +67,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 DownloadRomToLibrary(game.id)
                     .then(() => {
                         setDownloadStatus("Download complete!");
+                        setDownloadProgress(100);
                         setIsDownloaded(true);
                         setTimeout(() => {
                             setFocus('play-button');
@@ -430,6 +441,11 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                     {downloadStatus && (
                         <div className={`download-status ${downloadStatus.includes("Error") ? "error" : "success"}`}>
                             {downloadStatus}
+                            {downloading && downloadProgress > 0 && downloadProgress < 100 && (
+                                <span style={{ marginLeft: "10px", fontWeight: "bold" }}>
+                                    ({Math.round(downloadProgress)}%)
+                                </span>
+                            )}
                         </div>
                     )}
                 </div>
