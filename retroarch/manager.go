@@ -68,6 +68,10 @@ var CoreMap = map[string]string{
 	".wsc": "mednafen_wswan_libretro",    // WonderSwan Color
 	".ngp": "mednafen_ngp_libretro",      // Neo Geo Pocket
 	".ngc": "mednafen_ngp_libretro",      // Neo Geo Pocket Color
+
+	// Pico-8
+	".p8":  "retro8_libretro", // Pico-8
+	".png": "retro8_libretro", // Pico-8 (Cartridges)
 }
 
 // getCoreExt returns the expected dynamic library extension for the current OS
@@ -209,6 +213,20 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 		wailsRuntime.LogInfof(ctx, "Launch: Detected zip archive. Base dir set to: %s", romBaseDir)
 	}
 
+	// Workaround for Pico-8 .png carts being treated as images by RetroArch
+	var tempRomPath string
+	if strings.ToLower(filepath.Ext(romPath)) == ".png" && (coreBaseName == "retro8_libretro" || coreBaseName == "fake08_libretro") {
+		tempRomPath = romPath + ".p8"
+		// Remove existing if it somehow exists
+		os.Remove(tempRomPath)
+		if err := os.Link(romPath, tempRomPath); err == nil {
+			wailsRuntime.LogInfof(ctx, "Launch: Created temporary hardlink %s for Pico-8 .png cart", tempRomPath)
+			romPath = tempRomPath
+		} else {
+			wailsRuntime.LogErrorf(ctx, "Launch: Failed to create temporary hardlink: %v. Falling back to original path.", err)
+		}
+	}
+
 	savesDir := filepath.Join(romBaseDir, "saves")
 	statesDir := filepath.Join(romBaseDir, "states")
 	wailsRuntime.LogInfof(ctx, "Launch: Saves dir: %s, States dir: %s", savesDir, statesDir)
@@ -256,6 +274,9 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 		defer func() {
 			if appendConfigPath != "" {
 				os.Remove(appendConfigPath)
+			}
+			if tempRomPath != "" {
+				os.Remove(tempRomPath)
 			}
 			wailsRuntime.EventsEmit(ctx, "game-exited", nil)
 		}()
