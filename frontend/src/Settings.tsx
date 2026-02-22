@@ -4,7 +4,11 @@ import { types } from "../wailsjs/go/models";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
 
-function Settings() {
+interface SettingsProps {
+    isActive?: boolean;
+}
+
+function Settings({ isActive = false }: SettingsProps) {
     const [config, setConfig] = useState<types.AppConfig | null>(null);
     const [status, setStatus] = useState("Configure your application settings");
     const [isSaving, setIsSaving] = useState(false);
@@ -15,7 +19,7 @@ function Settings() {
     const [cheevosUser, setCheevosUser] = useState('');
     const [cheevosPass, setCheevosPass] = useState('');
 
-    const { ref, focusKey } = useFocusable({
+    const { ref, focusKey, focusSelf } = useFocusable({
         trackChildren: true
     });
 
@@ -81,12 +85,14 @@ function Settings() {
         }
     };
 
-    // Auto-focus first browse button on load
+    // Auto-focus save button on load or when view becomes active
     useEffect(() => {
-        setTimeout(() => {
-            setFocus('browse-ra-button');
-        }, 100);
-    }, []);
+        if (isActive) {
+            setTimeout(() => {
+                setFocus('save-button');
+            }, 100);
+        }
+    }, [isActive]);
 
     const { ref: browseRARef, focused: browseRAFocused } = useFocusable({
         focusKey: 'browse-ra-button',

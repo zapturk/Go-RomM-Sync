@@ -100,7 +100,7 @@ function App() {
             ) : (
                 <>
                     <div className={view === 'settings' ? '' : 'hidden-view'}>
-                        <Settings />
+                        <Settings isActive={view === 'settings'} />
                     </div>
                     <div className={view === 'library' ? '' : 'hidden-view'}>
                         <Library

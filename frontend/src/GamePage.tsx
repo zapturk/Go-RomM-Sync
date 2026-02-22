@@ -150,8 +150,10 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                         setFocus(`save-${nextIdx}-upload`);
                     } else if (states.length > 0) {
                         setFocus(`state-0-upload`);
-                    } else {
+                    } else if (isDownloaded) {
                         setFocus('play-button');
+                    } else {
+                        setFocus('download-button');
                     }
                 }, 50);
             }).catch(console.error);
@@ -170,8 +172,10 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                         setFocus(`state-${nextIdx}-upload`);
                     } else if (saves.length > 0) {
                         setFocus(`save-0-upload`);
-                    } else {
+                    } else if (isDownloaded) {
                         setFocus('play-button');
+                    } else {
+                        setFocus('download-button');
                     }
                 }, 50);
             }).catch(console.error);

@@ -10,9 +10,11 @@ interface PlatformCardProps {
     onClick?: () => void;
     onEnterPress?: () => void;
     syncTrigger?: number; // Made optional to support legacy usage if any, but we pass it
+    isLeftmost?: boolean;
+    isTopRow?: boolean;
 }
 
-export function PlatformCard({ platform, onClick, onEnterPress, syncTrigger = 0 }: PlatformCardProps) {
+export function PlatformCard({ platform, onClick, onEnterPress, syncTrigger = 0, isLeftmost = false, isTopRow = false }: PlatformCardProps) {
     const [imageSrc, setImageSrc] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -22,7 +24,16 @@ export function PlatformCard({ platform, onClick, onEnterPress, syncTrigger = 0 
     const { ref, focused, focusSelf } = useFocusable({
         onEnterPress: onEnterPress || onClick,
         focusKey: `platform-${platform.id}`,
-        onFocus: () => console.log("Platform focused:", platform.name)
+        onFocus: () => console.log("Platform focused:", platform.name),
+        onArrowPress: (direction: string) => {
+            if (isLeftmost && direction === 'left') {
+                return false;
+            }
+            if (isTopRow && direction === 'up') {
+                return false;
+            }
+            return true;
+        }
     });
 
     useEffect(() => {

@@ -22,6 +22,28 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     const lastViewedGameId = useRef<number | null>(null);
     const lastViewedPlatformId = useRef<number | null>(null);
     const [syncTrigger, setSyncTrigger] = useState(0);
+    const gridRef = useRef<HTMLDivElement>(null);
+    const [columns, setColumns] = useState(1);
+
+    useEffect(() => {
+        const updateColumns = () => {
+            if (gridRef.current) {
+                const containerWidth = gridRef.current.offsetWidth;
+                const itemWidth = 200; // min-width from App.css
+                const gap = 20; // gap from App.css
+                const cols = Math.floor((containerWidth + gap) / (itemWidth + gap));
+                setColumns(cols || 1);
+            }
+        };
+
+        const observer = new ResizeObserver(updateColumns);
+        if (gridRef.current) {
+            observer.observe(gridRef.current);
+        }
+        updateColumns();
+
+        return () => observer.disconnect();
+    }, [selectedPlatform]); // Re-run when view toggles to ensure new ref is observed
 
     const { ref, focusKey } = useFocusable({
         trackChildren: true
@@ -32,6 +54,12 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         onEnterPress: () => {
             onOpenSettings();
         },
+        onArrowPress: (direction: string) => {
+            if (direction === 'up' || direction === 'left') {
+                return false;
+            }
+            return true;
+        }
     });
 
     const refreshLibrary = () => {
@@ -129,6 +157,8 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
 
     // Auto-focus first platform or last viewed platform when configured
     useEffect(() => {
+        if (!isActive) return;
+
         if (!selectedPlatform && visiblePlatforms.length > 0) {
             // Give a moment for the DOM to settle
             setTimeout(() => {
@@ -140,11 +170,32 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
                     setFocus(key);
                 }
             }, 100);
+        } else if (!selectedPlatform && visiblePlatforms.length === 0) {
+            // If no platforms, focus the settings button so the user can fix the config
+            setTimeout(() => {
+                focusConfig();
+            }, 100);
         }
-    }, [visiblePlatforms.length, selectedPlatform, setFocus]);
+    }, [visiblePlatforms.length, selectedPlatform, setFocus, isActive]);
+
+    // Ensure focus is restored when coming back from settings
+    useEffect(() => {
+        if (isActive) {
+            // Small delay to ensure the view is visible
+            setTimeout(() => {
+                // If we're on the main platform screen, the other effect might handle it,
+                // but if we're deeper in the UI or nothing is focused, this ensures survival.
+                if (!document.querySelector('.focused')) {
+                    focusConfig();
+                }
+            }, 50);
+        }
+    }, [isActive, focusConfig]);
 
     // Auto-focus first game or last viewed game when platform selected
     useEffect(() => {
+        if (!isActive) return;
+
         if (selectedPlatform && !selectedGameId) {
             const platform = platforms.find(p => p.name === selectedPlatform);
             if (platform) {
@@ -164,7 +215,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
                 }
             }
         }
-    }, [selectedPlatform, selectedGameId, games, platforms, setFocus]);
+    }, [selectedPlatform, selectedGameId, games, platforms, setFocus, isActive]);
 
     if (selectedGameId) {
         return (
@@ -207,11 +258,12 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
                         </button>
                         <h1 style={{ margin: 0 }}>Platforms</h1>
                     </div>
-                    <div className="grid-container">
-                        {visiblePlatforms.map((platform) => (
+                    <div className="grid-container" ref={gridRef}>
+                        {visiblePlatforms.map((platform, index) => (
                             <PlatformCard
                                 key={platform.id}
                                 platform={platform}
+                                isLeftmost={index % columns === 0}
                                 onClick={() => {
                                     setSelectedPlatform(platform.name);
                                     lastViewedPlatformId.current = platform.id;
@@ -231,12 +283,14 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
                     <div className="nav-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60px' }}>
                         <h1 style={{ margin: 0 }}>{selectedPlatform}</h1>
                     </div>
-                    <div className="grid-container">
+                    <div className="grid-container" ref={gridRef}>
                         {selectedPlatform && platforms.find(p => p.name === selectedPlatform) ?
-                            getGamesForPlatform(platforms.find(p => p.name === selectedPlatform)!).map((game) => (
+                            getGamesForPlatform(platforms.find(p => p.name === selectedPlatform)!).map((game, index) => (
                                 <GameCard
                                     key={game.id}
                                     game={game}
+                                    isLeftmost={index % columns === 0}
+                                    isTopRow={index < columns}
                                     onClick={() => {
                                         setSelectedGameId(game.id);
                                         lastViewedGameId.current = game.id;

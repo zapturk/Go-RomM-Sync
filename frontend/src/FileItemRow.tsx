@@ -17,6 +17,9 @@ export const FileItemRow = ({ item, onDelete, onUpload, onDownload, focusKeyPref
         focusKey: onDownload ? `${focusKeyPrefix}-download` : undefined,
         onEnterPress: onDownload,
         onArrowPress: (direction: string) => {
+            if (direction === 'up') {
+                return false;
+            }
             if (direction === 'right' && onDelete) {
                 setFocus(`${focusKeyPrefix}-delete`);
                 return false;
@@ -29,6 +32,9 @@ export const FileItemRow = ({ item, onDelete, onUpload, onDownload, focusKeyPref
         focusKey: onUpload ? `${focusKeyPrefix}-upload` : undefined,
         onEnterPress: onUpload,
         onArrowPress: (direction: string) => {
+            if (direction === 'up') {
+                return false;
+            }
             if (direction === 'right' && onDelete) {
                 setFocus(`${focusKeyPrefix}-delete`);
                 return false;
