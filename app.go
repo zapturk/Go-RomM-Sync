@@ -7,6 +7,7 @@ import (
 	"go-romm-sync/configsrv"
 	"go-romm-sync/launcher"
 	"go-romm-sync/library"
+	"go-romm-sync/retroarch"
 	"go-romm-sync/rommsrv"
 	"go-romm-sync/sync"
 	"go-romm-sync/types"
@@ -57,6 +58,13 @@ func (a *App) GetConfig() types.AppConfig {
 
 func (a *App) SaveConfig(cfg types.AppConfig) string {
 	res, hostChanged := a.configSrv.SaveConfig(cfg)
+
+	// Clear RetroArch cheevos token on save to ensure fresh login on credentials change
+	fullCfg := a.configManager.GetConfig()
+	if err := retroarch.ClearCheevosToken(fullCfg.RetroArchPath); err != nil {
+		a.LogErrorf("Failed to clear RetroArch cheevos token: %v", err)
+	}
+
 	if hostChanged {
 		a.rommSrv = rommsrv.New(a)
 	}

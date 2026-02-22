@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -83,6 +84,31 @@ func getCoreExt() string {
 
 // Launch launches RetroArch for the given ROM path, given the selected executable.
 func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass string) error {
+	// If exePath is a directory, try to find the executable inside it
+	if info, err := os.Stat(exePath); err == nil && info.IsDir() {
+		target := filepath.Join(exePath, "retroarch.exe")
+		if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
+			target = filepath.Join(exePath, "retroarch")
+		}
+		if runtime.GOOS == "darwin" {
+			// Check for .app bundle in the directory
+			appPath := filepath.Join(exePath, "RetroArch.app")
+			if _, err := os.Stat(appPath); err == nil {
+				exePath = appPath
+			} else {
+				// Fallback to binary in the directory
+				target = filepath.Join(exePath, "RetroArch")
+				if _, err := os.Stat(target); err == nil {
+					exePath = target
+				}
+			}
+		} else {
+			if _, err := os.Stat(target); err == nil {
+				exePath = target
+			}
+		}
+	}
+
 	baseDir := filepath.Dir(exePath)
 	if runtime.GOOS == "darwin" {
 		if strings.HasSuffix(exePath, ".app") {
@@ -345,6 +371,62 @@ func unzipCore(src, dest string) error {
 		rc.Close()
 		if err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// ClearCheevosToken finds the RetroArch config file and clears the cheevos_token setting.
+// This ensures that when credentials are changed, RetroArch will re-authenticate.
+func ClearCheevosToken(exePath string) error {
+	var configPaths []string
+
+	// 1. Path based on exe directory or provided directory
+	if exePath != "" {
+		if info, err := os.Stat(exePath); err == nil {
+			if info.IsDir() {
+				configPaths = append(configPaths, filepath.Join(exePath, "retroarch.cfg"))
+			} else {
+				configPaths = append(configPaths, filepath.Join(filepath.Dir(exePath), "retroarch.cfg"))
+			}
+		}
+	}
+
+	// 2. Standard OS-specific locations
+	switch runtime.GOOS {
+	case "linux":
+		if home, err := os.UserHomeDir(); err == nil {
+			configPaths = append(configPaths, filepath.Join(home, ".config", "retroarch", "retroarch.cfg"))
+		}
+	case "darwin":
+		if home, err := os.UserHomeDir(); err == nil {
+			configPaths = append(configPaths, filepath.Join(home, "Library", "Application Support", "RetroArch", "config", "retroarch.cfg"))
+		}
+	}
+
+	// Try to find and clear the token in each potential config path
+	for _, path := range configPaths {
+		if _, err := os.Stat(path); err == nil {
+			content, err := os.ReadFile(path)
+			if err != nil {
+				continue
+			}
+
+			// Use regex to find and clear the token.
+			// Matches cheevos_token = "..." or cheevos_token = value
+			re := regexp.MustCompile(`(?m)^cheevos_token\s*=\s*".*?"`)
+			newContent := re.ReplaceAllString(string(content), `cheevos_token = ""`)
+
+			// Also handle the case without quotes
+			reNoQuotes := regexp.MustCompile(`(?m)^cheevos_token\s*=\s*[^"\s\r\n]+`)
+			newContent = reNoQuotes.ReplaceAllString(newContent, `cheevos_token = ""`)
+
+			if string(content) != newContent {
+				err = os.WriteFile(path, []byte(newContent), 0644)
+				if err != nil {
+					return fmt.Errorf("failed to write updated retroarch.cfg at %s: %w", path, err)
+				}
+			}
 		}
 	}
 	return nil
