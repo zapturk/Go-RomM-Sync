@@ -14,6 +14,20 @@ interface GamePageProps {
     onBack: () => void;
 }
 
+const formatFileSize = (bytes: number) => {
+    if (!bytes || bytes === 0) return '';
+    const MB = 1024 * 1024;
+    const GB = 1024 * MB;
+
+    if (bytes < MB) {
+        return `File Size: ${bytes.toLocaleString()} Bytes`;
+    } else if (bytes < GB) {
+        return `File Size: ${(bytes / MB).toFixed(2)} MB`;
+    } else {
+        return `File Size: ${(bytes / GB).toFixed(2)} GB`;
+    }
+};
+
 export function GamePage({ gameId, onBack }: GamePageProps) {
     const [game, setGame] = useState<types.Game | null>(null);
     const [loading, setLoading] = useState(true);
@@ -322,6 +336,11 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
             <div className="game-page-content">
                 <div className="game-sidebar">
                     <GameCover game={game} className="game-page-cover" />
+                    {game.fs_size_bytes > 0 && (
+                        <div className="game-file-size">
+                            {formatFileSize(game.fs_size_bytes)}
+                        </div>
+                    )}
                     {statusChecked && (
                         !isDownloaded ? (
                             <button

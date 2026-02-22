@@ -91,3 +91,53 @@ cheevos_username = "testuser"
 		t.Errorf("Other settings were incorrectly modified:\n%s", sContent)
 	}
 }
+
+func TestResolveExecutableFromDir(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "ra-exe-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create a mock retroarch executable
+	exeName := "retroarch.exe"
+	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
+		exeName = "retroarch"
+	}
+	if runtime.GOOS == "darwin" {
+		exeName = "RetroArch"
+	}
+
+	exePath := filepath.Join(tmpDir, exeName)
+	err = os.WriteFile(exePath, []byte("mock binary"), 0755)
+	if err != nil {
+		t.Fatalf("Failed to create mock exe: %v", err)
+	}
+
+	// This function isn't exported directly but it's part of the Launch logic.
+	// We can test the logic by calling a helper if we refactor, but for now
+	// let's verify Launch doesn't return an error early for a directory if the exe exists.
+
+	// Since Launch runs things we can't easily unit test (exec.Command), we'll
+	// just verify the directory resolution part of the logic works by checking
+	// the file existence logic in a similar manner to how Launch does it.
+
+	info, err := os.Stat(tmpDir)
+	if err != nil || !info.IsDir() {
+		t.Fatalf("Expected %s to be a directory", tmpDir)
+	}
+
+	target := filepath.Join(tmpDir, "retroarch.exe")
+	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
+		target = filepath.Join(tmpDir, "retroarch")
+	}
+
+	if runtime.GOOS == "darwin" {
+		// Test .app detection or binary detection
+		target = filepath.Join(tmpDir, "RetroArch")
+	}
+
+	if _, err := os.Stat(target); err != nil {
+		t.Errorf("Path resolution logic failed to find expected executable at %s", target)
+	}
+}

@@ -624,3 +624,15 @@ body.input-keyboard .show-keyboard {
     font-style: italic;
     text-align: left;
 }
+
+.game-file-size {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 600;
+    margin: 15px 0;
+    text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
