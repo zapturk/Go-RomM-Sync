@@ -83,6 +83,9 @@ jobs:
         run: |
           cd build/bin
           zip -r ../../go-romm-sync-macos.zip go-romm-sync.app
+          cd ../..
+          shasum -a 256 go-romm-sync-macos.zip > go-romm-sync-macos.zip.sha256
+          echo "MACOS_SHA256=$(shasum -a 256 go-romm-sync-macos.zip | awk '{ print $1 }')" >> $GITHUB_ENV
 
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -90,5 +93,6 @@ jobs:
           files: |
             *.tar.gz
             *.zip
+            *.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

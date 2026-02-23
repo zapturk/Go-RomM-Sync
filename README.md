@@ -87,6 +87,21 @@ sudo apt-get install libgtk-3-dev libwebkit2gtk-4.1-dev
 wails build -tags webkit2_41
 ```
 
+## Installation
+
+### macOS (Homebrew)
+
+The easiest way to install Go-RomM-Sync on macOS is via Homebrew:
+
+```bash
+brew tap zapturk/homebrew-tap
+brew install --cask go-romm-sync
+```
+
+### Manual Installation
+
+Alternatively, you can download the latest release for your platform from the [Releases page](https://github.com/zapturk/Go-RomM-Sync/releases) and move the executable to your applications/bin directory.
+
 ## Setup and Usage
 
 ### First-Time Configuration
