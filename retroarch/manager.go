@@ -302,9 +302,16 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 				os.Remove(tempRomPath)
 			}
 			wailsRuntime.EventsEmit(ctx, "game-exited", nil)
+			if runtime.GOOS == "darwin" {
+				wailsRuntime.WindowShow(ctx)
+				wailsRuntime.WindowUnminimise(ctx)
+			}
 		}()
 
 		wailsRuntime.EventsEmit(ctx, "game-started", nil)
+		if runtime.GOOS == "darwin" {
+			wailsRuntime.WindowHide(ctx)
+		}
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			fmt.Printf("\n--- RETROARCH CRASHED ---\nError: %v\nOutput: %s\n", err, string(out))

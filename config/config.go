@@ -97,7 +97,7 @@ func GetDefaultLibraryPath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)
 	}
-	return filepath.Join(home, "Documents", "Go-RomM-Sync", "Library"), nil
+	return filepath.Join(home, "Go-RomM-Sync", "Library"), nil
 }
 
 // createDefault generates a dummy config file if none exists

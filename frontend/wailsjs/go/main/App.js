@@ -58,6 +58,10 @@ export function GetCover(arg1, arg2) {
   return window['go']['main']['App']['GetCover'](arg1, arg2);
 }
 
+export function GetDefaultLibraryPath() {
+  return window['go']['main']['App']['GetDefaultLibraryPath']();
+}
+
 export function GetLibrary() {
   return window['go']['main']['App']['GetLibrary']();
 }
