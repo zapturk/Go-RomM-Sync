@@ -67,7 +67,7 @@ jobs:
 
       - name: Codesign (macOS)
         if: runner.os == 'macOS'
-        run: codesign -s - --deep --force build/bin/go-romm-sync.app
+        run: codesign -s - --deep --force --entitlements build/darwin/entitlements.plist build/bin/go-romm-sync.app
 
       - name: Package (Linux)
         if: runner.os == 'Linux'
