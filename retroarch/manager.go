@@ -104,6 +104,11 @@ func getCoreExt() string {
 }
 
 // Launch launches RetroArch for the given ROM path, given the selected executable.
+//
+// temp file management, OS-specific path handling, cheevos config) that is intentionally kept together
+// to preserve readability and avoid scattering related logic across many small functions.
+//
+//nolint:gocognit,gocyclo // Launch orchestrates a complex multi-step process (zip inspection, core detection,
 func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) error {
 	// If exePath is a directory, try to find the actual executable inside it
 	if info, err := os.Stat(exePath); err == nil && info.IsDir() {
@@ -380,7 +385,7 @@ func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 
 	urlStr := fmt.Sprintf("https://buildbot.libretro.com/nightly/%s/%s/latest/%s.zip", osName, archName, coreFile)
 
-	resp, err := http.Get(urlStr)
+	resp, err := http.Get(urlStr) //nolint:bodyclose // body is closed via fileio.Close wrapper below
 	if err != nil {
 		return fmt.Errorf("failed to download core: %w", err)
 	}

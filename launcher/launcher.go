@@ -76,7 +76,7 @@ func (l *Launcher) PlayRom(id uint) error {
 	romPath := l.findRomPath(romDir)
 	l.ui.LogInfof("PlayRom: Found romPath: %s", romPath)
 	if romPath == "" {
-		return fmt.Errorf("no valid ROM file found in %s. Please download it first.", romDir)
+		return fmt.Errorf("no valid ROM file found in %s, please download it first", romDir)
 	}
 
 	// 3. Check if RetroArch is Configured

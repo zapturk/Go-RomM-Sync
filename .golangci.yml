@@ -1,41 +1,47 @@
+version: "2"
+run:
+  tests: false
 linters:
   enable:
-    - gocritic
     - bodyclose
-    - nilnil
     - dogsled
     - dupl
-    - errcheck
-    - goconst
     - gocognit
+    - goconst
+    - gocritic
     - gocyclo
-    - gofmt
-    - goimports
-    - govet
     - misspell
     - nakedret
+    - nilnil
     - prealloc
-    - staticcheck
     - unconvert
     - unparam
-    - unused
-
-linters-settings:
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-      - experimental
-      - opinionated
-  gocyclo:
-    min-complexity: 15
-
-run:
-  timeout: 5m
-  tests: false
-
+  settings:
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+        - experimental
+        - opinionated
+    gocyclo:
+      min-complexity: 15
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 issues:
-  exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
