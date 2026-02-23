@@ -15,6 +15,8 @@ import (
 	"runtime"
 	"strings"
 
+	"go-romm-sync/constants"
+
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -143,11 +145,11 @@ func (a *App) GetStates(id uint) ([]types.FileItem, error) {
 }
 
 func (a *App) DeleteSave(id uint, core, filename string) error {
-	return a.syncSrv.DeleteGameFile(id, "saves", core, filename)
+	return a.syncSrv.DeleteGameFile(id, constants.DirSaves, core, filename)
 }
 
 func (a *App) DeleteState(id uint, core, filename string) error {
-	return a.syncSrv.DeleteGameFile(id, "states", core, filename)
+	return a.syncSrv.DeleteGameFile(id, constants.DirStates, core, filename)
 }
 
 func (a *App) UploadSave(id uint, core, filename string) error {
@@ -293,7 +295,7 @@ func (a *App) OpenFileDialog(title string, filters []string) (string, error) {
 	if len(filters) > 0 {
 		options.Filters = []wailsRuntime.FileFilter{{DisplayName: "Filtered Files", Pattern: filters[0]}}
 	}
-	if runtime.GOOS == "darwin" {
+	if runtime.GOOS == constants.OSDarwin {
 		options.DefaultDirectory = "/Applications"
 		options.TreatPackagesAsDirectories = false
 		options.Filters = nil

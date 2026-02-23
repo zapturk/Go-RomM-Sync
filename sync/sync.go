@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"go-romm-sync/constants"
 )
 
 // LibraryProvider defines the local library interactions needed for syncing.
@@ -50,12 +52,12 @@ func New(lib LibraryProvider, romm RomMProvider, ui UIProvider) *Service {
 
 // GetSaves returns a list of local save files for a game.
 func (s *Service) GetSaves(id uint) (items []types.FileItem, err error) {
-	return s.getGameFiles(id, "saves")
+	return s.getGameFiles(id, constants.DirSaves)
 }
 
 // GetStates returns a list of local state files for a game.
 func (s *Service) GetStates(id uint) (items []types.FileItem, err error) {
-	return s.getGameFiles(id, "states")
+	return s.getGameFiles(id, constants.DirStates)
 }
 
 func (s *Service) getGameFiles(id uint, subDir string) (items []types.FileItem, err error) {
@@ -108,12 +110,12 @@ func (s *Service) getGameFiles(id uint, subDir string) (items []types.FileItem, 
 
 // UploadSave reads a local save file and uploads it to RomM.
 func (s *Service) UploadSave(id uint, core, filename string) error {
-	return s.uploadServerAsset(id, core, filename, "saves")
+	return s.uploadServerAsset(id, core, filename, constants.DirSaves)
 }
 
 // UploadState reads a local save state file and uploads it to RomM.
 func (s *Service) UploadState(id uint, core, filename string) error {
-	return s.uploadServerAsset(id, core, filename, "states")
+	return s.uploadServerAsset(id, core, filename, constants.DirStates)
 }
 
 func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) error {
@@ -139,7 +141,7 @@ func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) erro
 		return fmt.Errorf("failed to read local %s file: %w", subDir, err)
 	}
 
-	if subDir == "saves" {
+	if subDir == constants.DirSaves {
 		err = s.romm.RomMUploadSave(id, core, filename, content)
 	} else {
 		err = s.romm.RomMUploadState(id, core, filename, content)
@@ -194,12 +196,12 @@ func (s *Service) DeleteGameFile(id uint, subDir, core, filename string) error {
 
 // DownloadServerSave downloads a save from RomM.
 func (s *Service) DownloadServerSave(gameID uint, filePath, core, filename, updatedAt string) error {
-	return s.downloadServerAsset(gameID, filePath, core, filename, updatedAt, "saves")
+	return s.downloadServerAsset(gameID, filePath, core, filename, updatedAt, constants.DirSaves)
 }
 
 // DownloadServerState downloads a state from RomM.
 func (s *Service) DownloadServerState(gameID uint, filePath, core, filename, updatedAt string) error {
-	return s.downloadServerAsset(gameID, filePath, core, filename, updatedAt, "states")
+	return s.downloadServerAsset(gameID, filePath, core, filename, updatedAt, constants.DirStates)
 }
 
 func (s *Service) downloadServerAsset(gameID uint, filePath, core, filename, updatedAt, subDir string) error {
@@ -210,7 +212,7 @@ func (s *Service) downloadServerAsset(gameID uint, filePath, core, filename, upd
 
 	var reader io.ReadCloser
 	var serverFilename string
-	if subDir == "saves" {
+	if subDir == constants.DirSaves {
 		reader, serverFilename, err = s.romm.RomMDownloadSave(filePath)
 	} else {
 		reader, serverFilename, err = s.romm.RomMDownloadState(filePath)

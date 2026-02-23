@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+
+	"go-romm-sync/constants"
 )
 
 // UIProvider defines the UI and logging interactions needed for RetroArch.
@@ -84,16 +86,16 @@ var CoreMap = map[string]string{
 	".wia":  "dolphin_libretro", // Wii
 
 	// Pico-8
-	".p8":  "retro8_libretro", // Pico-8
-	".png": "retro8_libretro", // Pico-8 (Cartridges)
+	".p8":  "retro8_libretro",    // Pico-8
+	".png": constants.CoreRetro8, // Pico-8 (Cartridges)
 }
 
 // getCoreExt returns the expected dynamic library extension for the current OS
 func getCoreExt() string {
 	switch runtime.GOOS {
-	case "windows":
+	case constants.OSWindows:
 		return ".dll"
-	case "darwin":
+	case constants.OSDarwin:
 		return ".dylib"
 	default: // linux, freebsd, etc
 		return ".so"
@@ -106,11 +108,11 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 	if info, err := os.Stat(exePath); err == nil && info.IsDir() {
 		found := false
 		target := filepath.Join(exePath, "retroarch.exe")
-		if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
+		if runtime.GOOS != constants.OSWindows && runtime.GOOS != constants.OSDarwin {
 			target = filepath.Join(exePath, "retroarch")
 		}
 
-		if runtime.GOOS == "darwin" {
+		if runtime.GOOS == constants.OSDarwin {
 			if strings.HasSuffix(exePath, ".app") {
 				found = true
 			} else {
@@ -141,7 +143,7 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 	}
 
 	baseDir := filepath.Dir(exePath)
-	if runtime.GOOS == "darwin" {
+	if runtime.GOOS == constants.OSDarwin {
 		if strings.HasSuffix(exePath, ".app") {
 			// If they selected the macOS .app bundle, use it as baseDir and find actual binary
 			baseDir = exePath
@@ -182,7 +184,7 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 				foundExt = innerExt
 				// Special case: Pico-8 .png carts inside ZIPs need manual extraction to a .p8 extension
 				// to prevent RetroArch from defaulting to its internal image-viewer core.
-				if innerExt == ".png" && coreName == "retro8_libretro" {
+				if innerExt == ".png" && coreName == constants.CoreRetro8 {
 					tmpFile, err := os.CreateTemp("", "pico8_*.p8")
 					if err != nil {
 						return fmt.Errorf("failed to create temporary file for pico-8 extraction: %v", err)
@@ -225,7 +227,7 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 	coreFile := coreBaseName + getCoreExt()
 
 	// macOS core directory standard
-	if runtime.GOOS == "darwin" {
+	if runtime.GOOS == constants.OSDarwin {
 		homeDir, _ := os.UserHomeDir()
 		coresDir = filepath.Join(homeDir, "Library", "Application Support", "RetroArch", "cores")
 	}
@@ -237,15 +239,15 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 		// Detect architecture for macOS specifically to ensure we download the correct binary type.
 		// On Apple Silicon (arm64), we might still be running an x86_64 build of RetroArch via Rosetta.
 		arch := runtime.GOARCH
-		if runtime.GOOS == "darwin" {
+		if runtime.GOOS == constants.OSDarwin {
 			// Try to detect the architecture of the RetroArch binary itself
 			out, err := exec.Command("file", exePath).Output()
 			if err == nil {
 				sout := string(out)
 				if strings.Contains(sout, "x86_64") {
-					arch = "amd64"
+					arch = constants.ArchAmd64
 				} else if strings.Contains(sout, "arm64") {
-					arch = "arm64"
+					arch = constants.ArchArm64
 				}
 			}
 		}
@@ -257,7 +259,7 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 	}
 
 	// Workaround for Pico-8 .png carts being treated as images by RetroArch (physical files)
-	if tempRomPath == "" && !strings.Contains(romPath, "#") && strings.ToLower(filepath.Ext(romPath)) == ".png" && coreBaseName == "retro8_libretro" {
+	if tempRomPath == "" && !strings.Contains(romPath, "#") && strings.ToLower(filepath.Ext(romPath)) == ".png" && coreBaseName == constants.CoreRetro8 {
 		target := romPath + ".p8"
 		// Remove existing if it somehow exists
 		os.Remove(target)
@@ -270,8 +272,8 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 		}
 	}
 
-	savesDir := filepath.Join(romBaseDir, "saves")
-	statesDir := filepath.Join(romBaseDir, "states")
+	savesDir := filepath.Join(romBaseDir, constants.DirSaves)
+	statesDir := filepath.Join(romBaseDir, constants.DirStates)
 	ui.LogInfof("Launch: Saves dir: %s, States dir: %s", savesDir, statesDir)
 
 	// Ensure directories exist
@@ -321,15 +323,15 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 			if tempRomPath != "" {
 				os.Remove(tempRomPath)
 			}
-			ui.EventsEmit("game-exited", nil)
-			if runtime.GOOS == "darwin" {
+			ui.EventsEmit(constants.EventGameExited, nil)
+			if runtime.GOOS == constants.OSDarwin {
 				ui.WindowShow()
 				ui.WindowUnminimise()
 			}
 		}()
 
-		ui.EventsEmit("game-started", nil)
-		if runtime.GOOS == "darwin" {
+		ui.EventsEmit(constants.EventGameStarted, nil)
+		if runtime.GOOS == constants.OSDarwin {
 			ui.WindowHide()
 		}
 		out, err := cmd.CombinedOutput()
@@ -346,30 +348,30 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 
 // DownloadCore fetches a missing core from Libretro buildbot
 func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
-	ui.EventsEmit("play-status", fmt.Sprintf("Downloading missing core: %s...", coreFile))
+	ui.EventsEmit(constants.EventPlayStatus, fmt.Sprintf("Downloading missing core: %s...", coreFile))
 
 	var osName, archName string
 	switch runtime.GOOS {
-	case "windows":
-		osName = "windows"
-	case "darwin":
+	case constants.OSWindows:
+		osName = constants.OSWindows
+	case constants.OSDarwin:
 		osName = "apple/osx"
-	case "linux":
-		osName = "linux"
+	case constants.OSLinux:
+		osName = constants.OSLinux
 	default:
 		return fmt.Errorf("unsupported OS for core downloads: %s", runtime.GOOS)
 	}
 
 	switch arch {
-	case "amd64":
+	case constants.ArchAmd64:
 		archName = "x86_64"
-	case "arm64":
-		if runtime.GOOS == "darwin" {
-			archName = "arm64"
+	case constants.ArchArm64:
+		if runtime.GOOS == constants.OSDarwin {
+			archName = constants.ArchArm64
 		} else {
 			archName = "aarch64"
 		}
-	case "386":
+	case constants.Arch386:
 		archName = "x86"
 	default:
 		return fmt.Errorf("unsupported arch for core downloads: %s", arch)
@@ -405,7 +407,7 @@ func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 		return fmt.Errorf("failed to extract core: %w", err)
 	}
 
-	ui.EventsEmit("play-status", "Core downloaded successfully!")
+	ui.EventsEmit(constants.EventPlayStatus, "Core downloaded successfully!")
 	return nil
 }
 
@@ -466,11 +468,11 @@ func ClearCheevosToken(exePath string) error {
 
 	// 2. Standard OS-specific locations
 	switch runtime.GOOS {
-	case "linux":
+	case constants.OSLinux:
 		if home, err := os.UserHomeDir(); err == nil {
 			configPaths = append(configPaths, filepath.Join(home, ".config", "retroarch", "retroarch.cfg"))
 		}
-	case "darwin":
+	case constants.OSDarwin:
 		if home, err := os.UserHomeDir(); err == nil {
 			configPaths = append(configPaths, filepath.Join(home, "Library", "Application Support", "RetroArch", "config", "retroarch.cfg"))
 		}

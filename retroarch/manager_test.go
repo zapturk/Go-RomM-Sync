@@ -10,16 +10,18 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"go-romm-sync/constants"
 )
 
 func TestGetCoreExt(t *testing.T) {
 	ext := getCoreExt()
 	switch runtime.GOOS {
-	case "windows":
+	case constants.OSWindows:
 		if ext != ".dll" {
 			t.Errorf("Expected .dll, got %s", ext)
 		}
-	case "darwin":
+	case constants.OSDarwin:
 		if ext != ".dylib" {
 			t.Errorf("Expected .dylib, got %s", ext)
 		}
@@ -209,7 +211,7 @@ func TestLaunch_ExeDir(t *testing.T) {
 }
 
 func TestLaunch_AppBundle(t *testing.T) {
-	if runtime.GOOS != "darwin" {
+	if runtime.GOOS != constants.OSDarwin {
 		t.Skip("Skipping macOS specific test")
 	}
 	ui := &MockUI{}
