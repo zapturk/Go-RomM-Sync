@@ -59,5 +59,11 @@
           {{end}}
         </array>
         {{end}}
+        <key>NSDocumentsUsageDescription</key>
+        <string>Access to your Documents folder is needed to sync and manage game saves.</string>
+        <key>NSDownloadsFolderUsageDescription</key>
+        <string>Access to your Downloads folder is needed to process downloaded ROMs.</string>
+        <key>NSDesktopUsageDescription</key>
+        <string>Access to your Desktop is needed to access game files stored there.</string>
     </dict>
 </plist>
