@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"go-romm-sync/constants"
+	"go-romm-sync/utils/fileio"
 )
 
 // LibraryProvider defines the local library interactions needed for syncing.
@@ -221,7 +222,7 @@ func (s *Service) downloadServerAsset(gameID uint, filePath, core, filename, upd
 	if err != nil {
 		return fmt.Errorf("failed to download %s from server: %w", subDir, err)
 	}
-	defer reader.Close()
+	defer fileio.Close(reader, nil, "downloadServerAsset: Failed to close reader")
 
 	if filename == "" {
 		filename = serverFilename
@@ -250,15 +251,10 @@ func (s *Service) downloadServerAsset(gameID uint, filePath, core, filename, upd
 	if err != nil {
 		return fmt.Errorf("failed to create local %s file: %w", subDir, err)
 	}
-	defer out.Close()
+	defer fileio.Close(out, nil, "downloadServerAsset: Failed to close output file")
 
 	if _, err := io.Copy(out, reader); err != nil {
-		out.Close()
 		return fmt.Errorf("failed to write local %s file: %w", subDir, err)
-	}
-
-	if err := out.Close(); err != nil {
-		return fmt.Errorf("failed to close local %s file: %w", subDir, err)
 	}
 
 	if updatedAt != "" {

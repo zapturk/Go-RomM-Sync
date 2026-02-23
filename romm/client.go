@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+
+	"go-romm-sync/utils/fileio"
 )
 
 // Client handles communication with the RomM API
@@ -46,7 +48,7 @@ func (c *Client) Login(username, password string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to perform login request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer fileio.Close(resp.Body, nil, "Login: Failed to close response body")
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -122,7 +124,7 @@ func (c *Client) GetLibrary() ([]types.Game, error) {
 		}
 
 		if len(pageItems) == 0 {
-			resp.Body.Close()
+			fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
 			break
 		}
 
@@ -138,16 +140,16 @@ func (c *Client) GetLibrary() ([]types.Game, error) {
 
 		if !newItems {
 			// If all items in this page were already seen, stop to avoid infinite loop
-			resp.Body.Close()
+			fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
 			break
 		}
 
 		if len(pageItems) < limit {
-			resp.Body.Close()
+			fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
 			break
 		}
 
-		resp.Body.Close()
+		fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
 		offset += limit
 	}
 
@@ -177,7 +179,7 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform cover request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer fileio.Close(resp.Body, nil, "DownloadCover: Failed to close response body")
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("cover fetch failed with status %d", resp.StatusCode)
@@ -235,7 +237,7 @@ func (c *Client) GetPlatforms() ([]types.Platform, error) {
 		}
 
 		if len(pageItems) == 0 {
-			resp.Body.Close()
+			fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
 			break
 		}
 
@@ -249,16 +251,16 @@ func (c *Client) GetPlatforms() ([]types.Platform, error) {
 		}
 
 		if !newItems {
-			resp.Body.Close()
+			fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
 			break
 		}
 
 		if len(pageItems) < limit {
-			resp.Body.Close()
+			fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
 			break
 		}
 
-		resp.Body.Close()
+		fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
 		offset += limit
 	}
 
@@ -283,7 +285,7 @@ func (c *Client) GetRom(id uint) (types.Game, error) {
 	if err != nil {
 		return types.Game{}, fmt.Errorf("failed to perform ROM request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer fileio.Close(resp.Body, nil, "GetRom: Failed to close response body")
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -321,7 +323,7 @@ func (c *Client) DownloadFile(game *types.Game) (reader io.ReadCloser, filename 
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
+		fileio.Close(resp.Body, nil, "DownloadFile: Failed to close response body")
 		return nil, "", fmt.Errorf("download failed with status %d", resp.StatusCode)
 	}
 
@@ -386,7 +388,7 @@ func (c *Client) uploadAsset(romID uint, emulator, filename string, content []by
 	if err != nil {
 		return fmt.Errorf("failed to perform upload request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer fileio.Close(resp.Body, nil, "uploadAsset: Failed to close response body")
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		respBody, _ := io.ReadAll(resp.Body)
@@ -414,7 +416,7 @@ func (c *Client) GetSaves(romID uint) ([]types.ServerSave, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform saves request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer fileio.Close(resp.Body, nil, "GetSaves: Failed to close response body")
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -453,7 +455,7 @@ func (c *Client) GetStates(romID uint) ([]types.ServerState, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform states request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer fileio.Close(resp.Body, nil, "GetStates: Failed to close response body")
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -504,7 +506,7 @@ func (c *Client) downloadAsset(filePath, fallbackFilename string) (reader io.Rea
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		fileio.Close(resp.Body, nil, "downloadAsset: Failed to close response body")
 		return nil, "", fmt.Errorf("download failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 

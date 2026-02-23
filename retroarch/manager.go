@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"go-romm-sync/constants"
+	"go-romm-sync/utils/fileio"
 )
 
 // UIProvider defines the UI and logging interactions needed for RetroArch.
@@ -172,7 +173,7 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 		if err != nil {
 			return fmt.Errorf("failed to open .zip rom archive: %v", err)
 		}
-		defer r.Close()
+		defer fileio.Close(r, nil, "Launch: Failed to close zip reader")
 
 		foundExt := ""
 		for _, f := range r.File {
@@ -191,13 +192,13 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 					}
 					rc, err := f.Open()
 					if err != nil {
-						tmpFile.Close()
+						fileio.Close(tmpFile, ui.LogErrorf, "Launch: Failed to close temporary file")
 						os.Remove(tmpFile.Name())
 						return fmt.Errorf("failed to open zip member for extraction: %v", err)
 					}
 					_, err = io.Copy(tmpFile, rc)
-					rc.Close()
-					tmpFile.Close()
+					fileio.Close(rc, nil, "Launch: Failed to close zip member")
+					fileio.Close(tmpFile, ui.LogErrorf, "Launch: Failed to close temporary file")
 					if err != nil {
 						os.Remove(tmpFile.Name())
 						return fmt.Errorf("failed to extract pico-8 cart from zip: %v", err)
@@ -297,7 +298,7 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 		if _, err := tmpFile.WriteString(content); err != nil {
 			ui.LogErrorf("Launch: Failed to write temporary config: %v", err)
 		}
-		tmpFile.Close()
+		fileio.Close(tmpFile, ui.LogErrorf, "Launch: Failed to close temporary config file")
 		ui.LogInfof("Launch: Created temporary config at: %s with content:\n%s", appendConfigPath, content)
 	}
 
@@ -383,7 +384,7 @@ func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 	if err != nil {
 		return fmt.Errorf("failed to download core: %w", err)
 	}
-	defer resp.Body.Close()
+	defer fileio.Close(resp.Body, nil, "DownloadCore: Failed to close response body")
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("core download failed with status %d from %s", resp.StatusCode, urlStr)
@@ -396,7 +397,7 @@ func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 		return fmt.Errorf("failed to create core zip: %w", err)
 	}
 	_, err = io.Copy(out, resp.Body)
-	out.Close()
+	fileio.Close(out, nil, "DownloadCore: Failed to close core zip file")
 	if err != nil {
 		return fmt.Errorf("failed to save core zip: %w", err)
 	}
@@ -417,7 +418,7 @@ func unzipCore(src, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer r.Close()
+	defer fileio.Close(r, nil, "unzipCore: Failed to close zip reader")
 
 	for _, f := range r.File {
 		fpath := filepath.Join(dest, f.Name)
@@ -437,12 +438,12 @@ func unzipCore(src, dest string) error {
 		}
 		rc, err := f.Open()
 		if err != nil {
-			outFile.Close()
+			fileio.Close(outFile, nil, "unzipCore: Failed to close output file")
 			return err
 		}
 		_, err = io.Copy(outFile, rc)
-		outFile.Close()
-		rc.Close()
+		fileio.Close(outFile, nil, "unzipCore: Failed to close output file")
+		fileio.Close(rc, nil, "unzipCore: Failed to close zip member")
 		if err != nil {
 			return err
 		}
