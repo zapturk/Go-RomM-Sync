@@ -2,7 +2,7 @@ module go-romm-sync
 
 go 1.24
 
-toolchain go1.24.12
+toolchain go1.24.13
 
 require github.com/wailsapp/wails/v2 v2.11.0
 
