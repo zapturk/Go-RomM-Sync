@@ -65,6 +65,10 @@ jobs:
       - name: Build application
         run: wails build -platform ${{ matrix.platform }} ${{ matrix.tags }}
 
+      - name: Codesign (macOS)
+        if: runner.os == 'macOS'
+        run: codesign -s - --deep --force build/bin/go-romm-sync.app
+
       - name: Package (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -83,9 +87,6 @@ jobs:
         run: |
           cd build/bin
           zip -r ../../go-romm-sync-macos.zip go-romm-sync.app
-          cd ../..
-          shasum -a 256 go-romm-sync-macos.zip > go-romm-sync-macos.zip.sha256
-          echo "MACOS_SHA256=$(shasum -a 256 go-romm-sync-macos.zip | awk '{ print $1 }')" >> $GITHUB_ENV
 
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -93,6 +94,5 @@ jobs:
           files: |
             *.tar.gz
             *.zip
-            *.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
