@@ -44,7 +44,7 @@ func (c *Client) Login(username, password string) (string, error) {
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := c.Client.Do(req)
+	resp, err := c.Client.Do(req) //nolint:bodyclose
 	if err != nil {
 		return "", fmt.Errorf("failed to perform login request: %w", err)
 	}
@@ -89,7 +89,7 @@ func (c *Client) GetLibrary() ([]types.Game, error) {
 
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 
-		resp, err := c.Client.Do(req)
+		resp, err := c.Client.Do(req) //nolint:bodyclose
 		if err != nil {
 			return nil, fmt.Errorf("failed to perform library request: %w", err)
 		}
@@ -175,7 +175,7 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.Client.Do(req)
+	resp, err := c.Client.Do(req) //nolint:bodyclose
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform cover request: %w", err)
 	}
@@ -207,7 +207,7 @@ func (c *Client) GetPlatforms() ([]types.Platform, error) {
 
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 
-		resp, err := c.Client.Do(req)
+		resp, err := c.Client.Do(req) //nolint:bodyclose
 		if err != nil {
 			return nil, fmt.Errorf("failed to perform platforms request: %w", err)
 		}
@@ -281,7 +281,7 @@ func (c *Client) GetRom(id uint) (types.Game, error) {
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.Client.Do(req)
+	resp, err := c.Client.Do(req) //nolint:bodyclose
 	if err != nil {
 		return types.Game{}, fmt.Errorf("failed to perform ROM request: %w", err)
 	}
@@ -317,7 +317,7 @@ func (c *Client) DownloadFile(game *types.Game) (reader io.ReadCloser, filename 
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.Client.Do(req)
+	resp, err := c.Client.Do(req) //nolint:bodyclose
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to perform download request: %w", err)
 	}
@@ -384,7 +384,7 @@ func (c *Client) uploadAsset(romID uint, emulator, filename string, content []by
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("accept", "application/json")
 
-	resp, err := c.Client.Do(req)
+	resp, err := c.Client.Do(req) //nolint:bodyclose
 	if err != nil {
 		return fmt.Errorf("failed to perform upload request: %w", err)
 	}
@@ -412,7 +412,7 @@ func (c *Client) GetSaves(romID uint) ([]types.ServerSave, error) {
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.Client.Do(req)
+	resp, err := c.Client.Do(req) //nolint:bodyclose
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform saves request: %w", err)
 	}
@@ -451,7 +451,7 @@ func (c *Client) GetStates(romID uint) ([]types.ServerState, error) {
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.Client.Do(req)
+	resp, err := c.Client.Do(req) //nolint:bodyclose
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform states request: %w", err)
 	}

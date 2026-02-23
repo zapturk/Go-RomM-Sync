@@ -193,14 +193,14 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 					rc, err := f.Open()
 					if err != nil {
 						fileio.Close(tmpFile, ui.LogErrorf, "Launch: Failed to close temporary file")
-						os.Remove(tmpFile.Name())
+						fileio.Remove(tmpFile.Name(), ui.LogErrorf)
 						return fmt.Errorf("failed to open zip member for extraction: %v", err)
 					}
 					_, err = io.Copy(tmpFile, rc)
 					fileio.Close(rc, nil, "Launch: Failed to close zip member")
 					fileio.Close(tmpFile, ui.LogErrorf, "Launch: Failed to close temporary file")
 					if err != nil {
-						os.Remove(tmpFile.Name())
+						fileio.Remove(tmpFile.Name(), ui.LogErrorf)
 						return fmt.Errorf("failed to extract pico-8 cart from zip: %v", err)
 					}
 					romPath = tmpFile.Name()
@@ -263,7 +263,7 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 	if tempRomPath == "" && !strings.Contains(romPath, "#") && strings.ToLower(filepath.Ext(romPath)) == ".png" && coreBaseName == constants.CoreRetro8 {
 		target := romPath + ".p8"
 		// Remove existing if it somehow exists
-		os.Remove(target)
+		fileio.Remove(target, ui.LogErrorf)
 		if err := os.Link(romPath, target); err == nil {
 			ui.LogInfof("Launch: Created temporary hardlink %s for Pico-8 .png cart", target)
 			romPath = target
@@ -278,8 +278,8 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 	ui.LogInfof("Launch: Saves dir: %s, States dir: %s", savesDir, statesDir)
 
 	// Ensure directories exist
-	os.MkdirAll(savesDir, 0o755)
-	os.MkdirAll(statesDir, 0o755)
+	fileio.MkdirAll(savesDir, 0o755, ui.LogErrorf)
+	fileio.MkdirAll(statesDir, 0o755, ui.LogErrorf)
 
 	// Prepare temporary config for RetroAchievements and Directories.
 	// We use --appendconfig to pass these settings without modifying the user's main RetroArch config permanently.
@@ -319,10 +319,10 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 	go func() {
 		defer func() {
 			if appendConfigPath != "" {
-				os.Remove(appendConfigPath)
+				fileio.Remove(appendConfigPath, ui.LogErrorf)
 			}
 			if tempRomPath != "" {
-				os.Remove(tempRomPath)
+				fileio.Remove(tempRomPath, ui.LogErrorf)
 			}
 			ui.EventsEmit(constants.EventGameExited, nil)
 			if runtime.GOOS == constants.OSDarwin {
@@ -390,7 +390,7 @@ func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 		return fmt.Errorf("core download failed with status %d from %s", resp.StatusCode, urlStr)
 	}
 
-	os.MkdirAll(coresDir, 0o755)
+	fileio.MkdirAll(coresDir, 0o755, ui.LogErrorf)
 	zipPath := filepath.Join(coresDir, coreFile+".zip")
 	out, err := os.Create(zipPath)
 	if err != nil {
@@ -401,7 +401,7 @@ func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 	if err != nil {
 		return fmt.Errorf("failed to save core zip: %w", err)
 	}
-	defer os.Remove(zipPath)
+	defer fileio.Remove(zipPath, ui.LogErrorf)
 
 	err = unzipCore(zipPath, coresDir)
 	if err != nil {
@@ -426,7 +426,7 @@ func unzipCore(src, dest string) error {
 			return fmt.Errorf("illegal file path: %s", fpath)
 		}
 		if f.FileInfo().IsDir() {
-			os.MkdirAll(fpath, os.ModePerm)
+			fileio.MkdirAll(fpath, os.ModePerm, nil)
 			continue
 		}
 		if err := os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
