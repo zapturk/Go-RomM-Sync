@@ -28,12 +28,8 @@ linters-settings:
       - performance
       - experimental
       - opinionated
-  govet:
-    check-shadowing: true
   gocyclo:
     min-complexity: 15
-  maligned:
-    suggest-new: true
 
 run:
   timeout: 5m
