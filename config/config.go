@@ -71,15 +71,15 @@ func (cm *ConfigManager) GetConfig() types.AppConfig {
 }
 
 // Save writes the current config to disk
-func (cm *ConfigManager) Save(newConfig types.AppConfig) error {
+func (cm *ConfigManager) Save(newConfig *types.AppConfig) error {
 	cm.Mu.Lock()
 	defer cm.Mu.Unlock()
 
-	*cm.Config = newConfig
+	*cm.Config = *newConfig
 
 	// Ensure directory exists
 	dir := filepath.Dir(cm.ConfigPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -88,7 +88,7 @@ func (cm *ConfigManager) Save(newConfig types.AppConfig) error {
 		return err
 	}
 
-	return os.WriteFile(cm.ConfigPath, data, 0644)
+	return os.WriteFile(cm.ConfigPath, data, 0o644)
 }
 
 // GetDefaultLibraryPath returns the cross-platform default library path
@@ -121,7 +121,7 @@ func (cm *ConfigManager) createDefault() error {
 
 	// Create the directory if it doesn't exist
 	dir := filepath.Dir(cm.ConfigPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -130,5 +130,5 @@ func (cm *ConfigManager) createDefault() error {
 		return err
 	}
 
-	return os.WriteFile(cm.ConfigPath, data, 0644)
+	return os.WriteFile(cm.ConfigPath, data, 0o644)
 }

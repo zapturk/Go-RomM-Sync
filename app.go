@@ -15,6 +15,8 @@ import (
 	"runtime"
 	"strings"
 
+	"go-romm-sync/constants"
+
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -56,7 +58,7 @@ func (a *App) GetConfig() types.AppConfig {
 	return a.configSrv.GetConfig()
 }
 
-func (a *App) SaveConfig(cfg types.AppConfig) string {
+func (a *App) SaveConfig(cfg *types.AppConfig) string {
 	res, hostChanged := a.configSrv.SaveConfig(cfg)
 
 	// Clear RetroArch cheevos token on save to ensure fresh login on credentials change
@@ -143,11 +145,11 @@ func (a *App) GetStates(id uint) ([]types.FileItem, error) {
 }
 
 func (a *App) DeleteSave(id uint, core, filename string) error {
-	return a.syncSrv.DeleteGameFile(id, "saves", core, filename)
+	return a.syncSrv.DeleteGameFile(id, constants.DirSaves, core, filename)
 }
 
 func (a *App) DeleteState(id uint, core, filename string) error {
-	return a.syncSrv.DeleteGameFile(id, "states", core, filename)
+	return a.syncSrv.DeleteGameFile(id, constants.DirStates, core, filename)
 }
 
 func (a *App) UploadSave(id uint, core, filename string) error {
@@ -158,15 +160,15 @@ func (a *App) UploadState(id uint, core, filename string) error {
 	return a.syncSrv.UploadState(id, core, filename)
 }
 
-func (a *App) DownloadServerSave(gameID uint, filePath string, core string, filename string, updatedAt string) error {
+func (a *App) DownloadServerSave(gameID uint, filePath, core, filename, updatedAt string) error {
 	return a.syncSrv.DownloadServerSave(gameID, filePath, core, filename, updatedAt)
 }
 
-func (a *App) DownloadServerState(gameID uint, filePath string, core string, filename string, updatedAt string) error {
+func (a *App) DownloadServerState(gameID uint, filePath, core, filename, updatedAt string) error {
 	return a.syncSrv.DownloadServerState(gameID, filePath, core, filename, updatedAt)
 }
 
-func (a *App) ValidateAssetPath(core, filename string) (string, string, error) {
+func (a *App) ValidateAssetPath(core, filename string) (coreBase, fileBase string, err error) {
 	return a.syncSrv.ValidateAssetPath(core, filename)
 }
 
@@ -181,7 +183,7 @@ func (a *App) ConfigGetConfig() types.AppConfig {
 	return a.configManager.GetConfig()
 }
 
-func (a *App) ConfigSave(cfg types.AppConfig) error {
+func (a *App) ConfigSave(cfg *types.AppConfig) error {
 	return a.configManager.Save(cfg)
 }
 
@@ -204,14 +206,14 @@ func (a *App) GetLibraryPath() string {
 func (a *App) SaveDefaultLibraryPath(path string) error {
 	cfg := a.configManager.GetConfig()
 	cfg.LibraryPath = path
-	return a.configManager.Save(cfg)
+	return a.configManager.Save(&cfg)
 }
 
 func (a *App) GetRetroArchPath() string {
 	return a.configManager.GetConfig().RetroArchPath
 }
 
-func (a *App) GetCheevosCredentials() (string, string) {
+func (a *App) GetCheevosCredentials() (username, password string) {
 	cfg := a.configManager.GetConfig()
 	return cfg.CheevosUsername, cfg.CheevosPassword
 }
@@ -220,7 +222,7 @@ func (a *App) GetRom(id uint) (types.Game, error) {
 	return a.rommSrv.GetRom(id)
 }
 
-func (a *App) DownloadFile(game *types.Game) (io.ReadCloser, string, error) {
+func (a *App) DownloadFile(game *types.Game) (reader io.ReadCloser, filename string, err error) {
 	return a.rommSrv.GetClient().DownloadFile(game)
 }
 
@@ -232,11 +234,11 @@ func (a *App) RomMUploadState(id uint, core, filename string, content []byte) er
 	return a.rommSrv.GetClient().UploadState(id, core, filename, content)
 }
 
-func (a *App) RomMDownloadSave(filePath string) (io.ReadCloser, string, error) {
+func (a *App) RomMDownloadSave(filePath string) (reader io.ReadCloser, filename string, err error) {
 	return a.rommSrv.GetClient().DownloadSave(filePath)
 }
 
-func (a *App) RomMDownloadState(filePath string) (io.ReadCloser, string, error) {
+func (a *App) RomMDownloadState(filePath string) (reader io.ReadCloser, filename string, err error) {
 	return a.rommSrv.GetClient().DownloadState(filePath)
 }
 
@@ -245,31 +247,45 @@ func (a *App) GetRomDir(game *types.Game) string {
 }
 
 func (a *App) LogInfof(format string, args ...interface{}) {
-	wailsRuntime.LogInfof(a.ctx, format, args...)
+	if a.ctx != nil {
+		wailsRuntime.LogInfof(a.ctx, format, args...)
+	}
 }
 
 func (a *App) LogErrorf(format string, args ...interface{}) {
-	wailsRuntime.LogErrorf(a.ctx, format, args...)
+	if a.ctx != nil {
+		wailsRuntime.LogErrorf(a.ctx, format, args...)
+	}
 }
 
 func (a *App) EventsEmit(eventName string, args ...interface{}) {
-	wailsRuntime.EventsEmit(a.ctx, eventName, args...)
+	if a.ctx != nil {
+		wailsRuntime.EventsEmit(a.ctx, eventName, args...)
+	}
 }
 
 func (a *App) WindowHide() {
-	wailsRuntime.WindowHide(a.ctx)
+	if a.ctx != nil {
+		wailsRuntime.WindowHide(a.ctx)
+	}
 }
 
 func (a *App) WindowShow() {
-	wailsRuntime.WindowShow(a.ctx)
+	if a.ctx != nil {
+		wailsRuntime.WindowShow(a.ctx)
+	}
 }
 
 func (a *App) WindowUnminimise() {
-	wailsRuntime.WindowUnminimise(a.ctx)
+	if a.ctx != nil {
+		wailsRuntime.WindowUnminimise(a.ctx)
+	}
 }
 
 func (a *App) WindowSetAlwaysOnTop(b bool) {
-	wailsRuntime.WindowSetAlwaysOnTop(a.ctx, b)
+	if a.ctx != nil {
+		wailsRuntime.WindowSetAlwaysOnTop(a.ctx, b)
+	}
 }
 
 func (a *App) OpenFileDialog(title string, filters []string) (string, error) {
@@ -279,10 +295,13 @@ func (a *App) OpenFileDialog(title string, filters []string) (string, error) {
 	if len(filters) > 0 {
 		options.Filters = []wailsRuntime.FileFilter{{DisplayName: "Filtered Files", Pattern: filters[0]}}
 	}
-	if runtime.GOOS == "darwin" {
+	if runtime.GOOS == constants.OSDarwin {
 		options.DefaultDirectory = "/Applications"
 		options.TreatPackagesAsDirectories = false
 		options.Filters = nil
+	}
+	if a.ctx == nil {
+		return "", nil
 	}
 	return wailsRuntime.OpenFileDialog(a.ctx, options)
 }
@@ -291,6 +310,9 @@ func (a *App) OpenDirectoryDialog(title string) (string, error) {
 	options := wailsRuntime.OpenDialogOptions{
 		Title:                title,
 		CanCreateDirectories: true,
+	}
+	if a.ctx == nil {
+		return "", nil
 	}
 	return wailsRuntime.OpenDirectoryDialog(a.ctx, options)
 }

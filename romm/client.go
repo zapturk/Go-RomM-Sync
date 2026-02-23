@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+
+	"go-romm-sync/utils/fileio"
 )
 
 // Client handles communication with the RomM API
@@ -42,11 +44,11 @@ func (c *Client) Login(username, password string) (string, error) {
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := c.Client.Do(req)
+	resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
 	if err != nil {
 		return "", fmt.Errorf("failed to perform login request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer fileio.Close(resp.Body, nil, "Login: Failed to close response body")
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -67,6 +69,10 @@ func (c *Client) Login(username, password string) (string, error) {
 }
 
 // GetLibrary fetches the list of games (ROMs) from the library
+//
+// types with different JSON decode strategies; a generic refactor would add complexity without benefit.
+//
+//nolint:dupl // GetLibrary/GetPlatforms have similar pagination structures but operate on different
 func (c *Client) GetLibrary() ([]types.Game, error) {
 	if c.Token == "" {
 		return nil, fmt.Errorf("not authenticated")
@@ -79,22 +85,22 @@ func (c *Client) GetLibrary() ([]types.Game, error) {
 
 	for {
 		// Construct URL with pagination parameters
-		url := fmt.Sprintf("%s/api/roms?limit=%d&offset=%d", c.BaseURL, limit, offset)
-		req, err := http.NewRequest("GET", url, nil)
+		urlStr := fmt.Sprintf("%s/api/roms?limit=%d&offset=%d", c.BaseURL, limit, offset)
+		req, err := http.NewRequest("GET", urlStr, http.NoBody)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create library request: %w", err)
 		}
 
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 
-		resp, err := c.Client.Do(req)
+		resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close at each loop exit point
 		if err != nil {
 			return nil, fmt.Errorf("failed to perform library request: %w", err)
 		}
-		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(resp.Body)
+			fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
 			return nil, fmt.Errorf("library fetch failed with status %d: %s", resp.StatusCode, string(body))
 		}
 
@@ -123,6 +129,7 @@ func (c *Client) GetLibrary() ([]types.Game, error) {
 		}
 
 		if len(pageItems) == 0 {
+			fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
 			break
 		}
 
@@ -138,13 +145,16 @@ func (c *Client) GetLibrary() ([]types.Game, error) {
 
 		if !newItems {
 			// If all items in this page were already seen, stop to avoid infinite loop
+			fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
 			break
 		}
 
 		if len(pageItems) < limit {
+			fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
 			break
 		}
 
+		fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
 		offset += limit
 	}
 
@@ -163,18 +173,18 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 		targetURL = c.BaseURL + coverURL
 	}
 
-	req, err := http.NewRequest("GET", targetURL, nil)
+	req, err := http.NewRequest("GET", targetURL, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cover request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.Client.Do(req)
+	resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform cover request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer fileio.Close(resp.Body, nil, "DownloadCover: Failed to close response body")
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("cover fetch failed with status %d", resp.StatusCode)
@@ -183,6 +193,10 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 }
 
 // GetPlatforms fetches the list of platforms
+//
+// types with different JSON decode strategies; a generic refactor would add complexity without benefit.
+//
+//nolint:dupl // GetLibrary/GetPlatforms have similar pagination structures but operate on different
 func (c *Client) GetPlatforms() ([]types.Platform, error) {
 	if c.Token == "" {
 		return nil, fmt.Errorf("not authenticated")
@@ -194,22 +208,22 @@ func (c *Client) GetPlatforms() ([]types.Platform, error) {
 	offset := 0
 
 	for {
-		url := fmt.Sprintf("%s/api/platforms?limit=%d&offset=%d", c.BaseURL, limit, offset)
-		req, err := http.NewRequest("GET", url, nil)
+		urlStr := fmt.Sprintf("%s/api/platforms?limit=%d&offset=%d", c.BaseURL, limit, offset)
+		req, err := http.NewRequest("GET", urlStr, http.NoBody)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create platforms request: %w", err)
 		}
 
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 
-		resp, err := c.Client.Do(req)
+		resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
 		if err != nil {
 			return nil, fmt.Errorf("failed to perform platforms request: %w", err)
 		}
-		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(resp.Body)
+			fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
 			return nil, fmt.Errorf("platforms fetch failed with status %d: %s", resp.StatusCode, string(body))
 		}
 
@@ -233,6 +247,7 @@ func (c *Client) GetPlatforms() ([]types.Platform, error) {
 		}
 
 		if len(pageItems) == 0 {
+			fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
 			break
 		}
 
@@ -246,13 +261,16 @@ func (c *Client) GetPlatforms() ([]types.Platform, error) {
 		}
 
 		if !newItems {
+			fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
 			break
 		}
 
 		if len(pageItems) < limit {
+			fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
 			break
 		}
 
+		fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
 		offset += limit
 	}
 
@@ -265,19 +283,19 @@ func (c *Client) GetRom(id uint) (types.Game, error) {
 		return types.Game{}, fmt.Errorf("not authenticated")
 	}
 
-	url := fmt.Sprintf("%s/api/roms/%d", c.BaseURL, id)
-	req, err := http.NewRequest("GET", url, nil)
+	urlStr := fmt.Sprintf("%s/api/roms/%d", c.BaseURL, id)
+	req, err := http.NewRequest("GET", urlStr, http.NoBody)
 	if err != nil {
 		return types.Game{}, fmt.Errorf("failed to create ROM request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.Client.Do(req)
+	resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
 	if err != nil {
 		return types.Game{}, fmt.Errorf("failed to perform ROM request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer fileio.Close(resp.Body, nil, "GetRom: Failed to close response body")
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -293,29 +311,29 @@ func (c *Client) GetRom(id uint) (types.Game, error) {
 }
 
 // DownloadFile fetches a file from RomM and returns a reader and the filename
-func (c *Client) DownloadFile(game *types.Game) (io.ReadCloser, string, error) {
+func (c *Client) DownloadFile(game *types.Game) (reader io.ReadCloser, filename string, err error) {
 	if c.Token == "" {
 		return nil, "", fmt.Errorf("not authenticated")
 	}
 
-	filename := filepath.Base(game.FullPath)
+	filename = filepath.Base(game.FullPath)
 	escapedFilename := url.PathEscape(filename)
 
 	urlPath := fmt.Sprintf("%s/api/roms/%d/content/%s", c.BaseURL, game.ID, escapedFilename)
-	req, err := http.NewRequest("GET", urlPath, nil)
+	req, err := http.NewRequest("GET", urlPath, http.NoBody)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create download request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.Client.Do(req)
+	resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to perform download request: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
+		fileio.Close(resp.Body, nil, "DownloadFile: Failed to close response body")
 		return nil, "", fmt.Errorf("download failed with status %d", resp.StatusCode)
 	}
 
@@ -332,16 +350,16 @@ func (c *Client) DownloadFile(game *types.Game) (io.ReadCloser, string, error) {
 }
 
 // UploadSave uploads a save file to RomM
-func (c *Client) UploadSave(romID uint, emulator string, filename string, content []byte) error {
+func (c *Client) UploadSave(romID uint, emulator, filename string, content []byte) error {
 	return c.uploadAsset(romID, emulator, filename, content, "saves", "saveFile")
 }
 
 // UploadState uploads a save state file to RomM
-func (c *Client) UploadState(romID uint, emulator string, filename string, content []byte) error {
+func (c *Client) UploadState(romID uint, emulator, filename string, content []byte) error {
 	return c.uploadAsset(romID, emulator, filename, content, "states", "stateFile")
 }
 
-func (c *Client) uploadAsset(romID uint, emulator string, filename string, content []byte, endpoint string, fieldName string) error {
+func (c *Client) uploadAsset(romID uint, emulator, filename string, content []byte, endpoint, fieldName string) error {
 	if c.Token == "" {
 		return fmt.Errorf("not authenticated")
 	}
@@ -376,11 +394,11 @@ func (c *Client) uploadAsset(romID uint, emulator string, filename string, conte
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("accept", "application/json")
 
-	resp, err := c.Client.Do(req)
+	resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
 	if err != nil {
 		return fmt.Errorf("failed to perform upload request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer fileio.Close(resp.Body, nil, "uploadAsset: Failed to close response body")
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		respBody, _ := io.ReadAll(resp.Body)
@@ -392,101 +410,69 @@ func (c *Client) uploadAsset(romID uint, emulator string, filename string, conte
 
 // GetSaves fetches the list of saves from the RomM server for a given ROM
 func (c *Client) GetSaves(romID uint) ([]types.ServerSave, error) {
-	if c.Token == "" {
-		return nil, fmt.Errorf("not authenticated")
-	}
-
-	url := fmt.Sprintf("%s/api/saves?rom_id=%d", c.BaseURL, romID)
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create saves request: %w", err)
-	}
-
-	req.Header.Set("Authorization", "Bearer "+c.Token)
-
-	resp, err := c.Client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to perform saves request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("saves fetch failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	bodyBytes, _ := io.ReadAll(resp.Body)
-	// fmt.Printf("Raw Saves JSON: %s\n", string(bodyBytes))
-
-	if len(bodyBytes) == 0 {
-		return []types.ServerSave{}, nil
-	}
-
-	var saves []types.ServerSave
-	if err := json.Unmarshal(bodyBytes, &saves); err != nil {
-		return nil, fmt.Errorf("failed to decode saves response: %w", err)
-	}
-
-	return saves, nil
+	return fetchAssets[types.ServerSave](c, fmt.Sprintf("%s/api/saves?rom_id=%d", c.BaseURL, romID), "saves")
 }
 
 // GetStates fetches the list of states from the RomM server for a given ROM
 func (c *Client) GetStates(romID uint) ([]types.ServerState, error) {
+	return fetchAssets[types.ServerState](c, fmt.Sprintf("%s/api/states?rom_id=%d", c.BaseURL, romID), "states")
+}
+
+// fetchAssets is a generic helper that fetches a JSON list from a RomM API endpoint.
+func fetchAssets[T any](c *Client, urlStr, assetType string) ([]T, error) {
 	if c.Token == "" {
 		return nil, fmt.Errorf("not authenticated")
 	}
 
-	url := fmt.Sprintf("%s/api/states?rom_id=%d", c.BaseURL, romID)
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", urlStr, http.NoBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create states request: %w", err)
+		return nil, fmt.Errorf("failed to create %s request: %w", assetType, err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.Client.Do(req)
+	resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
 	if err != nil {
-		return nil, fmt.Errorf("failed to perform states request: %w", err)
+		return nil, fmt.Errorf("failed to perform %s request: %w", assetType, err)
 	}
-	defer resp.Body.Close()
+	defer fileio.Close(resp.Body, nil, "fetchAssets: Failed to close response body")
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("states fetch failed with status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("%s fetch failed with status %d: %s", assetType, resp.StatusCode, string(body))
 	}
 
 	bodyBytes, _ := io.ReadAll(resp.Body)
-	// fmt.Printf("Raw States JSON: %s\n", string(bodyBytes))
 
 	if len(bodyBytes) == 0 {
-		return []types.ServerState{}, nil
+		return []T{}, nil
 	}
 
-	var states []types.ServerState
-	if err := json.Unmarshal(bodyBytes, &states); err != nil {
-		return nil, fmt.Errorf("failed to decode states response: %w", err)
+	var items []T
+	if err := json.Unmarshal(bodyBytes, &items); err != nil {
+		return nil, fmt.Errorf("failed to decode %s response: %w", assetType, err)
 	}
 
-	return states, nil
+	return items, nil
 }
 
 // DownloadSave fetches a save file from RomM
-func (c *Client) DownloadSave(filePath string) (io.ReadCloser, string, error) {
+func (c *Client) DownloadSave(filePath string) (reader io.ReadCloser, filename string, err error) {
 	return c.downloadAsset(filePath, "unknown.sav")
 }
 
 // DownloadState fetches a state file from RomM
-func (c *Client) DownloadState(filePath string) (io.ReadCloser, string, error) {
+func (c *Client) DownloadState(filePath string) (reader io.ReadCloser, filename string, err error) {
 	return c.downloadAsset(filePath, "unknown.state")
 }
 
-func (c *Client) downloadAsset(filePath string, fallbackFilename string) (io.ReadCloser, string, error) {
+func (c *Client) downloadAsset(filePath, fallbackFilename string) (reader io.ReadCloser, filename string, err error) {
 	if c.Token == "" {
 		return nil, "", fmt.Errorf("not authenticated")
 	}
 
 	urlPath := fmt.Sprintf("%s/api/raw/assets/%s", c.BaseURL, strings.TrimPrefix(filePath, "/"))
-	req, err := http.NewRequest("GET", urlPath, nil)
+	req, err := http.NewRequest("GET", urlPath, http.NoBody)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create download request: %w", err)
 	}
@@ -500,11 +486,11 @@ func (c *Client) downloadAsset(filePath string, fallbackFilename string) (io.Rea
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		fileio.Close(resp.Body, nil, "downloadAsset: Failed to close response body")
 		return nil, "", fmt.Errorf("download failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	filename := fallbackFilename
+	filename = fallbackFilename
 	cd := resp.Header.Get("Content-Disposition")
 	if cd != "" && strings.Contains(cd, "filename=") {
 		parts := strings.Split(cd, "filename=")

@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"go-romm-sync/constants"
+	"go-romm-sync/utils/fileio"
 )
 
 // LibraryProvider defines the local library interactions needed for syncing.
@@ -49,16 +52,16 @@ func New(lib LibraryProvider, romm RomMProvider, ui UIProvider) *Service {
 }
 
 // GetSaves returns a list of local save files for a game.
-func (s *Service) GetSaves(id uint) ([]types.FileItem, error) {
-	return s.getGameFiles(id, "saves")
+func (s *Service) GetSaves(id uint) (items []types.FileItem, err error) {
+	return s.getGameFiles(id, constants.DirSaves)
 }
 
 // GetStates returns a list of local state files for a game.
-func (s *Service) GetStates(id uint) ([]types.FileItem, error) {
-	return s.getGameFiles(id, "states")
+func (s *Service) GetStates(id uint) (items []types.FileItem, err error) {
+	return s.getGameFiles(id, constants.DirStates)
 }
 
-func (s *Service) getGameFiles(id uint, subDir string) ([]types.FileItem, error) {
+func (s *Service) getGameFiles(id uint, subDir string) (items []types.FileItem, err error) {
 	game, err := s.romm.GetRom(id)
 	if err != nil {
 		return nil, err
@@ -67,7 +70,7 @@ func (s *Service) getGameFiles(id uint, subDir string) ([]types.FileItem, error)
 	romDir := s.library.GetRomDir(&game)
 	dirPath := filepath.Join(romDir, subDir)
 
-	items := []types.FileItem{}
+	items = []types.FileItem{}
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -77,28 +80,30 @@ func (s *Service) getGameFiles(id uint, subDir string) ([]types.FileItem, error)
 	}
 
 	for _, entry := range entries {
-		if entry.IsDir() {
-			coreName := entry.Name()
-			coreDir := filepath.Join(dirPath, coreName)
-			files, err := os.ReadDir(coreDir)
-			if err != nil {
+		if !entry.IsDir() {
+			continue
+		}
+		coreName := entry.Name()
+		coreDir := filepath.Join(dirPath, coreName)
+		files, err := os.ReadDir(coreDir)
+		if err != nil {
+			continue
+		}
+		for _, f := range files {
+			if f.IsDir() || strings.HasPrefix(f.Name(), ".") {
 				continue
 			}
-			for _, f := range files {
-				if !f.IsDir() && !strings.HasPrefix(f.Name(), ".") {
-					info, err := f.Info()
-					updatedAt := ""
-					if err == nil {
-						updatedAt = info.ModTime().UTC().Format(time.RFC3339)
-					}
-
-					items = append(items, types.FileItem{
-						Name:      f.Name(),
-						Core:      coreName,
-						UpdatedAt: updatedAt,
-					})
-				}
+			info, err := f.Info()
+			updatedAt := ""
+			if err == nil {
+				updatedAt = info.ModTime().UTC().Format(time.RFC3339)
 			}
+
+			items = append(items, types.FileItem{
+				Name:      f.Name(),
+				Core:      coreName,
+				UpdatedAt: updatedAt,
+			})
 		}
 	}
 	return items, nil
@@ -106,12 +111,12 @@ func (s *Service) getGameFiles(id uint, subDir string) ([]types.FileItem, error)
 
 // UploadSave reads a local save file and uploads it to RomM.
 func (s *Service) UploadSave(id uint, core, filename string) error {
-	return s.uploadServerAsset(id, core, filename, "saves")
+	return s.uploadServerAsset(id, core, filename, constants.DirSaves)
 }
 
 // UploadState reads a local save state file and uploads it to RomM.
 func (s *Service) UploadState(id uint, core, filename string) error {
-	return s.uploadServerAsset(id, core, filename, "states")
+	return s.uploadServerAsset(id, core, filename, constants.DirStates)
 }
 
 func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) error {
@@ -137,8 +142,7 @@ func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) erro
 		return fmt.Errorf("failed to read local %s file: %w", subDir, err)
 	}
 
-	err = nil
-	if subDir == "saves" {
+	if subDir == constants.DirSaves {
 		err = s.romm.RomMUploadSave(id, core, filename, content)
 	} else {
 		err = s.romm.RomMUploadState(id, core, filename, content)
@@ -192,16 +196,16 @@ func (s *Service) DeleteGameFile(id uint, subDir, core, filename string) error {
 }
 
 // DownloadServerSave downloads a save from RomM.
-func (s *Service) DownloadServerSave(gameID uint, filePath string, core string, filename string, updatedAt string) error {
-	return s.downloadServerAsset(gameID, filePath, core, filename, updatedAt, "saves")
+func (s *Service) DownloadServerSave(gameID uint, filePath, core, filename, updatedAt string) error {
+	return s.downloadServerAsset(gameID, filePath, core, filename, updatedAt, constants.DirSaves)
 }
 
 // DownloadServerState downloads a state from RomM.
-func (s *Service) DownloadServerState(gameID uint, filePath string, core string, filename string, updatedAt string) error {
-	return s.downloadServerAsset(gameID, filePath, core, filename, updatedAt, "states")
+func (s *Service) DownloadServerState(gameID uint, filePath, core, filename, updatedAt string) error {
+	return s.downloadServerAsset(gameID, filePath, core, filename, updatedAt, constants.DirStates)
 }
 
-func (s *Service) downloadServerAsset(gameID uint, filePath string, core string, filename string, updatedAt string, subDir string) error {
+func (s *Service) downloadServerAsset(gameID uint, filePath, core, filename, updatedAt, subDir string) error {
 	game, err := s.romm.GetRom(gameID)
 	if err != nil {
 		return fmt.Errorf("failed to get ROM info: %w", err)
@@ -209,7 +213,7 @@ func (s *Service) downloadServerAsset(gameID uint, filePath string, core string,
 
 	var reader io.ReadCloser
 	var serverFilename string
-	if subDir == "saves" {
+	if subDir == constants.DirSaves {
 		reader, serverFilename, err = s.romm.RomMDownloadSave(filePath)
 	} else {
 		reader, serverFilename, err = s.romm.RomMDownloadState(filePath)
@@ -218,7 +222,7 @@ func (s *Service) downloadServerAsset(gameID uint, filePath string, core string,
 	if err != nil {
 		return fmt.Errorf("failed to download %s from server: %w", subDir, err)
 	}
-	defer reader.Close()
+	defer fileio.Close(reader, nil, "downloadServerAsset: Failed to close reader")
 
 	if filename == "" {
 		filename = serverFilename
@@ -238,7 +242,7 @@ func (s *Service) downloadServerAsset(gameID uint, filePath string, core string,
 		return fmt.Errorf("invalid path traversal detected")
 	}
 
-	if err := os.MkdirAll(destDir, 0755); err != nil {
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
@@ -247,15 +251,10 @@ func (s *Service) downloadServerAsset(gameID uint, filePath string, core string,
 	if err != nil {
 		return fmt.Errorf("failed to create local %s file: %w", subDir, err)
 	}
-	defer out.Close()
+	defer fileio.Close(out, nil, "downloadServerAsset: Failed to close output file")
 
 	if _, err := io.Copy(out, reader); err != nil {
-		out.Close()
 		return fmt.Errorf("failed to write local %s file: %w", subDir, err)
-	}
-
-	if err := out.Close(); err != nil {
-		return fmt.Errorf("failed to close local %s file: %w", subDir, err)
 	}
 
 	if updatedAt != "" {
@@ -270,7 +269,7 @@ func (s *Service) downloadServerAsset(gameID uint, filePath string, core string,
 }
 
 // ValidateAssetPath sanitizes the core and filename.
-func (s *Service) ValidateAssetPath(core, filename string) (string, string, error) {
+func (s *Service) ValidateAssetPath(core, filename string) (coreBase, fileBase string, err error) {
 	core = filepath.Base(filepath.Clean(core))
 	if core == "." || core == ".." {
 		return "", "", fmt.Errorf("invalid core name")

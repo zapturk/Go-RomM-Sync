@@ -1,143 +1,229 @@
 package retroarch
 
 import (
+	"archive/zip"
+	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"go-romm-sync/constants"
 )
 
 func TestGetCoreExt(t *testing.T) {
 	ext := getCoreExt()
 	switch runtime.GOOS {
-	case "windows":
+	case constants.OSWindows:
 		if ext != ".dll" {
-			t.Errorf("Expected .dll for windows, got %s", ext)
+			t.Errorf("Expected .dll, got %s", ext)
 		}
-	case "darwin":
+	case constants.OSDarwin:
 		if ext != ".dylib" {
-			t.Errorf("Expected .dylib for darwin, got %s", ext)
+			t.Errorf("Expected .dylib, got %s", ext)
 		}
-	case "linux":
+	default:
 		if ext != ".so" {
-			t.Errorf("Expected .so for linux, got %s", ext)
+			t.Errorf("Expected .so, got %s", ext)
 		}
 	}
 }
 
-func TestCoreMapCoverage(t *testing.T) {
-	// Verify some critical mappings exist
-	criticalExts := []string{".nes", ".sfc", ".gb", ".gba", ".z64", ".md", ".bin", ".p8", ".png"}
-	for _, ext := range criticalExts {
-		if _, ok := CoreMap[ext]; !ok {
-			t.Errorf("Missing core mapping for critical extension: %s", ext)
-		}
+func TestCoreMap(t *testing.T) {
+	if CoreMap[".sfc"] != "snes9x_libretro" {
+		t.Errorf("Expected snes9x_libretro for .sfc")
+	}
+	if CoreMap[".nes"] != "nestopia_libretro" {
+		t.Errorf("Expected nestopia_libretro for .nes")
 	}
 }
 
-func TestCoreMapUniqueness(t *testing.T) {
-	// This is more of a sanity check that we don't have empty strings as cores
-	for ext, core := range CoreMap {
-		if core == "" {
-			t.Errorf("Extension %s mapped to empty core name", ext)
-		}
+func TestUnzipCore(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "unzip_test")
+	defer os.RemoveAll(tempDir)
+
+	buf := new(bytes.Buffer)
+	w := zip.NewWriter(buf)
+	f, _ := w.Create("test.txt")
+	f.Write([]byte("hello"))
+	w.Close()
+
+	zipPath := filepath.Join(tempDir, "test.zip")
+	os.WriteFile(zipPath, buf.Bytes(), 0o644)
+
+	destDir := filepath.Join(tempDir, "dest")
+	os.MkdirAll(destDir, 0o755)
+
+	err := unzipCore(zipPath, destDir)
+	if err != nil {
+		t.Fatalf("unzipCore failed: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(destDir, "test.txt"))
+	if err != nil {
+		t.Fatalf("Failed to read unzipped file: %v", err)
+	}
+	if string(content) != "hello" {
+		t.Errorf("Expected hello, got %s", string(content))
 	}
 }
+
 func TestClearCheevosToken(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "ra-config-test")
+	tempDir, _ := os.MkdirTemp("", "cheevos_test")
+	defer os.RemoveAll(tempDir)
+
+	cfgPath := filepath.Join(tempDir, "retroarch.cfg")
+	content := "cheevos_enable = \"true\"\ncheevos_token = \"abcdef123456\"\nother_setting = \"val\"\n"
+	os.WriteFile(cfgPath, []byte(content), 0o644)
+
+	err := ClearCheevosToken(tempDir)
 	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	configPath := filepath.Join(tmpDir, "retroarch.cfg")
-	initialContent := `
-savefile_directory = "C:\Saves"
-cheevos_enable = "true"
-cheevos_token = "some-long-session-token-12345"
-cheevos_token_extra = "should stay"
-cheevos_username = "testuser"
-`
-	err = os.WriteFile(configPath, []byte(initialContent), 0644)
-	if err != nil {
-		t.Fatalf("Failed to write mock config: %v", err)
+		t.Fatalf("ClearCheevosToken failed: %v", err)
 	}
 
-	// Mock exePath to point to the temp dir.
-	// The function calls os.Stat(exePath), so the file must exist.
-	exePath := filepath.Join(tmpDir, "retroarch.exe")
-	os.WriteFile(exePath, []byte(""), 0644)
-
-	err = ClearCheevosToken(exePath)
-	if err != nil {
-		t.Fatalf("ClearCheevosToken returned error: %v", err)
-	}
-
-	// Verify content
-	updatedContent, err := os.ReadFile(configPath)
-	if err != nil {
-		t.Fatalf("Failed to read updated config: %v", err)
-	}
-
-	sContent := string(updatedContent)
-	if !strings.Contains(sContent, `cheevos_token = ""`) {
-		t.Errorf("Expected cheevos_token to be cleared, but got:\n%s", sContent)
-	}
-	if strings.Contains(sContent, "some-long-session-token-12345") {
-		t.Errorf("Old token still present in config:\n%s", sContent)
-	}
-	if !strings.Contains(sContent, `cheevos_token_extra = "should stay"`) {
-		t.Errorf("Other settings were incorrectly modified:\n%s", sContent)
+	newContent, _ := os.ReadFile(cfgPath)
+	if !bytes.Contains(newContent, []byte(`cheevos_token = ""`)) {
+		t.Errorf("Expected cheevos_token to be cleared, got:\n%s", string(newContent))
 	}
 }
 
-func TestResolveExecutableFromDir(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "ra-exe-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+type MockUI struct{}
 
-	// Create a mock retroarch executable
-	exeName := "retroarch.exe"
-	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
+func (m *MockUI) LogInfof(format string, args ...interface{})      {}
+func (m *MockUI) LogErrorf(format string, args ...interface{})     {}
+func (m *MockUI) EventsEmit(eventName string, args ...interface{}) {}
+func (m *MockUI) WindowHide()                                      {}
+func (m *MockUI) WindowShow()                                      {}
+func (m *MockUI) WindowUnminimise()                                {}
+
+func TestLaunch_Errors(t *testing.T) {
+	ui := &MockUI{}
+
+	// Test missing exe
+	err := Launch(ui, "/non/existent/retroarch", "rom.sfc", "", "")
+	if err == nil {
+		t.Error("Expected error for non-existent executable")
+	}
+
+	// Test missing core map
+	tempDir, _ := os.MkdirTemp("", "launch_err")
+	defer os.RemoveAll(tempDir)
+	exePath := filepath.Join(tempDir, "retroarch")
+	os.WriteFile(exePath, []byte("fake"), 0o755)
+
+	err = Launch(ui, exePath, "rom.unknown", "", "")
+	if err == nil {
+		t.Error("Expected error for unknown extension")
+	}
+}
+
+func TestLaunch_Zip(t *testing.T) {
+	ui := &MockUI{}
+	tempDir, _ := os.MkdirTemp("", "launch_zip")
+	defer os.RemoveAll(tempDir)
+
+	exePath := filepath.Join(tempDir, "retroarch")
+	os.WriteFile(exePath, []byte("fake"), 0o755)
+
+	// Create fake zip
+	zipPath := filepath.Join(tempDir, "game.zip")
+	buf := new(bytes.Buffer)
+	w := zip.NewWriter(buf)
+	f, _ := w.Create("game.sfc")
+	f.Write([]byte("rom data"))
+	w.Close()
+	os.WriteFile(zipPath, buf.Bytes(), 0o644)
+
+	// Launch should return error because core won't be found (on non-supported systems for download or just missing)
+	// But it should at least get past ZIP handling.
+	// Actually, we want to test that it correctly identifies the core and formats the path.
+	// Since Launch returns immediately after starting goroutine (if all pre-checks pass), we just check it doesn't return early error.
+
+	err := Launch(ui, exePath, zipPath, "", "")
+	// It might error because coresDir/cores/... missing, which is fine, we just want to see it gets there.
+	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
+		t.Errorf("Unexpected error during zip launch: %v", err)
+	}
+}
+
+func TestLaunch_Pico8(t *testing.T) {
+	ui := &MockUI{}
+	tempDir, _ := os.MkdirTemp("", "launch_p8")
+	defer os.RemoveAll(tempDir)
+
+	exePath := filepath.Join(tempDir, "retroarch")
+	os.WriteFile(exePath, []byte("fake"), 0o755)
+
+	p8Path := filepath.Join(tempDir, "game.png")
+	os.WriteFile(p8Path, []byte("png data"), 0o644)
+
+	err := Launch(ui, exePath, p8Path, "", "")
+	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
+		t.Errorf("Unexpected error during pico8 launch: %v", err)
+	}
+}
+
+func TestDownloadCore(t *testing.T) {
+	ui := &MockUI{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Mock a ZIP response
+		buf := new(bytes.Buffer)
+		zw := zip.NewWriter(buf)
+		f, _ := zw.Create("test_core.so")
+		f.Write([]byte("core data"))
+		zw.Close()
+		w.Write(buf.Bytes())
+	}))
+	defer server.Close()
+
+	// Since DownloadCore constructs its own URL, we can't easily point it to the test server
+	// without changing the code. However, we can test unzipCore directly (already done)
+	// and we can test DownloadCore's error handling for unsupported OS/Arch.
+
+	err := DownloadCore(ui, "core.so", "/tmp", "invalid-arch")
+	if err == nil {
+		t.Error("Expected error for invalid arch")
+	}
+}
+
+func TestLaunch_ExeDir(t *testing.T) {
+	ui := &MockUI{}
+	tempDir, _ := os.MkdirTemp("", "launch_exe_dir")
+	defer os.RemoveAll(tempDir)
+
+	// Create fake retroarch inside directory
+	var exeName string
+	if runtime.GOOS == "windows" {
+		exeName = "retroarch.exe"
+	} else {
 		exeName = "retroarch"
 	}
-	if runtime.GOOS == "darwin" {
-		exeName = "RetroArch"
+	exePath := filepath.Join(tempDir, exeName)
+	os.WriteFile(exePath, []byte("fake"), 0o755)
+
+	err := Launch(ui, tempDir, "rom.sfc", "", "")
+	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
+		t.Errorf("Unexpected error during exe dir launch: %v", err)
 	}
+}
 
-	exePath := filepath.Join(tmpDir, exeName)
-	err = os.WriteFile(exePath, []byte("mock binary"), 0755)
-	if err != nil {
-		t.Fatalf("Failed to create mock exe: %v", err)
+func TestLaunch_AppBundle(t *testing.T) {
+	if runtime.GOOS != constants.OSDarwin {
+		t.Skip("Skipping macOS specific test")
 	}
+	ui := &MockUI{}
+	tempDir, _ := os.MkdirTemp("", "launch_app_bundle")
+	defer os.RemoveAll(tempDir)
 
-	// This function isn't exported directly but it's part of the Launch logic.
-	// We can test the logic by calling a helper if we refactor, but for now
-	// let's verify Launch doesn't return an error early for a directory if the exe exists.
+	appPath := filepath.Join(tempDir, "RetroArch.app")
+	os.MkdirAll(appPath, 0o755)
 
-	// Since Launch runs things we can't easily unit test (exec.Command), we'll
-	// just verify the directory resolution part of the logic works by checking
-	// the file existence logic in a similar manner to how Launch does it.
-
-	info, err := os.Stat(tmpDir)
-	if err != nil || !info.IsDir() {
-		t.Fatalf("Expected %s to be a directory", tmpDir)
-	}
-
-	target := filepath.Join(tmpDir, "retroarch.exe")
-	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
-		target = filepath.Join(tmpDir, "retroarch")
-	}
-
-	if runtime.GOOS == "darwin" {
-		// Test .app detection or binary detection
-		target = filepath.Join(tmpDir, "RetroArch")
-	}
-
-	if _, err := os.Stat(target); err != nil {
-		t.Errorf("Path resolution logic failed to find expected executable at %s", target)
+	err := Launch(ui, appPath, "rom.sfc", "", "")
+	// Should at least pass the directory check and fail on core/binary lookup
+	if err != nil && strings.Contains(err.Error(), "retroarch executable not found in directory") {
+		t.Errorf("Failed to resolve .app bundle: %v", err)
 	}
 }

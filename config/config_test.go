@@ -38,7 +38,7 @@ func TestLoadAndSave(t *testing.T) {
 		LibraryPath: "/path/to/lib",
 	}
 
-	err = cm.Save(testConfig)
+	err = cm.Save(&testConfig)
 	if err != nil {
 		t.Fatalf("Save failed: %v", err)
 	}

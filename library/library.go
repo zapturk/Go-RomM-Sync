@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"go-romm-sync/utils/fileio"
 )
 
 // ConfigProvider defines the configuration needed for library management.
@@ -89,13 +91,13 @@ func (s *Service) DownloadRomToLibrary(id uint) error {
 	if err != nil {
 		return err
 	}
-	defer reader.Close()
+	defer fileio.Close(reader, nil, "DownloadRomToLibrary: Failed to close reader")
 
 	destDir := s.GetRomDir(&game)
 	filename := filepath.Base(game.FullPath)
 	destPath := filepath.Join(destDir, filename)
 
-	if err := os.MkdirAll(destDir, 0755); err != nil {
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
@@ -103,7 +105,7 @@ func (s *Service) DownloadRomToLibrary(id uint) error {
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
-	defer out.Close()
+	defer fileio.Close(out, s.ui.LogErrorf, "DownloadRomToLibrary: Failed to close destination file")
 
 	pw := &ProgressWriter{
 		Total:  game.FileSize,

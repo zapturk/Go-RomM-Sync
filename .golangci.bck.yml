@@ -1,0 +1,41 @@
+linters:
+  enable:
+    - gocritic
+    - bodyclose
+    - nilnil
+    - dogsled
+    - dupl
+    - errcheck
+    - goconst
+    - gocognit
+    - gocyclo
+    - gofmt
+    - goimports
+    - govet
+    - misspell
+    - nakedret
+    - prealloc
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
+
+linters-settings:
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+      - experimental
+      - opinionated
+  gocyclo:
+    min-complexity: 15
+
+run:
+  timeout: 5m
+  tests: false
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
