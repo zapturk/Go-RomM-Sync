@@ -28,7 +28,7 @@ func TestGetCoreExt(t *testing.T) {
 
 func TestCoreMapCoverage(t *testing.T) {
 	// Verify some critical mappings exist
-	criticalExts := []string{".nes", ".sfc", ".gb", ".gba", ".z64", ".md", ".bin"}
+	criticalExts := []string{".nes", ".sfc", ".gb", ".gba", ".z64", ".md", ".bin", ".p8", ".png"}
 	for _, ext := range criticalExts {
 		if _, ok := CoreMap[ext]; !ok {
 			t.Errorf("Missing core mapping for critical extension: %s", ext)
