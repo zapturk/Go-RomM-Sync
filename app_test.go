@@ -146,7 +146,13 @@ func TestAppServiceWrappers(t *testing.T) {
 }
 
 func TestAppStartup(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "app-startup-test")
+	defer os.RemoveAll(tmpDir)
+	configPath := filepath.Join(tmpDir, "config.json")
+
 	cm := config.NewConfigManager()
+	cm.ConfigPath = configPath
+
 	app := NewApp(cm)
 	app.startup(context.Background())
 	if app.ctx == nil {
@@ -220,7 +226,13 @@ func TestAppComplexWrappers(t *testing.T) {
 }
 
 func TestAppExhaustiveWrappers(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "app-exhaustive-test")
+	defer os.RemoveAll(tmpDir)
+	configPath := filepath.Join(tmpDir, "config.json")
+
 	cm := config.NewConfigManager()
+	cm.ConfigPath = configPath
+
 	app := NewApp(cm)
 
 	// Recover from panics because some Wails runtime methods might panic with nil context
