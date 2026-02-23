@@ -27,7 +27,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.22'
           cache: true
 
       - name: Setup Node.js
@@ -61,7 +61,7 @@ jobs:
       - name: Run Linters
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version: v2.10.1
 
       - name: Build application
         run: wails build -platform ${{ matrix.platform }} ${{ matrix.tags }}
