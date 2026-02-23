@@ -1,8 +1,11 @@
 package rommsrv
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -40,6 +43,116 @@ func TestLogin_MissingConfig(t *testing.T) {
 	_, err := s.Login()
 	if err == nil {
 		t.Errorf("Expected error for missing host")
+	}
+}
+
+func TestLogin_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"access_token": "valid-token"}`))
+	}))
+	defer server.Close()
+
+	cfg := &MockConfigProvider{Host: server.URL}
+	s := New(cfg)
+	token, err := s.Login()
+	if err != nil {
+		t.Fatalf("Login failed: %v", err)
+	}
+	if token != "valid-token" {
+		t.Errorf("Expected valid-token, got %s", token)
+	}
+}
+
+func TestGetLibrary(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[{"id": 1, "name": "Game 1"}]`))
+	}))
+	defer server.Close()
+
+	cfg := &MockConfigProvider{Host: server.URL}
+	s := New(cfg)
+	s.client.Token = "test-token"
+
+	games, err := s.GetLibrary()
+	if err != nil {
+		t.Fatalf("GetLibrary failed: %v", err)
+	}
+	if len(games) != 1 {
+		t.Errorf("Expected 1 game, got %d", len(games))
+	}
+}
+
+func TestGetPlatforms(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[{"id": 1, "name": "Platform 1"}]`))
+	}))
+	defer server.Close()
+
+	cfg := &MockConfigProvider{Host: server.URL}
+	s := New(cfg)
+	s.client.Token = "test-token"
+
+	platforms, err := s.GetPlatforms()
+	if err != nil {
+		t.Fatalf("GetPlatforms failed: %v", err)
+	}
+	if len(platforms) != 1 {
+		t.Errorf("Expected 1 platform, got %d", len(platforms))
+	}
+}
+
+func TestGetRom(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id": 1, "name": "Game 1"}`))
+	}))
+	defer server.Close()
+
+	cfg := &MockConfigProvider{Host: server.URL}
+	s := New(cfg)
+	s.client.Token = "test-token"
+
+	game, err := s.GetRom(1)
+	if err != nil {
+		t.Fatalf("GetRom failed: %v", err)
+	}
+	if game.ID != 1 {
+		t.Errorf("Expected ID 1, got %d", game.ID)
+	}
+}
+
+func TestGetServerSavesStates(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(r.URL.Path, "saves") {
+			w.Write([]byte(`[{"id": 1, "filename": "save.srm"}]`))
+		} else {
+			w.Write([]byte(`[{"id": 1, "filename": "state.st0"}]`))
+		}
+	}))
+	defer server.Close()
+
+	cfg := &MockConfigProvider{Host: server.URL}
+	s := New(cfg)
+	s.client.Token = "test-token"
+
+	saves, err := s.GetServerSaves(1)
+	if err != nil {
+		t.Fatalf("GetServerSaves failed: %v", err)
+	}
+	if len(saves) != 1 {
+		t.Errorf("Expected 1 save, got %d", len(saves))
+	}
+
+	states, err := s.GetServerStates(1)
+	if err != nil {
+		t.Fatalf("GetServerStates failed: %v", err)
+	}
+	if len(states) != 1 {
+		t.Errorf("Expected 1 state, got %d", len(states))
 	}
 }
 
@@ -93,5 +206,60 @@ func TestGetCover_Cached(t *testing.T) {
 	}
 	if data == "" {
 		t.Errorf("Expected base64 data, got empty string")
+	}
+}
+
+func TestGetCover_Download(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("downloaded image data"))
+	}))
+	defer server.Close()
+
+	cfg := &MockConfigProvider{Host: server.URL}
+	s := New(cfg)
+	s.client.Token = "test-token"
+	// No need to manually set client.BaseURL as New(cfg) does it.
+
+	// Ensure cache is clean for this ID
+	homeDir, _ := os.UserHomeDir()
+	cachePath := filepath.Join(homeDir, ".go-romm-sync", "cache", "covers", "1234.jpg")
+	os.Remove(cachePath)
+	defer os.Remove(cachePath)
+
+	data, err := s.GetCover(1234, "/some/cover.jpg")
+	if err != nil {
+		t.Fatalf("GetCover failed: %v", err)
+	}
+	if data == "" {
+		t.Errorf("Expected base64 data")
+	}
+}
+
+func TestGetPlatformCover_Download(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, ".svg") {
+			w.Write([]byte("<svg></svg>"))
+		} else {
+			http.Error(w, "not found", http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := &MockConfigProvider{Host: server.URL}
+	s := New(cfg)
+	s.client.Token = "test-token"
+
+	// Ensure cache is clean
+	homeDir, _ := os.UserHomeDir()
+	cachePath := filepath.Join(homeDir, ".go-romm-sync", "cache", "platforms", "1.svg")
+	os.Remove(cachePath)
+	defer os.Remove(cachePath)
+
+	data, err := s.GetPlatformCover(1, "snes")
+	if err != nil {
+		t.Fatalf("GetPlatformCover failed: %v", err)
+	}
+	if !strings.HasPrefix(data, "data:image/svg+xml;base64,") {
+		t.Errorf("Expected SVG data URI, got %s", data)
 	}
 }

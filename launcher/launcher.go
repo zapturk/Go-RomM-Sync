@@ -26,6 +26,7 @@ type RomMProvider interface {
 type UIProvider interface {
 	SelectRetroArchExecutable() (string, error)
 	LogInfof(format string, args ...interface{})
+	LogErrorf(format string, args ...interface{})
 	EventsEmit(eventName string, args ...interface{})
 	WindowHide()
 	WindowShow()
@@ -100,11 +101,7 @@ func (l *Launcher) PlayRom(id uint) error {
 	cheevosUser, cheevosPass := l.config.GetCheevosCredentials()
 
 	// Delegate UI lifecycle to launch helper inside retroarch/manager.go (which handles hiding window, etc.)
-	// Wait, the original Launch in retroarch/manager.go takes a context.
-	// The lifecycle of hiding/showing window is CURRENTLY inside retroarch.Launch's goroutine.
-	// We'll keep that for now to minimize changes to retroarch package.
-
-	err = retroarch.Launch(l.ctx, exePath, romPath, cheevosUser, cheevosPass)
+	err = retroarch.Launch(l.ui, exePath, romPath, cheevosUser, cheevosPass)
 	if err != nil {
 		return fmt.Errorf("failed to launch game: %w", err)
 	}

@@ -245,31 +245,45 @@ func (a *App) GetRomDir(game *types.Game) string {
 }
 
 func (a *App) LogInfof(format string, args ...interface{}) {
-	wailsRuntime.LogInfof(a.ctx, format, args...)
+	if a.ctx != nil {
+		wailsRuntime.LogInfof(a.ctx, format, args...)
+	}
 }
 
 func (a *App) LogErrorf(format string, args ...interface{}) {
-	wailsRuntime.LogErrorf(a.ctx, format, args...)
+	if a.ctx != nil {
+		wailsRuntime.LogErrorf(a.ctx, format, args...)
+	}
 }
 
 func (a *App) EventsEmit(eventName string, args ...interface{}) {
-	wailsRuntime.EventsEmit(a.ctx, eventName, args...)
+	if a.ctx != nil {
+		wailsRuntime.EventsEmit(a.ctx, eventName, args...)
+	}
 }
 
 func (a *App) WindowHide() {
-	wailsRuntime.WindowHide(a.ctx)
+	if a.ctx != nil {
+		wailsRuntime.WindowHide(a.ctx)
+	}
 }
 
 func (a *App) WindowShow() {
-	wailsRuntime.WindowShow(a.ctx)
+	if a.ctx != nil {
+		wailsRuntime.WindowShow(a.ctx)
+	}
 }
 
 func (a *App) WindowUnminimise() {
-	wailsRuntime.WindowUnminimise(a.ctx)
+	if a.ctx != nil {
+		wailsRuntime.WindowUnminimise(a.ctx)
+	}
 }
 
 func (a *App) WindowSetAlwaysOnTop(b bool) {
-	wailsRuntime.WindowSetAlwaysOnTop(a.ctx, b)
+	if a.ctx != nil {
+		wailsRuntime.WindowSetAlwaysOnTop(a.ctx, b)
+	}
 }
 
 func (a *App) OpenFileDialog(title string, filters []string) (string, error) {
@@ -284,6 +298,9 @@ func (a *App) OpenFileDialog(title string, filters []string) (string, error) {
 		options.TreatPackagesAsDirectories = false
 		options.Filters = nil
 	}
+	if a.ctx == nil {
+		return "", nil
+	}
 	return wailsRuntime.OpenFileDialog(a.ctx, options)
 }
 
@@ -291,6 +308,9 @@ func (a *App) OpenDirectoryDialog(title string) (string, error) {
 	options := wailsRuntime.OpenDialogOptions{
 		Title:                title,
 		CanCreateDirectories: true,
+	}
+	if a.ctx == nil {
+		return "", nil
 	}
 	return wailsRuntime.OpenDirectoryDialog(a.ctx, options)
 }

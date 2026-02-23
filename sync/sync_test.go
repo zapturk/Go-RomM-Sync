@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"bytes"
 	"go-romm-sync/types"
 	"io"
 	"os"
@@ -19,21 +20,23 @@ func (m *MockLibraryProvider) GetRomDir(game *types.Game) string {
 
 // MockRomMProvider implements RomMProvider
 type MockRomMProvider struct {
-	Game types.Game
+	Game       types.Game
+	UploadErr  error
+	DownloadCl io.ReadCloser
 }
 
 func (m *MockRomMProvider) GetRom(id uint) (types.Game, error) { return m.Game, nil }
 func (m *MockRomMProvider) RomMUploadSave(id uint, core, filename string, content []byte) error {
-	return nil
+	return m.UploadErr
 }
 func (m *MockRomMProvider) RomMUploadState(id uint, core, filename string, content []byte) error {
-	return nil
+	return m.UploadErr
 }
 func (m *MockRomMProvider) RomMDownloadSave(filePath string) (io.ReadCloser, string, error) {
-	return nil, "", nil
+	return m.DownloadCl, "save.srm", nil
 }
 func (m *MockRomMProvider) RomMDownloadState(filePath string) (io.ReadCloser, string, error) {
-	return nil, "", nil
+	return m.DownloadCl, "state.st0", nil
 }
 
 // MockUIProvider implements UIProvider
@@ -120,5 +123,67 @@ func TestDeleteGameFile(t *testing.T) {
 
 	if _, err := os.Stat(saveFile); !os.IsNotExist(err) {
 		t.Errorf("Expected file to be deleted")
+	}
+}
+
+func TestGetSaves_WithFiles(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "sync_test")
+	defer os.RemoveAll(tempDir)
+
+	savesDir := filepath.Join(tempDir, "saves", "snes")
+	os.MkdirAll(savesDir, 0755)
+	os.WriteFile(filepath.Join(savesDir, "game.srm"), []byte("data"), 0644)
+
+	lib := &MockLibraryProvider{RomDir: tempDir}
+	romm := &MockRomMProvider{Game: types.Game{ID: 1}}
+	s := New(lib, romm, &MockUIProvider{})
+
+	saves, err := s.GetSaves(1)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(saves) != 1 {
+		t.Errorf("Expected 1 save, got %d", len(saves))
+	}
+}
+
+func TestDownloadServerAsset(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "sync_test_dl")
+	defer os.RemoveAll(tempDir)
+
+	lib := &MockLibraryProvider{RomDir: tempDir}
+	romm := &MockRomMProvider{
+		Game:       types.Game{ID: 1},
+		DownloadCl: io.NopCloser(bytes.NewReader([]byte("server data"))),
+	}
+	s := New(lib, romm, &MockUIProvider{})
+
+	err := s.DownloadServerSave(1, "remote/path", "snes", "game.srm", "")
+	if err != nil {
+		t.Fatalf("DownloadServerSave failed: %v", err)
+	}
+
+	localPath := filepath.Join(tempDir, "saves", "snes", "game.srm")
+	if _, err := os.Stat(localPath); err != nil {
+		t.Errorf("Expected local file to be created at %s", localPath)
+	}
+}
+
+func TestUploadSave_Success(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "sync_test_up")
+	defer os.RemoveAll(tempDir)
+
+	savesDir := filepath.Join(tempDir, "saves", "snes")
+	os.MkdirAll(savesDir, 0755)
+	saveFile := filepath.Join(savesDir, "game.srm")
+	os.WriteFile(saveFile, []byte("data"), 0644)
+
+	lib := &MockLibraryProvider{RomDir: tempDir}
+	romm := &MockRomMProvider{Game: types.Game{ID: 1}}
+	s := New(lib, romm, &MockUIProvider{})
+
+	err := s.UploadSave(1, "snes", "game.srm")
+	if err != nil {
+		t.Fatalf("UploadSave failed: %v", err)
 	}
 }

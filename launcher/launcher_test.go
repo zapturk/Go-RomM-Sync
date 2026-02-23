@@ -47,6 +47,7 @@ func (m *MockUIProvider) SelectRetroArchExecutable() (string, error) {
 	return m.SelectedExe, m.Error
 }
 func (m *MockUIProvider) LogInfof(format string, args ...interface{})      {}
+func (m *MockUIProvider) LogErrorf(format string, args ...interface{})     {}
 func (m *MockUIProvider) EventsEmit(eventName string, args ...interface{}) {}
 func (m *MockUIProvider) WindowHide()                                      {}
 func (m *MockUIProvider) WindowShow()                                      {}

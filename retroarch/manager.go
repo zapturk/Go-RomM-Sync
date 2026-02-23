@@ -2,7 +2,6 @@ package retroarch
 
 import (
 	"archive/zip"
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,9 +11,17 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
-
-	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+// UIProvider defines the UI and logging interactions needed for RetroArch.
+type UIProvider interface {
+	LogInfof(format string, args ...interface{})
+	LogErrorf(format string, args ...interface{})
+	EventsEmit(eventName string, args ...interface{})
+	WindowHide()
+	WindowShow()
+	WindowUnminimise()
+}
 
 var CoreMap = map[string]string{
 	// Nintendo
@@ -94,7 +101,7 @@ func getCoreExt() string {
 }
 
 // Launch launches RetroArch for the given ROM path, given the selected executable.
-func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass string) error {
+func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) error {
 	// If exePath is a directory, try to find the actual executable inside it
 	if info, err := os.Stat(exePath); err == nil && info.IsDir() {
 		found := false
@@ -104,15 +111,19 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 		}
 
 		if runtime.GOOS == "darwin" {
-			appPath := filepath.Join(exePath, "RetroArch.app")
-			if _, err := os.Stat(appPath); err == nil {
-				exePath = appPath
+			if strings.HasSuffix(exePath, ".app") {
 				found = true
 			} else {
-				target = filepath.Join(exePath, "RetroArch")
-				if _, err := os.Stat(target); err == nil {
-					exePath = target
+				appPath := filepath.Join(exePath, "RetroArch.app")
+				if _, err := os.Stat(appPath); err == nil {
+					exePath = appPath
 					found = true
+				} else {
+					target = filepath.Join(exePath, "RetroArch")
+					if _, err := os.Stat(target); err == nil {
+						exePath = target
+						found = true
+					}
 				}
 			}
 		} else {
@@ -125,6 +136,8 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 		if !found {
 			return fmt.Errorf("retroarch executable not found in directory: %s", exePath)
 		}
+	} else if err != nil {
+		return fmt.Errorf("retroarch executable not found: %s", exePath)
 	}
 
 	baseDir := filepath.Dir(exePath)
@@ -189,7 +202,7 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 					}
 					romPath = tmpFile.Name()
 					tempRomPath = romPath
-					wailsRuntime.LogInfof(ctx, "Launch: Manually extracted Pico-8 .png cart from ZIP to %s", romPath)
+					ui.LogInfof("Launch: Manually extracted Pico-8 .png cart from ZIP to %s", romPath)
 				} else {
 					// RetroArch requires the path to be formatted as: path/to/rom.zip#internal_rom.abc
 					romPath = fmt.Sprintf("%s#%s", romPath, f.Name)
@@ -219,7 +232,7 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 	corePath := filepath.Join(coresDir, coreFile)
 
 	if _, err := os.Stat(corePath); err != nil {
-		wailsRuntime.EventsEmit(ctx, "play-status", fmt.Sprintf("Emulator core %s not found locally. Attempting to download...", coreFile))
+		ui.EventsEmit("play-status", fmt.Sprintf("Emulator core %s not found locally. Attempting to download...", coreFile))
 
 		// Detect architecture for macOS specifically to ensure we download the correct binary type.
 		// On Apple Silicon (arm64), we might still be running an x86_64 build of RetroArch via Rosetta.
@@ -237,7 +250,7 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 			}
 		}
 
-		err = DownloadCore(ctx, coreFile, coresDir, arch)
+		err = DownloadCore(ui, coreFile, coresDir, arch)
 		if err != nil {
 			return fmt.Errorf("emulator core not found at %s and auto-download failed: %w", corePath, err)
 		}
@@ -249,17 +262,17 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 		// Remove existing if it somehow exists
 		os.Remove(target)
 		if err := os.Link(romPath, target); err == nil {
-			wailsRuntime.LogInfof(ctx, "Launch: Created temporary hardlink %s for Pico-8 .png cart", target)
+			ui.LogInfof("Launch: Created temporary hardlink %s for Pico-8 .png cart", target)
 			romPath = target
 			tempRomPath = target
 		} else {
-			wailsRuntime.LogErrorf(ctx, "Launch: Failed to create temporary hardlink: %v. Falling back to original path.", err)
+			ui.LogErrorf("Launch: Failed to create temporary hardlink: %v. Falling back to original path.", err)
 		}
 	}
 
 	savesDir := filepath.Join(romBaseDir, "saves")
 	statesDir := filepath.Join(romBaseDir, "states")
-	wailsRuntime.LogInfof(ctx, "Launch: Saves dir: %s, States dir: %s", savesDir, statesDir)
+	ui.LogInfof("Launch: Saves dir: %s, States dir: %s", savesDir, statesDir)
 
 	// Ensure directories exist
 	os.MkdirAll(savesDir, 0755)
@@ -280,10 +293,10 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 		content += "config_save_on_exit = \"false\"\n"
 
 		if _, err := tmpFile.WriteString(content); err != nil {
-			wailsRuntime.LogErrorf(ctx, "Launch: Failed to write temporary config: %v", err)
+			ui.LogErrorf("Launch: Failed to write temporary config: %v", err)
 		}
 		tmpFile.Close()
-		wailsRuntime.LogInfof(ctx, "Launch: Created temporary config at: %s with content:\n%s", appendConfigPath, content)
+		ui.LogInfof("Launch: Created temporary config at: %s with content:\n%s", appendConfigPath, content)
 	}
 
 	fmt.Fprintln(os.Stderr, "--- PRE-LAUNCH CHECK ---")
@@ -308,16 +321,16 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 			if tempRomPath != "" {
 				os.Remove(tempRomPath)
 			}
-			wailsRuntime.EventsEmit(ctx, "game-exited", nil)
+			ui.EventsEmit("game-exited", nil)
 			if runtime.GOOS == "darwin" {
-				wailsRuntime.WindowShow(ctx)
-				wailsRuntime.WindowUnminimise(ctx)
+				ui.WindowShow()
+				ui.WindowUnminimise()
 			}
 		}()
 
-		wailsRuntime.EventsEmit(ctx, "game-started", nil)
+		ui.EventsEmit("game-started", nil)
 		if runtime.GOOS == "darwin" {
-			wailsRuntime.WindowHide(ctx)
+			ui.WindowHide()
 		}
 		out, err := cmd.CombinedOutput()
 		if err != nil {
@@ -332,8 +345,8 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 }
 
 // DownloadCore fetches a missing core from Libretro buildbot
-func DownloadCore(ctx context.Context, coreFile, coresDir, arch string) error {
-	wailsRuntime.EventsEmit(ctx, "play-status", fmt.Sprintf("Downloading missing core: %s...", coreFile))
+func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
+	ui.EventsEmit("play-status", fmt.Sprintf("Downloading missing core: %s...", coreFile))
 
 	var osName, archName string
 	switch runtime.GOOS {
@@ -392,7 +405,7 @@ func DownloadCore(ctx context.Context, coreFile, coresDir, arch string) error {
 		return fmt.Errorf("failed to extract core: %w", err)
 	}
 
-	wailsRuntime.EventsEmit(ctx, "play-status", "Core downloaded successfully!")
+	ui.EventsEmit("play-status", "Core downloaded successfully!")
 	return nil
 }
 

@@ -2,6 +2,7 @@ package library
 
 import (
 	"bytes"
+	"fmt"
 	"go-romm-sync/types"
 	"io"
 	"os"
@@ -34,7 +35,13 @@ func (m *MockRomMProvider) DownloadFile(game *types.Game) (io.ReadCloser, string
 }
 
 func (m *MockRomMProvider) GetRom(id uint) (types.Game, error) {
-	return m.Game, m.Error
+	if m.Error != nil {
+		return types.Game{}, m.Error
+	}
+	if m.Game.ID != id {
+		return types.Game{}, fmt.Errorf("not found")
+	}
+	return m.Game, nil
 }
 
 // MockUIProvider implements UIProvider
@@ -123,5 +130,56 @@ func TestDeleteRom(t *testing.T) {
 
 	if _, err := os.Stat(romDir); !os.IsNotExist(err) {
 		t.Errorf("Expected ROM directory to be deleted")
+	}
+}
+
+func TestDownloadRomToLibrary(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "library_dl")
+	defer os.RemoveAll(tempDir)
+
+	cfg := &MockConfigProvider{LibraryPath: tempDir}
+	romm := &MockRomMProvider{
+		Game: types.Game{ID: 1, FullPath: "SNES/Game.sfc", FileSize: 100},
+	}
+	ui := &MockUIProvider{}
+	s := New(cfg, romm, ui)
+
+	err := s.DownloadRomToLibrary(1)
+	if err != nil {
+		t.Fatalf("DownloadRomToLibrary failed: %v", err)
+	}
+
+	destPath := filepath.Join(tempDir, "SNES", "1", "Game.sfc")
+	if _, err := os.Stat(destPath); err != nil {
+		t.Errorf("Expected ROM file to be created at %s", destPath)
+	}
+}
+
+func TestGetRomDownloadStatus(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "library_status")
+	defer os.RemoveAll(tempDir)
+
+	romDir := filepath.Join(tempDir, "SNES", "1")
+	os.MkdirAll(romDir, 0755)
+	os.WriteFile(filepath.Join(romDir, "game.sfc"), []byte("data"), 0644)
+
+	cfg := &MockConfigProvider{LibraryPath: tempDir}
+	romm := &MockRomMProvider{
+		Game: types.Game{ID: 1, FullPath: "SNES/Game.sfc"},
+	}
+	s := New(cfg, romm, &MockUIProvider{})
+
+	status, err := s.GetRomDownloadStatus(1)
+	if err != nil {
+		t.Fatalf("GetRomDownloadStatus failed: %v", err)
+	}
+	if !status {
+		t.Errorf("Expected status true, got false")
+	}
+
+	// Test case where it's not downloaded
+	status, _ = s.GetRomDownloadStatus(2)
+	if status {
+		t.Errorf("Expected status false for missing game")
 	}
 }
