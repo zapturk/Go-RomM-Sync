@@ -52,5 +52,14 @@ jobs:
           npm install
           npm run build
 
+      - name: Run Go Tests
+        run: go test ./...
+
+      - name: Run Linters
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --enable=gocritic
+
       - name: Build application
         run: wails build -platform ${{ matrix.platform }} ${{ matrix.tags }}
