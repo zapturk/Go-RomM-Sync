@@ -49,16 +49,16 @@ func New(lib LibraryProvider, romm RomMProvider, ui UIProvider) *Service {
 }
 
 // GetSaves returns a list of local save files for a game.
-func (s *Service) GetSaves(id uint) ([]types.FileItem, error) {
+func (s *Service) GetSaves(id uint) (items []types.FileItem, err error) {
 	return s.getGameFiles(id, "saves")
 }
 
 // GetStates returns a list of local state files for a game.
-func (s *Service) GetStates(id uint) ([]types.FileItem, error) {
+func (s *Service) GetStates(id uint) (items []types.FileItem, err error) {
 	return s.getGameFiles(id, "states")
 }
 
-func (s *Service) getGameFiles(id uint, subDir string) ([]types.FileItem, error) {
+func (s *Service) getGameFiles(id uint, subDir string) (items []types.FileItem, err error) {
 	game, err := s.romm.GetRom(id)
 	if err != nil {
 		return nil, err
@@ -67,7 +67,7 @@ func (s *Service) getGameFiles(id uint, subDir string) ([]types.FileItem, error)
 	romDir := s.library.GetRomDir(&game)
 	dirPath := filepath.Join(romDir, subDir)
 
-	items := []types.FileItem{}
+	items = []types.FileItem{}
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -270,7 +270,7 @@ func (s *Service) downloadServerAsset(gameID uint, filePath string, core string,
 }
 
 // ValidateAssetPath sanitizes the core and filename.
-func (s *Service) ValidateAssetPath(core, filename string) (string, string, error) {
+func (s *Service) ValidateAssetPath(core, filename string) (coreBase string, fileBase string, err error) {
 	core = filepath.Base(filepath.Clean(core))
 	if core == "." || core == ".." {
 		return "", "", fmt.Errorf("invalid core name")

@@ -30,7 +30,7 @@ type MockRomMProvider struct {
 	Error error
 }
 
-func (m *MockRomMProvider) DownloadFile(game *types.Game) (io.ReadCloser, string, error) {
+func (m *MockRomMProvider) DownloadFile(game *types.Game) (reader io.ReadCloser, filename string, err error) {
 	return io.NopCloser(bytes.NewReader([]byte("dummy content"))), "game.sfc", m.Error
 }
 

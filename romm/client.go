@@ -293,12 +293,12 @@ func (c *Client) GetRom(id uint) (types.Game, error) {
 }
 
 // DownloadFile fetches a file from RomM and returns a reader and the filename
-func (c *Client) DownloadFile(game *types.Game) (io.ReadCloser, string, error) {
+func (c *Client) DownloadFile(game *types.Game) (reader io.ReadCloser, filename string, err error) {
 	if c.Token == "" {
 		return nil, "", fmt.Errorf("not authenticated")
 	}
 
-	filename := filepath.Base(game.FullPath)
+	filename = filepath.Base(game.FullPath)
 	escapedFilename := url.PathEscape(filename)
 
 	urlPath := fmt.Sprintf("%s/api/roms/%d/content/%s", c.BaseURL, game.ID, escapedFilename)
@@ -471,16 +471,16 @@ func (c *Client) GetStates(romID uint) ([]types.ServerState, error) {
 }
 
 // DownloadSave fetches a save file from RomM
-func (c *Client) DownloadSave(filePath string) (io.ReadCloser, string, error) {
+func (c *Client) DownloadSave(filePath string) (reader io.ReadCloser, filename string, err error) {
 	return c.downloadAsset(filePath, "unknown.sav")
 }
 
 // DownloadState fetches a state file from RomM
-func (c *Client) DownloadState(filePath string) (io.ReadCloser, string, error) {
+func (c *Client) DownloadState(filePath string) (reader io.ReadCloser, filename string, err error) {
 	return c.downloadAsset(filePath, "unknown.state")
 }
 
-func (c *Client) downloadAsset(filePath string, fallbackFilename string) (io.ReadCloser, string, error) {
+func (c *Client) downloadAsset(filePath string, fallbackFilename string) (reader io.ReadCloser, filename string, err error) {
 	if c.Token == "" {
 		return nil, "", fmt.Errorf("not authenticated")
 	}
@@ -504,7 +504,7 @@ func (c *Client) downloadAsset(filePath string, fallbackFilename string) (io.Rea
 		return nil, "", fmt.Errorf("download failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	filename := fallbackFilename
+	filename = fallbackFilename
 	cd := resp.Header.Get("Content-Disposition")
 	if cd != "" && strings.Contains(cd, "filename=") {
 		parts := strings.Split(cd, "filename=")

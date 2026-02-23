@@ -166,7 +166,7 @@ func (a *App) DownloadServerState(gameID uint, filePath string, core string, fil
 	return a.syncSrv.DownloadServerState(gameID, filePath, core, filename, updatedAt)
 }
 
-func (a *App) ValidateAssetPath(core, filename string) (string, string, error) {
+func (a *App) ValidateAssetPath(core, filename string) (coreBase string, fileBase string, err error) {
 	return a.syncSrv.ValidateAssetPath(core, filename)
 }
 
@@ -211,7 +211,7 @@ func (a *App) GetRetroArchPath() string {
 	return a.configManager.GetConfig().RetroArchPath
 }
 
-func (a *App) GetCheevosCredentials() (string, string) {
+func (a *App) GetCheevosCredentials() (username string, password string) {
 	cfg := a.configManager.GetConfig()
 	return cfg.CheevosUsername, cfg.CheevosPassword
 }
@@ -220,7 +220,7 @@ func (a *App) GetRom(id uint) (types.Game, error) {
 	return a.rommSrv.GetRom(id)
 }
 
-func (a *App) DownloadFile(game *types.Game) (io.ReadCloser, string, error) {
+func (a *App) DownloadFile(game *types.Game) (reader io.ReadCloser, filename string, err error) {
 	return a.rommSrv.GetClient().DownloadFile(game)
 }
 
@@ -232,11 +232,11 @@ func (a *App) RomMUploadState(id uint, core, filename string, content []byte) er
 	return a.rommSrv.GetClient().UploadState(id, core, filename, content)
 }
 
-func (a *App) RomMDownloadSave(filePath string) (io.ReadCloser, string, error) {
+func (a *App) RomMDownloadSave(filePath string) (reader io.ReadCloser, filename string, err error) {
 	return a.rommSrv.GetClient().DownloadSave(filePath)
 }
 
-func (a *App) RomMDownloadState(filePath string) (io.ReadCloser, string, error) {
+func (a *App) RomMDownloadState(filePath string) (reader io.ReadCloser, filename string, err error) {
 	return a.rommSrv.GetClient().DownloadState(filePath)
 }
 

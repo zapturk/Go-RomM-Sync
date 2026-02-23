@@ -32,10 +32,10 @@ func (m *MockRomMProvider) RomMUploadSave(id uint, core, filename string, conten
 func (m *MockRomMProvider) RomMUploadState(id uint, core, filename string, content []byte) error {
 	return m.UploadErr
 }
-func (m *MockRomMProvider) RomMDownloadSave(filePath string) (io.ReadCloser, string, error) {
+func (m *MockRomMProvider) RomMDownloadSave(filePath string) (reader io.ReadCloser, filename string, err error) {
 	return m.DownloadCl, "save.srm", nil
 }
-func (m *MockRomMProvider) RomMDownloadState(filePath string) (io.ReadCloser, string, error) {
+func (m *MockRomMProvider) RomMDownloadState(filePath string) (reader io.ReadCloser, filename string, err error) {
 	return m.DownloadCl, "state.st0", nil
 }
 
