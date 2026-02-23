@@ -103,10 +103,10 @@
 
 body.mouse-mode .game-card:hover,
 .game-card.focused {
-    transform: translateY(-5px);
+    transform: scale(1.05);
     background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    /* Adding subtle border for better visibility */
+    outline: 3px solid #fff;
+    z-index: 10;
 }
 
 .game-cover {

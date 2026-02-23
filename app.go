@@ -79,6 +79,10 @@ func (a *App) SelectLibraryPath() (string, error) {
 	return a.configSrv.SelectLibraryPath()
 }
 
+func (a *App) GetDefaultLibraryPath() (string, error) {
+	return a.configSrv.GetDefaultLibraryPath()
+}
+
 // RomM
 func (a *App) Login() (string, error) {
 	return a.rommSrv.Login()

@@ -69,6 +69,13 @@ var CoreMap = map[string]string{
 	".ngp": "mednafen_ngp_libretro",      // Neo Geo Pocket
 	".ngc": "mednafen_ngp_libretro",      // Neo Geo Pocket Color
 
+	// Nintendo GameCube & Wii
+	".gcm":  "dolphin_libretro", // GameCube
+	".gcz":  "dolphin_libretro", // GameCube
+	".rvz":  "dolphin_libretro", // GameCube / Wii
+	".wbfs": "dolphin_libretro", // Wii
+	".wia":  "dolphin_libretro", // Wii
+
 	// Pico-8
 	".p8":  "retro8_libretro", // Pico-8
 	".png": "retro8_libretro", // Pico-8 (Cartridges)
@@ -302,9 +309,16 @@ func Launch(ctx context.Context, exePath, romPath, cheevosUser, cheevosPass stri
 				os.Remove(tempRomPath)
 			}
 			wailsRuntime.EventsEmit(ctx, "game-exited", nil)
+			if runtime.GOOS == "darwin" {
+				wailsRuntime.WindowShow(ctx)
+				wailsRuntime.WindowUnminimise(ctx)
+			}
 		}()
 
 		wailsRuntime.EventsEmit(ctx, "game-started", nil)
+		if runtime.GOOS == "darwin" {
+			wailsRuntime.WindowHide(ctx)
+		}
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			fmt.Printf("\n--- RETROARCH CRASHED ---\nError: %v\nOutput: %s\n", err, string(out))

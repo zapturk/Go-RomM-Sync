@@ -2,6 +2,7 @@ package configsrv
 
 import (
 	"fmt"
+	"go-romm-sync/config"
 	"go-romm-sync/types"
 	"runtime"
 )
@@ -104,4 +105,9 @@ func (s *Service) SelectLibraryPath() (string, error) {
 	}
 
 	return selectedDir, nil
+}
+
+// GetDefaultLibraryPath returns the platform-specific default library path.
+func (s *Service) GetDefaultLibraryPath() (string, error) {
+	return config.GetDefaultLibraryPath()
 }

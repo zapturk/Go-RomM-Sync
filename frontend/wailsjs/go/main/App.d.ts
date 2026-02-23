@@ -31,6 +31,8 @@ export function GetConfig():Promise<types.AppConfig>;
 
 export function GetCover(arg1:number,arg2:string):Promise<string>;
 
+export function GetDefaultLibraryPath():Promise<string>;
+
 export function GetLibrary():Promise<Array<types.Game>>;
 
 export function GetLibraryPath():Promise<string>;

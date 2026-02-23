@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath } from "../wailsjs/go/main/App";
+import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath } from "../wailsjs/go/main/App";
 import { types } from "../wailsjs/go/models";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
@@ -49,6 +49,28 @@ function Settings({ isActive = false }: SettingsProps) {
                 setLibPath(path);
                 setStatus("Library path updated.");
             }
+        });
+    };
+
+    const handleSetDefaultLib = () => {
+        if (isSaving) return;
+        GetDefaultLibraryPath().then((path: string) => {
+            if (path) {
+                setLibPath(path);
+                const updatedConfig = new types.AppConfig({
+                    ...config,
+                    library_path: path
+                });
+                SaveConfig(updatedConfig)
+                    .then(() => {
+                        setStatus("Library path set to default and saved.");
+                    })
+                    .catch((err: any) => {
+                        setStatus("Error saving default path: " + err);
+                    });
+            }
+        }).catch((err: any) => {
+            setStatus("Error getting default path: " + err);
         });
     };
 
@@ -102,6 +124,11 @@ function Settings({ isActive = false }: SettingsProps) {
     const { ref: browseLibRef, focused: browseLibFocused } = useFocusable({
         focusKey: 'browse-lib-button',
         onEnterPress: handleBrowseLib
+    });
+
+    const { ref: defaultLibRef, focused: defaultLibFocused } = useFocusable({
+        focusKey: 'default-lib-button',
+        onEnterPress: handleSetDefaultLib
     });
 
     const { ref: saveRef, focused: saveFocused } = useFocusable({
@@ -169,6 +196,16 @@ function Settings({ isActive = false }: SettingsProps) {
                                 onMouseEnter={() => getMouseActive() && !isSaving && setFocus('browse-lib-button')}
                             >
                                 Browse
+                            </button>
+                            <button
+                                ref={defaultLibRef}
+                                className={`btn ${defaultLibFocused ? 'focused' : ''} ${isSaving ? 'disabled' : ''}`}
+                                style={{ margin: 0, minWidth: '120px' }}
+                                onClick={handleSetDefaultLib}
+                                disabled={isSaving}
+                                onMouseEnter={() => getMouseActive() && !isSaving && setFocus('default-lib-button')}
+                            >
+                                Set Default
                             </button>
                         </div>
                     </div>
