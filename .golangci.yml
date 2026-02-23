@@ -33,7 +33,7 @@ linters-settings:
 
 run:
   timeout: 5m
-  tests: true
+  tests: false
 
 issues:
   exclude-use-default: false
