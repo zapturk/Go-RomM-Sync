@@ -57,7 +57,17 @@ function Settings({ isActive = false }: SettingsProps) {
         GetDefaultLibraryPath().then((path: string) => {
             if (path) {
                 setLibPath(path);
-                setStatus("Library path set to default.");
+                const updatedConfig = new types.AppConfig({
+                    ...config,
+                    library_path: path
+                });
+                SaveConfig(updatedConfig)
+                    .then(() => {
+                        setStatus("Library path set to default and saved.");
+                    })
+                    .catch((err: any) => {
+                        setStatus("Error saving default path: " + err);
+                    });
             }
         }).catch((err: any) => {
             setStatus("Error getting default path: " + err);
