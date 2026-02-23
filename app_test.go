@@ -33,7 +33,7 @@ func TestSaveConfigMerge(t *testing.T) {
 		// RommHost is empty, should be preserved
 	}
 
-	res := app.SaveConfig(update)
+	res := app.SaveConfig(&update)
 	if res != "Configuration saved successfully!" {
 		t.Errorf("Expected success message, got %s", res)
 	}
@@ -62,13 +62,13 @@ func TestRommSrvLifecycle(t *testing.T) {
 	initialSrv := app.rommSrv
 
 	// 1. Save with same host
-	app.SaveConfig(types.AppConfig{Username: "user1"})
+	app.SaveConfig(&types.AppConfig{Username: "user1"})
 	if app.rommSrv != initialSrv {
 		t.Error("RomM service should NOT have been recreated when host remained the same")
 	}
 
 	// 2. Save with different host
-	app.SaveConfig(types.AppConfig{RommHost: "http://host2.com"})
+	app.SaveConfig(&types.AppConfig{RommHost: "http://host2.com"})
 	if app.rommSrv == initialSrv {
 		t.Error("RomM service SHOULD have been recreated when host changed")
 	}
@@ -209,7 +209,7 @@ func TestAppComplexWrappers(t *testing.T) {
 	app := NewApp(cm)
 
 	// Test SaveConfig with host change
-	app.SaveConfig(types.AppConfig{RommHost: "http://newhost.com"})
+	app.SaveConfig(&types.AppConfig{RommHost: "http://newhost.com"})
 	if app.rommSrv.GetClient().BaseURL != "http://newhost.com" {
 		t.Errorf("Expected host to be updated to http://newhost.com")
 	}
@@ -257,7 +257,7 @@ func TestAppExhaustiveWrappers(t *testing.T) {
 
 	// Provider implementations
 	app.ConfigGetConfig()
-	app.ConfigSave(types.AppConfig{})
+	app.ConfigSave(&types.AppConfig{})
 	app.GetRomMHost()
 	app.GetUsername()
 	app.GetPassword()

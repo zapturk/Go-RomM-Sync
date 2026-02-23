@@ -80,7 +80,7 @@ func (c *Client) GetLibrary() ([]types.Game, error) {
 	for {
 		// Construct URL with pagination parameters
 		url := fmt.Sprintf("%s/api/roms?limit=%d&offset=%d", c.BaseURL, limit, offset)
-		req, err := http.NewRequest("GET", url, nil)
+		req, err := http.NewRequest("GET", url, http.NoBody)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create library request: %w", err)
 		}
@@ -91,7 +91,6 @@ func (c *Client) GetLibrary() ([]types.Game, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to perform library request: %w", err)
 		}
-		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(resp.Body)
@@ -123,6 +122,7 @@ func (c *Client) GetLibrary() ([]types.Game, error) {
 		}
 
 		if len(pageItems) == 0 {
+			resp.Body.Close()
 			break
 		}
 
@@ -138,13 +138,16 @@ func (c *Client) GetLibrary() ([]types.Game, error) {
 
 		if !newItems {
 			// If all items in this page were already seen, stop to avoid infinite loop
+			resp.Body.Close()
 			break
 		}
 
 		if len(pageItems) < limit {
+			resp.Body.Close()
 			break
 		}
 
+		resp.Body.Close()
 		offset += limit
 	}
 
@@ -163,7 +166,7 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 		targetURL = c.BaseURL + coverURL
 	}
 
-	req, err := http.NewRequest("GET", targetURL, nil)
+	req, err := http.NewRequest("GET", targetURL, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cover request: %w", err)
 	}
@@ -195,7 +198,7 @@ func (c *Client) GetPlatforms() ([]types.Platform, error) {
 
 	for {
 		url := fmt.Sprintf("%s/api/platforms?limit=%d&offset=%d", c.BaseURL, limit, offset)
-		req, err := http.NewRequest("GET", url, nil)
+		req, err := http.NewRequest("GET", url, http.NoBody)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create platforms request: %w", err)
 		}
@@ -206,7 +209,6 @@ func (c *Client) GetPlatforms() ([]types.Platform, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to perform platforms request: %w", err)
 		}
-		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(resp.Body)
@@ -233,6 +235,7 @@ func (c *Client) GetPlatforms() ([]types.Platform, error) {
 		}
 
 		if len(pageItems) == 0 {
+			resp.Body.Close()
 			break
 		}
 
@@ -246,13 +249,16 @@ func (c *Client) GetPlatforms() ([]types.Platform, error) {
 		}
 
 		if !newItems {
+			resp.Body.Close()
 			break
 		}
 
 		if len(pageItems) < limit {
+			resp.Body.Close()
 			break
 		}
 
+		resp.Body.Close()
 		offset += limit
 	}
 
@@ -266,7 +272,7 @@ func (c *Client) GetRom(id uint) (types.Game, error) {
 	}
 
 	url := fmt.Sprintf("%s/api/roms/%d", c.BaseURL, id)
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", url, http.NoBody)
 	if err != nil {
 		return types.Game{}, fmt.Errorf("failed to create ROM request: %w", err)
 	}
@@ -302,7 +308,7 @@ func (c *Client) DownloadFile(game *types.Game) (reader io.ReadCloser, filename 
 	escapedFilename := url.PathEscape(filename)
 
 	urlPath := fmt.Sprintf("%s/api/roms/%d/content/%s", c.BaseURL, game.ID, escapedFilename)
-	req, err := http.NewRequest("GET", urlPath, nil)
+	req, err := http.NewRequest("GET", urlPath, http.NoBody)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create download request: %w", err)
 	}
@@ -332,16 +338,16 @@ func (c *Client) DownloadFile(game *types.Game) (reader io.ReadCloser, filename 
 }
 
 // UploadSave uploads a save file to RomM
-func (c *Client) UploadSave(romID uint, emulator string, filename string, content []byte) error {
+func (c *Client) UploadSave(romID uint, emulator, filename string, content []byte) error {
 	return c.uploadAsset(romID, emulator, filename, content, "saves", "saveFile")
 }
 
 // UploadState uploads a save state file to RomM
-func (c *Client) UploadState(romID uint, emulator string, filename string, content []byte) error {
+func (c *Client) UploadState(romID uint, emulator, filename string, content []byte) error {
 	return c.uploadAsset(romID, emulator, filename, content, "states", "stateFile")
 }
 
-func (c *Client) uploadAsset(romID uint, emulator string, filename string, content []byte, endpoint string, fieldName string) error {
+func (c *Client) uploadAsset(romID uint, emulator, filename string, content []byte, endpoint, fieldName string) error {
 	if c.Token == "" {
 		return fmt.Errorf("not authenticated")
 	}
@@ -397,7 +403,7 @@ func (c *Client) GetSaves(romID uint) ([]types.ServerSave, error) {
 	}
 
 	url := fmt.Sprintf("%s/api/saves?rom_id=%d", c.BaseURL, romID)
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", url, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create saves request: %w", err)
 	}
@@ -416,7 +422,6 @@ func (c *Client) GetSaves(romID uint) ([]types.ServerSave, error) {
 	}
 
 	bodyBytes, _ := io.ReadAll(resp.Body)
-	// fmt.Printf("Raw Saves JSON: %s\n", string(bodyBytes))
 
 	if len(bodyBytes) == 0 {
 		return []types.ServerSave{}, nil
@@ -437,7 +442,7 @@ func (c *Client) GetStates(romID uint) ([]types.ServerState, error) {
 	}
 
 	url := fmt.Sprintf("%s/api/states?rom_id=%d", c.BaseURL, romID)
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", url, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create states request: %w", err)
 	}
@@ -456,7 +461,6 @@ func (c *Client) GetStates(romID uint) ([]types.ServerState, error) {
 	}
 
 	bodyBytes, _ := io.ReadAll(resp.Body)
-	// fmt.Printf("Raw States JSON: %s\n", string(bodyBytes))
 
 	if len(bodyBytes) == 0 {
 		return []types.ServerState{}, nil
@@ -480,13 +484,13 @@ func (c *Client) DownloadState(filePath string) (reader io.ReadCloser, filename 
 	return c.downloadAsset(filePath, "unknown.state")
 }
 
-func (c *Client) downloadAsset(filePath string, fallbackFilename string) (reader io.ReadCloser, filename string, err error) {
+func (c *Client) downloadAsset(filePath, fallbackFilename string) (reader io.ReadCloser, filename string, err error) {
 	if c.Token == "" {
 		return nil, "", fmt.Errorf("not authenticated")
 	}
 
 	urlPath := fmt.Sprintf("%s/api/raw/assets/%s", c.BaseURL, strings.TrimPrefix(filePath, "/"))
-	req, err := http.NewRequest("GET", urlPath, nil)
+	req, err := http.NewRequest("GET", urlPath, http.NoBody)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create download request: %w", err)
 	}

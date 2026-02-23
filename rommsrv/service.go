@@ -84,7 +84,7 @@ func (s *Service) GetCover(romID uint, coverURL string) (string, error) {
 		return "", fmt.Errorf("failed to get user home dir: %w", err)
 	}
 	cacheDir := filepath.Join(homeDir, ".go-romm-sync", "cache", "covers")
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return "", fmt.Errorf("failed to create cache dir: %w", err)
 	}
 
@@ -108,7 +108,7 @@ func (s *Service) GetCover(romID uint, coverURL string) (string, error) {
 		return "", fmt.Errorf("failed to download cover: %w", err)
 	}
 
-	if err := os.WriteFile(cachePath, data, 0644); err != nil {
+	if err := os.WriteFile(cachePath, data, 0o644); err != nil {
 		fmt.Printf("Warning: failed to write to cache: %v\n", err)
 	}
 
@@ -126,7 +126,7 @@ func (s *Service) GetPlatformCover(platformID uint, slug string) (string, error)
 		return "", fmt.Errorf("failed to get user home dir: %w", err)
 	}
 	cacheDir := filepath.Join(homeDir, ".go-romm-sync", "cache", "platforms")
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return "", fmt.Errorf("failed to create cache dir: %w", err)
 	}
 
@@ -177,7 +177,7 @@ func (s *Service) GetPlatformCover(platformID uint, slug string) (string, error)
 
 	filename := fmt.Sprintf("%d%s", platformID, foundExt)
 	cachePath := filepath.Join(cacheDir, filename)
-	if err := os.WriteFile(cachePath, data, 0644); err != nil {
+	if err := os.WriteFile(cachePath, data, 0o644); err != nil {
 		fmt.Printf("Warning: failed to write to cache: %v\n", err)
 	}
 

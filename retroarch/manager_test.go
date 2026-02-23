@@ -50,10 +50,10 @@ func TestUnzipCore(t *testing.T) {
 	w.Close()
 
 	zipPath := filepath.Join(tempDir, "test.zip")
-	os.WriteFile(zipPath, buf.Bytes(), 0644)
+	os.WriteFile(zipPath, buf.Bytes(), 0o644)
 
 	destDir := filepath.Join(tempDir, "dest")
-	os.MkdirAll(destDir, 0755)
+	os.MkdirAll(destDir, 0o755)
 
 	err := unzipCore(zipPath, destDir)
 	if err != nil {
@@ -75,7 +75,7 @@ func TestClearCheevosToken(t *testing.T) {
 
 	cfgPath := filepath.Join(tempDir, "retroarch.cfg")
 	content := "cheevos_enable = \"true\"\ncheevos_token = \"abcdef123456\"\nother_setting = \"val\"\n"
-	os.WriteFile(cfgPath, []byte(content), 0644)
+	os.WriteFile(cfgPath, []byte(content), 0o644)
 
 	err := ClearCheevosToken(tempDir)
 	if err != nil {
@@ -110,7 +110,7 @@ func TestLaunch_Errors(t *testing.T) {
 	tempDir, _ := os.MkdirTemp("", "launch_err")
 	defer os.RemoveAll(tempDir)
 	exePath := filepath.Join(tempDir, "retroarch")
-	os.WriteFile(exePath, []byte("fake"), 0755)
+	os.WriteFile(exePath, []byte("fake"), 0o755)
 
 	err = Launch(ui, exePath, "rom.unknown", "", "")
 	if err == nil {
@@ -124,7 +124,7 @@ func TestLaunch_Zip(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	exePath := filepath.Join(tempDir, "retroarch")
-	os.WriteFile(exePath, []byte("fake"), 0755)
+	os.WriteFile(exePath, []byte("fake"), 0o755)
 
 	// Create fake zip
 	zipPath := filepath.Join(tempDir, "game.zip")
@@ -133,7 +133,7 @@ func TestLaunch_Zip(t *testing.T) {
 	f, _ := w.Create("game.sfc")
 	f.Write([]byte("rom data"))
 	w.Close()
-	os.WriteFile(zipPath, buf.Bytes(), 0644)
+	os.WriteFile(zipPath, buf.Bytes(), 0o644)
 
 	// Launch should return error because core won't be found (on non-supported systems for download or just missing)
 	// But it should at least get past ZIP handling.
@@ -153,10 +153,10 @@ func TestLaunch_Pico8(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	exePath := filepath.Join(tempDir, "retroarch")
-	os.WriteFile(exePath, []byte("fake"), 0755)
+	os.WriteFile(exePath, []byte("fake"), 0o755)
 
 	p8Path := filepath.Join(tempDir, "game.png")
-	os.WriteFile(p8Path, []byte("png data"), 0644)
+	os.WriteFile(p8Path, []byte("png data"), 0o644)
 
 	err := Launch(ui, exePath, p8Path, "", "")
 	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
@@ -200,7 +200,7 @@ func TestLaunch_ExeDir(t *testing.T) {
 		exeName = "retroarch"
 	}
 	exePath := filepath.Join(tempDir, exeName)
-	os.WriteFile(exePath, []byte("fake"), 0755)
+	os.WriteFile(exePath, []byte("fake"), 0o755)
 
 	err := Launch(ui, tempDir, "rom.sfc", "", "")
 	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
@@ -217,7 +217,7 @@ func TestLaunch_AppBundle(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	appPath := filepath.Join(tempDir, "RetroArch.app")
-	os.MkdirAll(appPath, 0755)
+	os.MkdirAll(appPath, 0o755)
 
 	err := Launch(ui, appPath, "rom.sfc", "", "")
 	// Should at least pass the directory check and fail on core/binary lookup

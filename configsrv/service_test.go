@@ -21,9 +21,9 @@ func (m *MockConfigManager) ConfigGetConfig() types.AppConfig {
 	return m.Config
 }
 
-func (m *MockConfigManager) ConfigSave(cfg types.AppConfig) error {
+func (m *MockConfigManager) ConfigSave(cfg *types.AppConfig) error {
 	m.SaveCalled = true
-	m.Config = cfg
+	m.Config = *cfg
 	return m.SaveError
 }
 
@@ -77,7 +77,7 @@ func TestSaveConfig(t *testing.T) {
 		Username: "new-user",
 	}
 
-	msg, hostChanged := s.SaveConfig(newCfg)
+	msg, hostChanged := s.SaveConfig(&newCfg)
 
 	if !hostChanged {
 		t.Errorf("Expected hostChanged to be true")
@@ -99,7 +99,7 @@ func TestSaveConfig_Error(t *testing.T) {
 	}
 	s := New(cm, nil)
 
-	msg, hostChanged := s.SaveConfig(types.AppConfig{})
+	msg, hostChanged := s.SaveConfig(&types.AppConfig{})
 
 	if hostChanged {
 		t.Errorf("Expected hostChanged to be false")

@@ -79,7 +79,7 @@ func TestFindRomPath(t *testing.T) {
 
 	// Create a dummy ROM file
 	romPath := filepath.Join(tempDir, "test.sfc")
-	if err := os.WriteFile(romPath, []byte("dummy"), 0644); err != nil {
+	if err := os.WriteFile(romPath, []byte("dummy"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -91,7 +91,7 @@ func TestFindRomPath(t *testing.T) {
 
 	// Test skip hidden
 	hiddenPath := filepath.Join(tempDir, ".hidden.sfc")
-	if err := os.WriteFile(hiddenPath, []byte("dummy"), 0644); err != nil {
+	if err := os.WriteFile(hiddenPath, []byte("dummy"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	found = l.findRomPath(tempDir)
@@ -135,8 +135,8 @@ func TestPlayRom_RetroArchNotConfigured(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	romDir := filepath.Join(tempDir, "SNES", "1")
-	os.MkdirAll(romDir, 0755)
-	os.WriteFile(filepath.Join(romDir, "test.sfc"), []byte("dummy"), 0644)
+	os.MkdirAll(romDir, 0o755)
+	os.WriteFile(filepath.Join(romDir, "test.sfc"), []byte("dummy"), 0o644)
 
 	cfg := &MockConfigProvider{LibraryPath: tempDir, RetroArchPath: ""}
 	romm := &MockRomMProvider{

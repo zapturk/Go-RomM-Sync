@@ -56,7 +56,7 @@ func (a *App) GetConfig() types.AppConfig {
 	return a.configSrv.GetConfig()
 }
 
-func (a *App) SaveConfig(cfg types.AppConfig) string {
+func (a *App) SaveConfig(cfg *types.AppConfig) string {
 	res, hostChanged := a.configSrv.SaveConfig(cfg)
 
 	// Clear RetroArch cheevos token on save to ensure fresh login on credentials change
@@ -158,15 +158,15 @@ func (a *App) UploadState(id uint, core, filename string) error {
 	return a.syncSrv.UploadState(id, core, filename)
 }
 
-func (a *App) DownloadServerSave(gameID uint, filePath string, core string, filename string, updatedAt string) error {
+func (a *App) DownloadServerSave(gameID uint, filePath, core, filename, updatedAt string) error {
 	return a.syncSrv.DownloadServerSave(gameID, filePath, core, filename, updatedAt)
 }
 
-func (a *App) DownloadServerState(gameID uint, filePath string, core string, filename string, updatedAt string) error {
+func (a *App) DownloadServerState(gameID uint, filePath, core, filename, updatedAt string) error {
 	return a.syncSrv.DownloadServerState(gameID, filePath, core, filename, updatedAt)
 }
 
-func (a *App) ValidateAssetPath(core, filename string) (coreBase string, fileBase string, err error) {
+func (a *App) ValidateAssetPath(core, filename string) (coreBase, fileBase string, err error) {
 	return a.syncSrv.ValidateAssetPath(core, filename)
 }
 
@@ -181,7 +181,7 @@ func (a *App) ConfigGetConfig() types.AppConfig {
 	return a.configManager.GetConfig()
 }
 
-func (a *App) ConfigSave(cfg types.AppConfig) error {
+func (a *App) ConfigSave(cfg *types.AppConfig) error {
 	return a.configManager.Save(cfg)
 }
 
@@ -204,14 +204,14 @@ func (a *App) GetLibraryPath() string {
 func (a *App) SaveDefaultLibraryPath(path string) error {
 	cfg := a.configManager.GetConfig()
 	cfg.LibraryPath = path
-	return a.configManager.Save(cfg)
+	return a.configManager.Save(&cfg)
 }
 
 func (a *App) GetRetroArchPath() string {
 	return a.configManager.GetConfig().RetroArchPath
 }
 
-func (a *App) GetCheevosCredentials() (username string, password string) {
+func (a *App) GetCheevosCredentials() (username, password string) {
 	cfg := a.configManager.GetConfig()
 	return cfg.CheevosUsername, cfg.CheevosPassword
 }

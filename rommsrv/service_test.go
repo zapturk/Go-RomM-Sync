@@ -192,11 +192,11 @@ func TestGetMimeType(t *testing.T) {
 func TestGetCover_Cached(t *testing.T) {
 	homeDir, _ := os.UserHomeDir()
 	cacheDir := filepath.Join(homeDir, ".go-romm-sync", "cache", "covers")
-	os.MkdirAll(cacheDir, 0755)
+	os.MkdirAll(cacheDir, 0o755)
 
 	romID := uint(9999)
 	cachePath := filepath.Join(cacheDir, "9999.jpg")
-	os.WriteFile(cachePath, []byte("dummy image data"), 0644)
+	os.WriteFile(cachePath, []byte("dummy image data"), 0o644)
 	defer os.Remove(cachePath)
 
 	s := &Service{} // client not needed for cached path

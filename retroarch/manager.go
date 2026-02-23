@@ -275,8 +275,8 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 	ui.LogInfof("Launch: Saves dir: %s, States dir: %s", savesDir, statesDir)
 
 	// Ensure directories exist
-	os.MkdirAll(savesDir, 0755)
-	os.MkdirAll(statesDir, 0755)
+	os.MkdirAll(savesDir, 0o755)
+	os.MkdirAll(statesDir, 0o755)
 
 	// Prepare temporary config for RetroAchievements and Directories.
 	// We use --appendconfig to pass these settings without modifying the user's main RetroArch config permanently.
@@ -284,9 +284,9 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 	tmpFile, err := os.CreateTemp("", "retroarch_config_*.cfg")
 	if err == nil {
 		appendConfigPath = tmpFile.Name()
-		content := fmt.Sprintf("savefile_directory = \"%s\"\nsavestate_directory = \"%s\"\n", savesDir, statesDir)
+		content := fmt.Sprintf("savefile_directory = %q\nsavestate_directory = %q\n", savesDir, statesDir)
 		if cheevosUser != "" && cheevosPass != "" {
-			content += fmt.Sprintf("cheevos_enable = \"true\"\ncheevos_username = \"%s\"\ncheevos_password = \"%s\"\n",
+			content += fmt.Sprintf("cheevos_enable = \"true\"\ncheevos_username = %q\ncheevos_password = %q\n",
 				cheevosUser, cheevosPass)
 		}
 		// Ensure RetroArch doesn't save these temporary paths back to the main config on exit
@@ -387,7 +387,7 @@ func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 		return fmt.Errorf("core download failed with status %d from %s", resp.StatusCode, urlStr)
 	}
 
-	os.MkdirAll(coresDir, 0755)
+	os.MkdirAll(coresDir, 0o755)
 	zipPath := filepath.Join(coresDir, coreFile+".zip")
 	out, err := os.Create(zipPath)
 	if err != nil {
@@ -426,7 +426,7 @@ func unzipCore(src, dest string) error {
 			os.MkdirAll(fpath, os.ModePerm)
 			continue
 		}
-		if err = os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
+		if err := os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
 			return err
 		}
 		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
@@ -490,7 +490,7 @@ func ClearCheevosToken(exePath string) error {
 			newContent := re.ReplaceAllString(string(content), `cheevos_token = ""`)
 
 			if string(content) != newContent {
-				err = os.WriteFile(path, []byte(newContent), 0644)
+				err = os.WriteFile(path, []byte(newContent), 0o644)
 				if err != nil {
 					return fmt.Errorf("failed to write updated retroarch.cfg at %s: %w", path, err)
 				}

@@ -95,7 +95,7 @@ func (s *Service) DownloadRomToLibrary(id uint) error {
 	filename := filepath.Base(game.FullPath)
 	destPath := filepath.Join(destDir, filename)
 
-	if err := os.MkdirAll(destDir, 0755); err != nil {
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 

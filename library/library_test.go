@@ -100,7 +100,7 @@ func TestFindRomPath(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	romPath := filepath.Join(tempDir, "game.zip")
-	os.WriteFile(romPath, []byte("zip"), 0644)
+	os.WriteFile(romPath, []byte("zip"), 0o644)
 
 	s := New(nil, nil, nil)
 	found := s.findRomPath(tempDir)
@@ -114,7 +114,7 @@ func TestDeleteRom(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	romDir := filepath.Join(tempDir, "SNES", "1")
-	os.MkdirAll(romDir, 0755)
+	os.MkdirAll(romDir, 0o755)
 
 	cfg := &MockConfigProvider{LibraryPath: tempDir}
 	romm := &MockRomMProvider{
@@ -160,8 +160,8 @@ func TestGetRomDownloadStatus(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	romDir := filepath.Join(tempDir, "SNES", "1")
-	os.MkdirAll(romDir, 0755)
-	os.WriteFile(filepath.Join(romDir, "game.sfc"), []byte("data"), 0644)
+	os.MkdirAll(romDir, 0o755)
+	os.WriteFile(filepath.Join(romDir, "game.sfc"), []byte("data"), 0o644)
 
 	cfg := &MockConfigProvider{LibraryPath: tempDir}
 	romm := &MockRomMProvider{

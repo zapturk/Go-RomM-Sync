@@ -10,7 +10,7 @@ import (
 // ConfigManager defines the interface for managing the app configuration.
 type ConfigManager interface {
 	ConfigGetConfig() types.AppConfig
-	ConfigSave(cfg types.AppConfig) error
+	ConfigSave(cfg *types.AppConfig) error
 }
 
 // UIProvider defines the UI interactions needed for configuration.
@@ -39,7 +39,7 @@ func (s *Service) GetConfig() types.AppConfig {
 }
 
 // SaveConfig merges and saves the configuration.
-func (s *Service) SaveConfig(cfg types.AppConfig) (string, bool) {
+func (s *Service) SaveConfig(cfg *types.AppConfig) (string, bool) {
 	current := s.cm.ConfigGetConfig()
 	oldHost := current.RommHost
 
@@ -52,7 +52,7 @@ func (s *Service) SaveConfig(cfg types.AppConfig) (string, bool) {
 	updateIfNotEmpty(&current.CheevosUsername, cfg.CheevosUsername)
 	updateIfNotEmpty(&current.CheevosPassword, cfg.CheevosPassword)
 
-	if err := s.cm.ConfigSave(current); err != nil {
+	if err := s.cm.ConfigSave(&current); err != nil {
 		return fmt.Sprintf("Error saving config: %s", err.Error()), false
 	}
 
@@ -81,7 +81,7 @@ func (s *Service) SelectRetroArchExecutable() (string, error) {
 	if selectedFile != "" {
 		cfg := s.cm.ConfigGetConfig()
 		cfg.RetroArchPath = selectedFile
-		if err = s.cm.ConfigSave(cfg); err != nil {
+		if err = s.cm.ConfigSave(&cfg); err != nil {
 			return "", fmt.Errorf("failed to save config: %w", err)
 		}
 	}
@@ -99,7 +99,7 @@ func (s *Service) SelectLibraryPath() (string, error) {
 	if selectedDir != "" {
 		cfg := s.cm.ConfigGetConfig()
 		cfg.LibraryPath = selectedDir
-		if err = s.cm.ConfigSave(cfg); err != nil {
+		if err = s.cm.ConfigSave(&cfg); err != nil {
 			return "", fmt.Errorf("failed to save config: %w", err)
 		}
 	}

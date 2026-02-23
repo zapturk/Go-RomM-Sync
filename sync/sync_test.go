@@ -108,9 +108,9 @@ func TestDeleteGameFile(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	savesDir := filepath.Join(tempDir, "saves", "snes")
-	os.MkdirAll(savesDir, 0755)
+	os.MkdirAll(savesDir, 0o755)
 	saveFile := filepath.Join(savesDir, "game.srm")
-	os.WriteFile(saveFile, []byte("data"), 0644)
+	os.WriteFile(saveFile, []byte("data"), 0o644)
 
 	lib := &MockLibraryProvider{RomDir: tempDir}
 	romm := &MockRomMProvider{Game: types.Game{ID: 1}}
@@ -131,8 +131,8 @@ func TestGetSaves_WithFiles(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	savesDir := filepath.Join(tempDir, "saves", "snes")
-	os.MkdirAll(savesDir, 0755)
-	os.WriteFile(filepath.Join(savesDir, "game.srm"), []byte("data"), 0644)
+	os.MkdirAll(savesDir, 0o755)
+	os.WriteFile(filepath.Join(savesDir, "game.srm"), []byte("data"), 0o644)
 
 	lib := &MockLibraryProvider{RomDir: tempDir}
 	romm := &MockRomMProvider{Game: types.Game{ID: 1}}
@@ -174,9 +174,9 @@ func TestUploadSave_Success(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	savesDir := filepath.Join(tempDir, "saves", "snes")
-	os.MkdirAll(savesDir, 0755)
+	os.MkdirAll(savesDir, 0o755)
 	saveFile := filepath.Join(savesDir, "game.srm")
-	os.WriteFile(saveFile, []byte("data"), 0644)
+	os.WriteFile(saveFile, []byte("data"), 0o644)
 
 	lib := &MockLibraryProvider{RomDir: tempDir}
 	romm := &MockRomMProvider{Game: types.Game{ID: 1}}
