@@ -1,0 +1,36 @@
+# Normalize line endings to LF for all text files.
+# This prevents gofmt from reporting false formatting errors on Windows CI runners,
+# which default to CRLF line endings on checkout.
+* text=auto eol=lf
+
+# Go source files must always use LF
+*.go text eol=lf
+
+# YAML/JSON config files
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+
+# Markdown
+*.md text eol=lf
+
+# Shell scripts
+*.sh text eol=lf
+
+# Windows scripts should keep CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files - no line ending conversion
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.wasm binary
+*.zip binary
+*.dylib binary
+*.dll binary
+*.so binary
+*.exe binary
