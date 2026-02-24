@@ -103,7 +103,7 @@ func TestLaunch_Errors(t *testing.T) {
 	ui := &MockUI{}
 
 	// Test missing exe
-	err := Launch(ui, "/non/existent/retroarch", "rom.sfc", "", "")
+	err := Launch(ui, "/non/existent/retroarch", "rom.sfc", "", "", "", "")
 	if err == nil {
 		t.Error("Expected error for non-existent executable")
 	}
@@ -114,7 +114,7 @@ func TestLaunch_Errors(t *testing.T) {
 	exePath := filepath.Join(tempDir, "retroarch")
 	os.WriteFile(exePath, []byte("fake"), 0o755)
 
-	err = Launch(ui, exePath, "rom.unknown", "", "")
+	err = Launch(ui, exePath, "rom.unknown", "", "", "", "")
 	if err == nil {
 		t.Error("Expected error for unknown extension")
 	}
@@ -142,7 +142,7 @@ func TestLaunch_Zip(t *testing.T) {
 	// Actually, we want to test that it correctly identifies the core and formats the path.
 	// Since Launch returns immediately after starting goroutine (if all pre-checks pass), we just check it doesn't return early error.
 
-	err := Launch(ui, exePath, zipPath, "", "")
+	err := Launch(ui, exePath, zipPath, "", "", "", "")
 	// It might error because coresDir/cores/... missing, which is fine, we just want to see it gets there.
 	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
 		t.Errorf("Unexpected error during zip launch: %v", err)
@@ -160,7 +160,7 @@ func TestLaunch_Pico8(t *testing.T) {
 	p8Path := filepath.Join(tempDir, "game.png")
 	os.WriteFile(p8Path, []byte("png data"), 0o644)
 
-	err := Launch(ui, exePath, p8Path, "", "")
+	err := Launch(ui, exePath, p8Path, "", "", "", "")
 	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
 		t.Errorf("Unexpected error during pico8 launch: %v", err)
 	}
@@ -204,7 +204,7 @@ func TestLaunch_ExeDir(t *testing.T) {
 	exePath := filepath.Join(tempDir, exeName)
 	os.WriteFile(exePath, []byte("fake"), 0o755)
 
-	err := Launch(ui, tempDir, "rom.sfc", "", "")
+	err := Launch(ui, tempDir, "rom.sfc", "", "", "", "")
 	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
 		t.Errorf("Unexpected error during exe dir launch: %v", err)
 	}
@@ -221,9 +221,140 @@ func TestLaunch_AppBundle(t *testing.T) {
 	appPath := filepath.Join(tempDir, "RetroArch.app")
 	os.MkdirAll(appPath, 0o755)
 
-	err := Launch(ui, appPath, "rom.sfc", "", "")
+	err := Launch(ui, appPath, "rom.sfc", "", "", "", "")
 	// Should at least pass the directory check and fail on core/binary lookup
 	if err != nil && strings.Contains(err.Error(), "retroarch executable not found in directory") {
 		t.Errorf("Failed to resolve .app bundle: %v", err)
+	}
+}
+
+func TestGetCoresForExt(t *testing.T) {
+	cores := GetCoresForExt(".sfc")
+	if len(cores) == 0 {
+		t.Errorf("Expected at least one core for .sfc, got none")
+	}
+	if cores[0] != "snes9x_libretro" {
+		t.Errorf("Expected default core snes9x_libretro for .sfc, got %s", cores[0])
+	}
+	// Multiple cores should be offered
+	if len(cores) < 2 {
+		t.Errorf("Expected multiple cores for .sfc, got %d", len(cores))
+	}
+	cores = GetCoresForExt(".unknown")
+	if len(cores) != 0 {
+		t.Errorf("Expected empty slice for unknown ext, got %v", cores)
+	}
+}
+
+func TestLaunch_CoreOverride(t *testing.T) {
+	ui := &MockUI{}
+	tempDir, _ := os.MkdirTemp("", "launch_override")
+	defer os.RemoveAll(tempDir)
+
+	exePath := filepath.Join(tempDir, "retroarch")
+	os.WriteFile(exePath, []byte("fake"), 0o755)
+
+	romPath := filepath.Join(tempDir, "game.sfc")
+	os.WriteFile(romPath, []byte("rom data"), 0o644)
+
+	// Should fail at core download/find, not at the override logic
+	err := Launch(ui, exePath, romPath, "", "", "my_custom_core_libretro", "")
+	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
+		t.Errorf("Expected core-not-found error with override, got: %v", err)
+	}
+}
+
+func TestGetCoresForPlatform(t *testing.T) {
+	cores := GetCoresForPlatform("gb")
+	if len(cores) == 0 {
+		t.Errorf("Expected at least one core for platform gb, got none")
+	}
+	if cores[0] != "gambatte_libretro" {
+		t.Errorf("Expected default core gambatte_libretro for platform gb, got %s", cores[0])
+	}
+	// Case-insensitivity check
+	cores = GetCoresForPlatform("GB")
+	if len(cores) == 0 || cores[0] != "gambatte_libretro" {
+		t.Errorf("Expected GetCoresForPlatform to be case-insensitive, but it failed for GB")
+	}
+	cores = GetCoresForPlatform("unknown_platform")
+	if len(cores) != 0 {
+		t.Errorf("Expected empty slice for unknown platform, got %v", cores)
+	}
+}
+
+func TestIdentifyPlatform(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"gb", "gb"},
+		{"GB", "gb"},
+		{"Nintendo - Game Boy", "gb"},
+		{"Game Boy Color", "gb"},
+		{"GBA", "gba"},
+		{"Nintendo - Game Boy Advance", "gba"},
+		{"DSi", "dsi"},
+		{"Nintendo - DS", "nds"},
+		{"GameCube", "gamecube"},
+		{"GCN", "gamecube"},
+		{"Wii", "wii"},
+		{"Sega - Genesis", "genesis"},
+		{"Mega Drive", "genesis"},
+		{"WonderSwan Color", "wsc"},
+		{"WSC", "wsc"},
+		{"Neo Geo Pocket Color", "ngp"},
+		{"Lynx", "lynx"},
+		{"Virtual Boy", "vb"},
+		{"roms", ""},
+		{"unknown", ""},
+	}
+
+	for _, tt := range tests {
+		result := IdentifyPlatform(tt.input)
+		if result != tt.expected {
+			t.Errorf("IdentifyPlatform(%q) = %q, expected %q", tt.input, result, tt.expected)
+		}
+	}
+}
+
+func TestGetCoresFromZip(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "zip_test")
+	defer os.RemoveAll(tempDir)
+	zipPath := filepath.Join(tempDir, "test.zip")
+
+	// Create a zip with recognizable extensions
+	f, _ := os.Create(zipPath)
+	zw := zip.NewWriter(f)
+	_, _ = zw.Create("game.gb")
+	_, _ = zw.Create("readme.txt")
+	_, _ = zw.Create("sub/game.gba")
+	zw.Close()
+	f.Close()
+
+	cores := GetCoresFromZip(zipPath)
+	// .gb -> gambatte_libretro, mgba_libretro, sameboy_libretro
+	// .gba -> mgba_libretro, vba_next_libretro
+	// Union should contain them all, gambatte first since it's the first recognized
+	if len(cores) == 0 {
+		t.Fatal("Expected to find cores in zip")
+	}
+
+	foundGambatte := false
+	foundMgba := false
+	for _, c := range cores {
+		if c == "gambatte_libretro" {
+			foundGambatte = true
+		}
+		if c == "mgba_libretro" {
+			foundMgba = true
+		}
+	}
+
+	if !foundGambatte {
+		t.Error("Expected gambatte_libretro to be found for .gb")
+	}
+	if !foundMgba {
+		t.Error("Expected mgba_libretro to be found for .gba")
 	}
 }

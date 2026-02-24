@@ -324,6 +324,128 @@ body.mouse-mode .game-card:hover,
     background-color: #555 !important;
 }
 
+/* Core Selector Button */
+.core-selector-button {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.9);
+    font-family: inherit;
+    font-size: 0.82rem;
+    padding: 6px 14px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-sizing: border-box;
+    min-width: 150px;
+}
+
+.core-selector-button.focused {
+    outline: 3px solid #fff;
+    border-color: #fff;
+    background-color: rgba(255, 255, 255, 0.1);
+    transform: scale(1.02);
+}
+
+.current-core {
+    text-transform: capitalize;
+}
+
+.dropdown-arrow {
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid rgba(255, 255, 255, 0.5);
+    margin-left: 10px;
+}
+
+/* Core Picker Modal */
+.core-picker-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.core-picker-modal {
+    background: #2a2a2a;
+    width: 400px;
+    max-width: 90vw;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.core-picker-header h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    text-align: center;
+    color: #fff;
+    font-size: 1.25rem;
+}
+
+.core-picker-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 24px;
+}
+
+.core-option {
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.core-option.focused {
+    background: rgba(93, 63, 211, 0.4);
+    outline: 3px solid #fff;
+    transform: scale(1.02);
+}
+
+.core-option.selected {
+    border-color: #5d3fd3;
+    background: rgba(93, 63, 211, 0.2);
+}
+
+.core-name {
+    font-size: 1rem;
+    text-transform: capitalize;
+    color: #eee;
+}
+
+.selected-check {
+    color: #5d3fd3;
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+
+.cancel-btn {
+    width: 100%;
+    background: #444 !important;
+}
+
+
 .download-btn {
     background-color: #4CAF50 !important;
     color: white;

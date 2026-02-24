@@ -12,6 +12,8 @@ import (
 	"go-romm-sync/sync"
 	"go-romm-sync/types"
 	"io"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -175,6 +177,72 @@ func (a *App) ValidateAssetPath(core, filename string) (coreBase, fileBase strin
 // Launch
 func (a *App) PlayRom(id uint) error {
 	return a.launcher.PlayRom(id)
+}
+
+// PlayRomWithCore launches the ROM using the specified libretro core base name
+// (e.g. "snes9x_libretro"). Allows the user to override the default core.
+func (a *App) PlayRomWithCore(id uint, coreName string) error {
+	return a.launcher.PlayRomWithCore(id, coreName)
+}
+
+// GetCoresForGame returns the list of libretro core base names that can handle
+// the given game's platform or file extension. Intended for the core-selector UI on the game page.
+func (a *App) GetCoresForGame(id uint) ([]string, error) {
+	game, err := a.rommSrv.GetRom(id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ROM info: %w", err)
+	}
+
+	// Strategy 1: Direct Platform-based lookup (Primary).
+	if game.Platform.Slug != "" {
+		if cores := retroarch.GetCoresForPlatform(game.Platform.Slug); len(cores) > 0 {
+			return cores, nil
+		}
+	}
+
+	// Strategy 2: Platform-based lookup from path segments.
+	// Search segments for known platform tags (skipping the root "roms" if present).
+	fullPath := filepath.ToSlash(game.FullPath)
+	parts := strings.Split(strings.TrimPrefix(fullPath, "/"), "/")
+	for _, part := range parts {
+		if cores := retroarch.GetCoresForPlatform(part); len(cores) > 0 {
+			return cores, nil
+		}
+	}
+
+	// Strategy 3: Derive extension from the server-side filename (Fallback).
+	ext := strings.ToLower(filepath.Ext(filepath.Base(game.FullPath)))
+	if ext == ".zip" {
+		// If it's a zip we haven't downloaded yet, we check Strategy 4 first if downloaded
+		// If not downloaded, we can't peek easily.
+	} else if cores := retroarch.GetCoresForExt(ext); len(cores) > 0 {
+		return cores, nil
+	}
+
+	// Strategy 4: Local file scan for the real extension (Fallback for zips).
+	romDir := a.librarySrv.GetRomDir(&game)
+	if romDir != "" {
+		entries, readErr := os.ReadDir(romDir)
+		if readErr == nil {
+			for _, entry := range entries {
+				if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+					continue
+				}
+				itemPath := filepath.Join(romDir, entry.Name())
+				localExt := strings.ToLower(filepath.Ext(entry.Name()))
+
+				if localExt == ".zip" {
+					if zipCores := retroarch.GetCoresFromZip(itemPath); len(zipCores) > 0 {
+						return zipCores, nil
+					}
+				} else if localCores := retroarch.GetCoresForExt(localExt); len(localCores) > 0 {
+					return localCores, nil
+				}
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("no known cores for game %d (platform/ext not found)", id)
 }
 
 // --- Internal Provider Implementations ---

@@ -11,6 +11,7 @@ type Game struct {
 	Genres   []string `json:"genres"`
 	HasSaves bool     `json:"has_saves"` // Simplified for now, though API might return a list
 	FileSize int64    `json:"fs_size_bytes"`
+	Platform Platform `json:"platform"`
 }
 
 // FileItem represents a local save or state file
