@@ -85,6 +85,38 @@ func (s *Service) getGameFiles(id uint, subDir string) (items []types.FileItem, 
 		}
 		coreName := entry.Name()
 		coreDir := filepath.Join(dirPath, coreName)
+
+		// Special handling: the dolphin-emu core uses a deeply-nested folder structure
+		// (e.g. dolphin-emu/User/GC/USA/Card A/*.gci) instead of the standard flat layout.
+		// Only look in the known GC/{region}/Card A directories to avoid surfacing cache/shader files.
+		if coreName == "dolphin-emu" {
+			gcDir := filepath.Join(coreDir, "User", "GC")
+			for _, region := range []string{"USA", "EUR", "JPN"} {
+				cardDir := filepath.Join(gcDir, region, "Card A")
+				cardFiles, readErr := os.ReadDir(cardDir)
+				if readErr != nil {
+					continue // region folder may not exist yet
+				}
+				relCore := filepath.Join("dolphin-emu", "User", "GC", region, "Card A")
+				for _, f := range cardFiles {
+					if f.IsDir() || strings.HasPrefix(f.Name(), ".") {
+						continue
+					}
+					info, infoErr := f.Info()
+					updatedAt := ""
+					if infoErr == nil {
+						updatedAt = info.ModTime().UTC().Format(time.RFC3339)
+					}
+					items = append(items, types.FileItem{
+						Name:      f.Name(),
+						Core:      relCore,
+						UpdatedAt: updatedAt,
+					})
+				}
+			}
+			continue
+		}
+
 		files, err := os.ReadDir(coreDir)
 		if err != nil {
 			continue
@@ -235,6 +267,18 @@ func (s *Service) downloadServerAsset(gameID uint, filePath, core, filename, upd
 
 	romDir := s.library.GetRomDir(&game)
 	baseDir := filepath.Join(romDir, subDir)
+
+	// Remap the Dolphin "Card A" / "Card B" emulator names from RomM to the correct
+	// local nested path that the dolphin-emu RetroArch core expects.
+	// RomM stores these saves with emulator = "Card A", but locally they must live at:
+	//   saves/dolphin-emu/User/GC/{region}/Card A/
+	// We default to USA region; the file will be placed correctly for NTSC-U games.
+	if core == "Card A" {
+		core = filepath.Join("dolphin-emu", "User", "GC", "USA", "Card A")
+	} else if core == "Card B" {
+		core = filepath.Join("dolphin-emu", "User", "GC", "USA", "Card B")
+	}
+
 	destDir := filepath.Join(baseDir, core)
 
 	rel, err := filepath.Rel(baseDir, destDir)
