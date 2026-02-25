@@ -169,6 +169,32 @@ func GetCoresForPlatform(platform string) []string {
 	return nil
 }
 
+// platformSearchPatterns defines fuzzy matching rules for identifying platforms from strings.
+// Order matters: more specific patterns (e.g. "snes") should come before more general ones (e.g. "nes").
+var platformSearchPatterns = []struct {
+	slug     string
+	patterns []string
+	all      bool
+}{
+	{"gba", []string{"advance", "gba"}, false},
+	{"gb", []string{"game boy", "gb"}, false},
+	{"dsi", []string{"dsi"}, false},
+	{"nds", []string{"ds", "nds"}, false},
+	{"gamecube", []string{"gamecube", "gcn"}, false},
+	{"wii", []string{"wii"}, false},
+	{"genesis", []string{"genesis", "mega drive", "megadrive"}, false},
+	{"wsc", []string{"wonderswan", "wsc"}, false},
+	{"ngp", []string{"neo", "pocket"}, true},
+	{"snes", []string{"snes"}, false},
+	{"nes", []string{"nes"}, false},
+	{"n64", []string{"n64"}, false},
+	{"ps1", []string{"ps1", "psx"}, false},
+	{"psp", []string{"psp"}, false},
+	{"dreamcast", []string{"dreamcast"}, false},
+	{"lynx", []string{"lynx"}, false},
+	{"vb", []string{"virtual", "boy"}, true},
+}
+
 // IdentifyPlatform attempts to resolve a canonical platform slug from a string,
 // such as a folder name or a tag (e.g., "Nintendo - Game Boy" -> "gb").
 func IdentifyPlatform(input string) string {
@@ -177,44 +203,28 @@ func IdentifyPlatform(input string) string {
 		return ""
 	}
 
-	// Fuzzy substring matching (check specific first)
-	switch {
-	case strings.Contains(lower, "advance") || strings.Contains(lower, "gba"):
-		return "gba"
-	case strings.Contains(lower, "game boy") || strings.Contains(lower, "gb"):
-		return "gb"
-	case strings.Contains(lower, "dsi"):
-		return "dsi"
-	case strings.Contains(lower, "ds") || strings.Contains(lower, "nds"):
-		return "nds"
-	case strings.Contains(lower, "gamecube") || strings.Contains(lower, "gcn"):
-		return "gamecube"
-	case strings.Contains(lower, "wii"):
-		return "wii"
-	case strings.Contains(lower, "genesis") || strings.Contains(lower, "mega drive") || strings.Contains(lower, "megadrive"):
-		return "genesis"
-	case strings.Contains(lower, "wonderswan") || strings.Contains(lower, "wsc"):
-		return "wsc"
-	case strings.Contains(lower, "pocket"):
-		if strings.Contains(lower, "neo") {
-			return "ngp"
+	for _, entry := range platformSearchPatterns {
+		matches := false
+		if entry.all {
+			matches = true
+			for _, p := range entry.patterns {
+				if !strings.Contains(lower, p) {
+					matches = false
+					break
+				}
+			}
+		} else {
+			for _, p := range entry.patterns {
+				if strings.Contains(lower, p) {
+					matches = true
+					break
+				}
+			}
 		}
-	case strings.Contains(lower, "nes"):
-		return "nes"
-	case strings.Contains(lower, "snes"):
-		return "snes"
-	case strings.Contains(lower, "n64"):
-		return "n64"
-	case strings.Contains(lower, "ps1") || strings.Contains(lower, "psx"):
-		return "ps1"
-	case strings.Contains(lower, "psp"):
-		return "psp"
-	case strings.Contains(lower, "dreamcast"):
-		return "dreamcast"
-	case strings.Contains(lower, "lynx"):
-		return "lynx"
-	case strings.Contains(lower, "virtual") && strings.Contains(lower, "boy"):
-		return "vb"
+
+		if matches {
+			return entry.slug
+		}
 	}
 
 	// Direct check as fallback

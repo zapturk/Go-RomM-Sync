@@ -193,56 +193,71 @@ func (a *App) GetCoresForGame(id uint) ([]string, error) {
 		return nil, fmt.Errorf("failed to get ROM info: %w", err)
 	}
 
-	// Strategy 1: Direct Platform-based lookup (Primary).
-	if game.Platform.Slug != "" {
-		if cores := retroarch.GetCoresForPlatform(game.Platform.Slug); len(cores) > 0 {
-			return cores, nil
-		}
-	}
-
-	// Strategy 2: Platform-based lookup from path segments.
-	// Search segments for known platform tags (skipping the root "roms" if present).
-	fullPath := filepath.ToSlash(game.FullPath)
-	parts := strings.Split(strings.TrimPrefix(fullPath, "/"), "/")
-	for _, part := range parts {
-		if cores := retroarch.GetCoresForPlatform(part); len(cores) > 0 {
-			return cores, nil
-		}
+	// Strategy 1 & 2: Platform-based lookup.
+	if cores := a.getCoresByPlatform(&game); len(cores) > 0 {
+		return cores, nil
 	}
 
 	// Strategy 3: Derive extension from the server-side filename (Fallback).
 	ext := strings.ToLower(filepath.Ext(filepath.Base(game.FullPath)))
-	if ext == ".zip" {
-		// If it's a zip we haven't downloaded yet, we check Strategy 4 first if downloaded
-		// If not downloaded, we can't peek easily.
-	} else if cores := retroarch.GetCoresForExt(ext); len(cores) > 0 {
-		return cores, nil
-	}
-
-	// Strategy 4: Local file scan for the real extension (Fallback for zips).
-	romDir := a.librarySrv.GetRomDir(&game)
-	if romDir != "" {
-		entries, readErr := os.ReadDir(romDir)
-		if readErr == nil {
-			for _, entry := range entries {
-				if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
-					continue
-				}
-				itemPath := filepath.Join(romDir, entry.Name())
-				localExt := strings.ToLower(filepath.Ext(entry.Name()))
-
-				if localExt == ".zip" {
-					if zipCores := retroarch.GetCoresFromZip(itemPath); len(zipCores) > 0 {
-						return zipCores, nil
-					}
-				} else if localCores := retroarch.GetCoresForExt(localExt); len(localCores) > 0 {
-					return localCores, nil
-				}
-			}
+	if ext != ".zip" {
+		if cores := retroarch.GetCoresForExt(ext); len(cores) > 0 {
+			return cores, nil
 		}
 	}
 
+	// Strategy 4: Local file scan for the real extension (Fallback for zips).
+	if cores := a.getCoresByLocalScan(&game); len(cores) > 0 {
+		return cores, nil
+	}
+
 	return nil, fmt.Errorf("no known cores for game %d (platform/ext not found)", id)
+}
+
+func (a *App) getCoresByPlatform(game *types.Game) []string {
+	// Strategy 1: Direct Platform-based lookup (Primary).
+	if game.Platform.Slug != "" {
+		if cores := retroarch.GetCoresForPlatform(game.Platform.Slug); len(cores) > 0 {
+			return cores
+		}
+	}
+
+	// Strategy 2: Platform-based lookup from path segments.
+	fullPath := filepath.ToSlash(game.FullPath)
+	parts := strings.Split(strings.TrimPrefix(fullPath, "/"), "/")
+	for _, part := range parts {
+		if cores := retroarch.GetCoresForPlatform(part); len(cores) > 0 {
+			return cores
+		}
+	}
+	return nil
+}
+
+func (a *App) getCoresByLocalScan(game *types.Game) []string {
+	romDir := a.librarySrv.GetRomDir(game)
+	if romDir == "" {
+		return nil
+	}
+	entries, err := os.ReadDir(romDir)
+	if err != nil {
+		return nil
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		itemPath := filepath.Join(romDir, entry.Name())
+		localExt := strings.ToLower(filepath.Ext(entry.Name()))
+
+		if localExt == ".zip" {
+			if zipCores := retroarch.GetCoresFromZip(itemPath); len(zipCores) > 0 {
+				return zipCores
+			}
+		} else if localCores := retroarch.GetCoresForExt(localExt); len(localCores) > 0 {
+			return localCores
+		}
+	}
+	return nil
 }
 
 // --- Internal Provider Implementations ---
