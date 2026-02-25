@@ -14,6 +14,9 @@ func SanitizePath(path string) string {
 	// 2. Remove Windows volume names
 	if vol := filepath.VolumeName(p); vol != "" {
 		p = strings.TrimPrefix(p, vol)
+	} else if len(p) >= 2 && p[1] == ':' && (p[0] >= 'a' && p[0] <= 'z' || p[0] >= 'A' && p[0] <= 'Z') {
+		// Manual check for Windows drive letters on non-Windows systems
+		p = p[2:]
 	}
 
 	// 3. Convert to forward slashes for consistent handling during sanitization
