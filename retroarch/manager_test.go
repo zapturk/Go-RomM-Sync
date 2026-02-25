@@ -358,3 +358,22 @@ func TestGetCoresFromZip(t *testing.T) {
 		t.Error("Expected mgba_libretro to be found for .gba")
 	}
 }
+func TestLaunch_PathTraversal(t *testing.T) {
+	ui := &MockUI{}
+	tempDir, _ := os.MkdirTemp("", "launch_traversal")
+	defer os.RemoveAll(tempDir)
+
+	exePath := filepath.Join(tempDir, "retroarch")
+	os.WriteFile(exePath, []byte("fake"), 0o755)
+
+	romPath := filepath.Join(tempDir, "game.sfc")
+	os.WriteFile(romPath, []byte("rom data"), 0o644)
+
+	// Attempt a path traversal. It should be sanitized to "evil.dll" (or .so/.dylib)
+	// and fail because it's not in the cores directory, rather than attempting to load
+	// a library from a completely different path.
+	err := Launch(ui, exePath, romPath, "", "", "../../evil", "")
+	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
+		t.Errorf("Expected core-not-found error for sanitized path, got: %v", err)
+	}
+}

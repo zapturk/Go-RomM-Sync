@@ -451,7 +451,10 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 	// Resolve the core: use an explicit override if provided, otherwise look up CoreMap or PlatformCoreMap.
 	var coreBaseName string
 	if coreOverride != "" {
-		coreBaseName = coreOverride
+		coreBaseName = filepath.Base(filepath.Clean(coreOverride))
+		if coreBaseName == "." || coreBaseName == ".." {
+			coreBaseName = ""
+		}
 	} else if platform != "" {
 		// Try platform-based lookup first
 		if pCores := GetCoresForPlatform(platform); len(pCores) > 0 {

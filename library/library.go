@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go-romm-sync/retroarch"
 	"go-romm-sync/types"
+	"go-romm-sync/utils"
 	"io"
 	"os"
 	"path/filepath"
@@ -70,7 +71,8 @@ func New(cfg ConfigProvider, romm RomMProvider, ui UIProvider) *Service {
 // GetRomDir returns the local directory where a ROM is stored.
 func (s *Service) GetRomDir(game *types.Game) string {
 	libPath := s.config.GetLibraryPath()
-	return filepath.Join(libPath, filepath.Dir(game.FullPath), fmt.Sprintf("%d", game.ID))
+	relPath := utils.SanitizePath(filepath.Dir(game.FullPath))
+	return filepath.Join(libPath, relPath, fmt.Sprintf("%d", game.ID))
 }
 
 // DownloadRomToLibrary downloads a ROM directly to the configured library path.

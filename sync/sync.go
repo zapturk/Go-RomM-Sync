@@ -102,7 +102,7 @@ func (s *Service) scanCoreDir(dirPath, coreName string) []types.FileItem {
 }
 
 func (s *Service) scanDolphinFiles(coreDir string) []types.FileItem {
-	var items []types.FileItem
+	items := make([]types.FileItem, 0, 3) // USA, EUR, JPN
 	gcDir := filepath.Join(coreDir, "User", "GC")
 	for _, region := range []string{"USA", "EUR", "JPN"} {
 		cardDir := filepath.Join(gcDir, region, "Card A")
@@ -113,11 +113,11 @@ func (s *Service) scanDolphinFiles(coreDir string) []types.FileItem {
 }
 
 func (s *Service) scanFlatCoreFiles(coreName, coreDir string) []types.FileItem {
-	var items []types.FileItem
 	files, err := os.ReadDir(coreDir)
 	if err != nil {
-		return items
+		return nil
 	}
+	items := make([]types.FileItem, 0, len(files))
 	for _, f := range files {
 		if f.IsDir() || strings.HasPrefix(f.Name(), ".") {
 			continue

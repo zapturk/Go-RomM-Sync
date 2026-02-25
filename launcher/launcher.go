@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go-romm-sync/retroarch"
 	"go-romm-sync/types"
+	"go-romm-sync/utils"
 	"os"
 	"path/filepath"
 	"strings"
@@ -71,7 +72,8 @@ func (l *Launcher) PlayRom(id uint) error {
 	l.ui.LogInfof("PlayRom: Game info fetched. Name: %s, ID in struct: %d, FullPath: %s", game.Title, game.ID, game.FullPath)
 
 	// 2. Find local ROM path
-	romDir := filepath.Join(libPath, filepath.Dir(game.FullPath), fmt.Sprintf("%d", game.ID))
+	relDir := utils.SanitizePath(filepath.Dir(game.FullPath))
+	romDir := filepath.Join(libPath, relDir, fmt.Sprintf("%d", game.ID))
 	l.ui.LogInfof("PlayRom: Calculated romDir: %s", romDir)
 	romPath := l.findRomPath(&game, romDir)
 	l.ui.LogInfof("PlayRom: Found romPath: %s", romPath)
@@ -122,7 +124,8 @@ func (l *Launcher) PlayRomWithCore(id uint, coreOverride string) error {
 		return fmt.Errorf("failed to get ROM info: %w", err)
 	}
 
-	romDir := filepath.Join(libPath, filepath.Dir(game.FullPath), fmt.Sprintf("%d", game.ID))
+	relDir := utils.SanitizePath(filepath.Dir(game.FullPath))
+	romDir := filepath.Join(libPath, relDir, fmt.Sprintf("%d", game.ID))
 	romPath := l.findRomPath(&game, romDir)
 	if romPath == "" {
 		return fmt.Errorf("no valid ROM file found in %s, please download it first", romDir)

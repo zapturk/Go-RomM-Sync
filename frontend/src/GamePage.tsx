@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRomWithCore, GetCoresForGame, GetSaves, GetStates, DeleteSave, DeleteState, UploadSave, UploadState, GetServerSaves, GetServerStates, DownloadServerSave, DownloadServerState } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
@@ -137,6 +137,11 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
             setIsPickerOpen(true);
         },
     });
+
+    const closePicker = useCallback(() => {
+        setIsPickerOpen(false);
+        setTimeout(() => focusCore(), 100);
+    }, [focusCore]);
 
     const { ref: downloadRef, focused: downloadFocused, focusSelf: focusDownload } = useFocusable({
         focusKey: 'download-button',
@@ -431,8 +436,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                     // Close picker instead of going back to library
                     e.preventDefault();
                     e.stopImmediatePropagation(); // Prevent Library.tsx from seeing this
-                    setIsPickerOpen(false);
-                    setTimeout(() => focusCore(), 100);
+                    closePicker();
                 }
             }
         };
@@ -440,7 +444,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         // Use capture phase to ensure we catch it before Library.tsx listener
         window.addEventListener('keydown', handleKeyDown, true);
         return () => window.removeEventListener('keydown', handleKeyDown, true);
-    }, [saves, serverSaves, states, serverStates, gameId, isPickerOpen, focusCore]);
+    }, [saves, serverSaves, states, serverStates, gameId, isPickerOpen, closePicker]);
 
     if (loading) {
         return <div className="game-page-loading">Loading game details...</div>;
@@ -453,10 +457,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     return (
         <div id="game-page" ref={ref}>
             {isPickerOpen && (
-                <div className="core-picker-overlay" onClick={() => {
-                    setIsPickerOpen(false);
-                    setTimeout(() => focusCore(), 100);
-                }}>
+                <div className="core-picker-overlay" onClick={closePicker}>
                     <div className="core-picker-modal" onClick={e => e.stopPropagation()}>
                         <div className="core-picker-header">
                             <h3>Select Core</h3>
@@ -470,17 +471,13 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                     isFirst={idx === 0}
                                     onSelect={() => {
                                         setSelectedCore(core);
-                                        setIsPickerOpen(false);
-                                        setTimeout(() => focusCore(), 100);
+                                        closePicker();
                                     }}
                                     focusKey={`core-option-${idx}`}
                                 />
                             ))}
                         </div>
-                        <CancelButton onCancel={() => {
-                            setIsPickerOpen(false);
-                            setTimeout(() => focusCore(), 100);
-                        }} />
+                        <CancelButton onCancel={closePicker} />
                     </div>
                 </div>
             )}
