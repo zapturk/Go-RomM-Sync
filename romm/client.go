@@ -135,10 +135,11 @@ func (c *Client) GetLibrary() ([]types.Game, error) {
 
 		// Check for duplicates (indicates ignored pagination params or end of list loop)
 		newItems := false
-		for _, game := range pageItems {
+		for i := range pageItems {
+			game := &pageItems[i]
 			if !seenIDs[game.ID] {
 				seenIDs[game.ID] = true
-				allGames = append(allGames, game)
+				allGames = append(allGames, *game)
 				newItems = true
 			}
 		}
@@ -252,10 +253,11 @@ func (c *Client) GetPlatforms() ([]types.Platform, error) {
 		}
 
 		newItems := false
-		for _, item := range pageItems {
+		for i := range pageItems {
+			item := &pageItems[i]
 			if !seenIDs[item.ID] {
 				seenIDs[item.ID] = true
-				allPlatforms = append(allPlatforms, item)
+				allPlatforms = append(allPlatforms, *item)
 				newItems = true
 			}
 		}

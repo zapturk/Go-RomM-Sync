@@ -54,6 +54,10 @@ export function GetConfig() {
   return window['go']['main']['App']['GetConfig']();
 }
 
+export function GetCoresForGame(arg1) {
+  return window['go']['main']['App']['GetCoresForGame'](arg1);
+}
+
 export function GetCover(arg1, arg2) {
   return window['go']['main']['App']['GetCover'](arg1, arg2);
 }
@@ -148,6 +152,10 @@ export function OpenFileDialog(arg1, arg2) {
 
 export function PlayRom(arg1) {
   return window['go']['main']['App']['PlayRom'](arg1);
+}
+
+export function PlayRomWithCore(arg1, arg2) {
+  return window['go']['main']['App']['PlayRomWithCore'](arg1, arg2);
 }
 
 export function Quit() {

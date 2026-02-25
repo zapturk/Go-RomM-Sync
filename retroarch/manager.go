@@ -26,70 +26,226 @@ type UIProvider interface {
 	WindowUnminimise()
 }
 
-var CoreMap = map[string]string{
-	// Nintendo
-	".nes": "nestopia_libretro",         // NES
-	".fds": "nestopia_libretro",         // Famicom Disk System
-	".sfc": "snes9x_libretro",           // SNES
-	".smc": "snes9x_libretro",           // SNES
-	".z64": "mupen64plus_next_libretro", // N64
-	".n64": "mupen64plus_next_libretro", // N64
-	".v64": "mupen64plus_next_libretro", // N64
-	".gb":  "gambatte_libretro",         // GameBoy
-	".gbc": "gambatte_libretro",         // GameBoy Color
-	".gba": "mgba_libretro",             // GameBoy Advance
-	".nds": "melonds_libretro",          // Nintendo DS
-	".vb":  "beetle_vb_libretro",        // Virtual Boy
+// ExtCoreMap maps file extensions to an ordered list of known-working libretro core
+// base names. The first entry is the default used for auto-launch; subsequent entries
+// are alternatives offered via the core-selector UI.
+var ExtCoreMap = map[string][]string{
+	// Nintendo – NES
+	".nes": {"nestopia_libretro", "fceumm_libretro", "mesen_libretro"},
+	".fds": {"nestopia_libretro", "fceumm_libretro"},
 
-	// Sega
-	".md":  "genesis_plus_gx_libretro", // MegaDrive / Genesis
-	".smd": "genesis_plus_gx_libretro", // MegaDrive / Genesis
-	".gen": "genesis_plus_gx_libretro", // MegaDrive / Genesis
-	".sms": "genesis_plus_gx_libretro", // Master System
-	".gg":  "genesis_plus_gx_libretro", // Game Gear
-	".32x": "picodrive_libretro",       // 32X
-	".msu": "genesis_plus_gx_libretro", // Sega CD
-	".cue": "genesis_plus_gx_libretro", // Sega CD / Saturn / PS1 (Shared extension, mapped to GenPlus by default)
+	// Nintendo – SNES
+	".sfc": {"snes9x_libretro", "bsnes_libretro"},
+	".smc": {"snes9x_libretro", "bsnes_libretro"},
 
-	// Sony
-	".iso": "pcsx_rearmed_libretro", // PS1 / PSP (Shared, handling as PS1 by default)
-	".bin": "pcsx_rearmed_libretro", // PS1
-	".chd": "pcsx_rearmed_libretro", // PS1
-	".cso": "ppsspp_libretro",       // PSP
+	// Nintendo – N64
+	".z64": {"mupen64plus_next_libretro", "parallel_n64_libretro"},
+	".n64": {"mupen64plus_next_libretro", "parallel_n64_libretro"},
+	".v64": {"mupen64plus_next_libretro", "parallel_n64_libretro"},
+
+	// Nintendo – Game Boy
+	".gb":  {"gambatte_libretro", "mgba_libretro", "sameboy_libretro"},
+	".gbc": {"gambatte_libretro", "mgba_libretro", "sameboy_libretro"},
+
+	// Nintendo – GBA
+	".gba": {"mgba_libretro", "vba_next_libretro"},
+
+	// Nintendo – DS
+	".nds": {"melonds_libretro", "desmume_libretro"},
+	".dsi": {"melonds_libretro", "desmume_libretro"},
+
+	// Nintendo – Virtual Boy
+	".vb": {"beetle_vb_libretro"},
+
+	// Nintendo – GameCube / Wii
+	".gcm":  {"dolphin_libretro"},
+	".gcz":  {"dolphin_libretro"},
+	".rvz":  {"dolphin_libretro"},
+	".wbfs": {"dolphin_libretro"},
+	".wia":  {"dolphin_libretro"},
+
+	// Sega – Mega Drive / Genesis
+	".md":  {"genesis_plus_gx_libretro", "picodrive_libretro", "blastem_libretro"},
+	".smd": {"genesis_plus_gx_libretro", "picodrive_libretro"},
+	".gen": {"genesis_plus_gx_libretro", "picodrive_libretro"},
+
+	// Sega – Master System / Game Gear
+	".sms": {"genesis_plus_gx_libretro", "picodrive_libretro"},
+	".gg":  {"genesis_plus_gx_libretro"},
+
+	// Sega – 32X
+	".32x": {"picodrive_libretro"},
+
+	// Sega – CD / Saturn / shared CUE
+	".msu": {"genesis_plus_gx_libretro"},
+	".cue": {"genesis_plus_gx_libretro", "pcsx_rearmed_libretro", "mednafen_saturn_libretro"},
+
+	// Sony – PS1
+	".iso": {"pcsx_rearmed_libretro", "beetle_psx_libretro"},
+	".bin": {"pcsx_rearmed_libretro", "beetle_psx_libretro"},
+	".chd": {"pcsx_rearmed_libretro", "beetle_psx_libretro"},
+
+	// Sony – PSP
+	".cso": {"ppsspp_libretro"},
 
 	// Atari
-	".a26": "stella_libretro",        // 2600
-	".a52": "a5200_libretro",         // 5200
-	".a78": "prosystem_libretro",     // 7800
-	".lnx": "handy_libretro",         // Lynx
-	".jag": "virtualjaguar_libretro", // Jaguar
+	".a26": {"stella_libretro"},
+	".a52": {"a5200_libretro"},
+	".a78": {"prosystem_libretro"},
+	".lnx": {"handy_libretro"},
+	".jag": {"virtualjaguar_libretro"},
 
 	// Computers
-	".d64": "vice_x64sc_libretro", // C64
-	".prg": "vice_x64sc_libretro", // C64
-	".t64": "vice_x64sc_libretro", // C64
-	".adf": "puae_libretro",       // Amiga
-	".uae": "puae_libretro",       // Amiga
+	".d64": {"vice_x64sc_libretro"},
+	".prg": {"vice_x64sc_libretro"},
+	".t64": {"vice_x64sc_libretro"},
+	".adf": {"puae_libretro"},
+	".uae": {"puae_libretro"},
 
 	// Others
-	".pce": "mednafen_pce_fast_libretro", // PC Engine
-	".sgx": "mednafen_pce_fast_libretro", // PC Engine SuperGrafx
-	".ws":  "mednafen_wswan_libretro",    // WonderSwan
-	".wsc": "mednafen_wswan_libretro",    // WonderSwan Color
-	".ngp": "mednafen_ngp_libretro",      // Neo Geo Pocket
-	".ngc": "mednafen_ngp_libretro",      // Neo Geo Pocket Color
-
-	// Nintendo GameCube & Wii
-	".gcm":  "dolphin_libretro", // GameCube
-	".gcz":  "dolphin_libretro", // GameCube
-	".rvz":  "dolphin_libretro", // GameCube / Wii
-	".wbfs": "dolphin_libretro", // Wii
-	".wia":  "dolphin_libretro", // Wii
+	".pce": {"mednafen_pce_fast_libretro", "mednafen_pce_libretro"},
+	".sgx": {"mednafen_pce_fast_libretro"},
+	".ws":  {"mednafen_wswan_libretro"},
+	".wsc": {"mednafen_wswan_libretro"},
+	".ngp": {"mednafen_ngp_libretro"},
+	".ngc": {"mednafen_ngp_libretro"},
 
 	// Pico-8
-	".p8":  "retro8_libretro",    // Pico-8
-	".png": constants.CoreRetro8, // Pico-8 (Cartridges)
+	".p8":  {"retro8_libretro"},
+	".png": {constants.CoreRetro8},
 }
+
+// PlatformCoreMap maps common platform names or slugs to an ordered list
+// of known-working libretro core base names.
+var PlatformCoreMap = map[string][]string{
+	"gb":           {"gambatte_libretro", "mgba_libretro", "sameboy_libretro"},
+	"gbc":          {"gambatte_libretro", "mgba_libretro", "sameboy_libretro"},
+	"gba":          {"mgba_libretro", "vba_next_libretro"},
+	"nes":          {"nestopia_libretro", "fceumm_libretro", "mesen_libretro"},
+	"snes":         {"snes9x_libretro", "bsnes_libretro"},
+	"n64":          {"mupen64plus_next_libretro", "parallel_n64_libretro"},
+	"nds":          {"melonds_libretro", "desmume_libretro"},
+	"dsi":          {"melonds_libretro", "desmume_libretro"},
+	"genesis":      {"genesis_plus_gx_libretro", "picodrive_libretro", "blastem_libretro"},
+	"megadrive":    {"genesis_plus_gx_libretro", "picodrive_libretro", "blastem_libretro"},
+	"mastersystem": {"genesis_plus_gx_libretro", "picodrive_libretro"},
+	"gamegear":     {"genesis_plus_gx_libretro"},
+	"psx":          {"pcsx_rearmed_libretro", "beetle_psx_libretro"},
+	"ps1":          {"pcsx_rearmed_libretro", "beetle_psx_libretro"},
+	"psp":          {"ppsspp_libretro"},
+	"dreamcast":    {"flycast_libretro"},
+	"pce":          {"mednafen_pce_fast_libretro", "mednafen_pce_libretro"},
+	"gamecube":     {"dolphin_libretro"},
+	"gcn":          {"dolphin_libretro"},
+	"wii":          {"dolphin_libretro"},
+	"p8":           {"retro8_libretro"},
+	"pico8":        {"retro8_libretro"},
+	"wonderswan":   {"mednafen_wswan_libretro"},
+	"wsc":          {"mednafen_wswan_libretro"},
+	"ngp":          {"mednafen_ngp_libretro"},
+	"ngpc":         {"mednafen_ngp_libretro"},
+	"vb":           {"beetle_vb_libretro"},
+	"virtualboy":   {"beetle_vb_libretro"},
+	"lynx":         {"handy_libretro"},
+	"pce_fast":     {"mednafen_pce_fast_libretro"},
+	"supergrafx":   {"mednafen_pce_fast_libretro"},
+}
+
+// GetCoresForPlatform returns the ordered list of known-working libretro core
+// base-names for the given platform slug or name.
+func GetCoresForPlatform(platform string) []string {
+	if platform == "" {
+		return nil
+	}
+	// Try the direct mapping first.
+	if cores, ok := PlatformCoreMap[strings.ToLower(platform)]; ok {
+		return cores
+	}
+	// Fallback to fuzzy identification.
+	slug := IdentifyPlatform(platform)
+	if slug != "" {
+		return PlatformCoreMap[slug]
+	}
+	return nil
+}
+
+// platformSearchPatterns defines fuzzy matching rules for identifying platforms from strings.
+// Order matters: more specific patterns (e.g. "snes") should come before more general ones (e.g. "nes").
+var platformSearchPatterns = []struct {
+	slug     string
+	patterns []string
+	all      bool
+}{
+	{"gba", []string{"advance", "gba"}, false},
+	{"gb", []string{"game boy", "gb"}, false},
+	{"dsi", []string{"dsi"}, false},
+	{"nds", []string{"ds", "nds"}, false},
+	{"gamecube", []string{"gamecube", "gcn"}, false},
+	{"wii", []string{"wii"}, false},
+	{"genesis", []string{"genesis", "mega drive", "megadrive"}, false},
+	{"wsc", []string{"wonderswan", "wsc"}, false},
+	{"ngp", []string{"neo", "pocket"}, true},
+	{"snes", []string{"snes"}, false},
+	{"nes", []string{"nes"}, false},
+	{"n64", []string{"n64"}, false},
+	{"ps1", []string{"ps1", "psx"}, false},
+	{"psp", []string{"psp"}, false},
+	{"dreamcast", []string{"dreamcast"}, false},
+	{"lynx", []string{"lynx"}, false},
+	{"vb", []string{"virtual", "boy"}, true},
+}
+
+// IdentifyPlatform attempts to resolve a canonical platform slug from a string,
+// such as a folder name or a tag (e.g., "Nintendo - Game Boy" -> "gb").
+func IdentifyPlatform(input string) string {
+	lower := strings.ToLower(input)
+	if lower == "" || lower == "roms" {
+		return ""
+	}
+
+	for _, entry := range platformSearchPatterns {
+		matches := false
+		if entry.all {
+			matches = true
+			for _, p := range entry.patterns {
+				if !strings.Contains(lower, p) {
+					matches = false
+					break
+				}
+			}
+		} else {
+			for _, p := range entry.patterns {
+				if strings.Contains(lower, p) {
+					matches = true
+					break
+				}
+			}
+		}
+
+		if matches {
+			return entry.slug
+		}
+	}
+
+	// Direct check as fallback
+	if _, ok := PlatformCoreMap[lower]; ok {
+		return lower
+	}
+
+	return ""
+}
+
+// CoreMap is derived from ExtCoreMap for backward-compatible single-core lookups
+// (used by the launcher to resolve the extension → default core).
+var CoreMap = func() map[string]string {
+	m := make(map[string]string, len(ExtCoreMap))
+	for ext, cores := range ExtCoreMap {
+		if len(cores) > 0 {
+			m[ext] = cores[0]
+		}
+	}
+	return m
+}()
 
 // getCoreExt returns the expected dynamic library extension for the current OS
 func getCoreExt() string {
@@ -103,13 +259,50 @@ func getCoreExt() string {
 	}
 }
 
+// GetCoresForExt returns the ordered list of known-working libretro core base-names
+// for the given file extension (e.g. ".gb"). The first entry is the default.
+// Returns nil if no cores are known for the extension.
+func GetCoresForExt(ext string) []string {
+	return ExtCoreMap[strings.ToLower(ext)]
+}
+
+// GetCoresFromZip peeks inside a ZIP file and returns a combined list of cores
+// for all recognized file extensions found inside.
+func GetCoresFromZip(zipPath string) []string {
+	r, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return nil
+	}
+	defer fileio.Close(r, nil, "GetCoresFromZip: Failed to close zip reader")
+
+	var cores []string
+	seen := make(map[string]bool)
+
+	for _, f := range r.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		innerExt := strings.ToLower(filepath.Ext(f.Name))
+		if innerCores := GetCoresForExt(innerExt); len(innerCores) > 0 {
+			for _, core := range innerCores {
+				if !seen[core] {
+					cores = append(cores, core)
+					seen[core] = true
+				}
+			}
+		}
+	}
+	return cores
+}
+
 // Launch launches RetroArch for the given ROM path, given the selected executable.
+// coreOverride, when non-empty, bypasses the CoreMap lookup and forces that specific core.
 //
 // temp file management, OS-specific path handling, cheevos config) that is intentionally kept together
 // to preserve readability and avoid scattering related logic across many small functions.
 //
-//nolint:gocognit,gocyclo // Launch orchestrates a complex multi-step process (zip inspection, core detection,
-func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) error {
+//nolint:gocognit,gocyclo // See above
+func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platform string) error {
 	// If exePath is a directory, try to find the actual executable inside it
 	if info, err := os.Stat(exePath); err == nil && info.IsDir() {
 		found := false
@@ -168,6 +361,9 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 		romBaseDir = filepath.Dir(strings.Split(romPath, "#")[0])
 	}
 
+	// Normalize the platform slug
+	platform = IdentifyPlatform(platform)
+
 	// Determine Core from extension
 	ext := strings.ToLower(filepath.Ext(romPath))
 	var tempRomPath string
@@ -181,16 +377,43 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 		defer fileio.Close(r, nil, "Launch: Failed to close zip reader")
 
 		foundExt := ""
+		// If we have a platform, check if there's a preferred core/ext set for it
+		platformCores := GetCoresForPlatform(platform)
+
 		for _, f := range r.File {
 			if f.FileInfo().IsDir() {
 				continue
 			}
 			innerExt := strings.ToLower(filepath.Ext(f.Name))
-			if coreName, ok := CoreMap[innerExt]; ok {
+
+			// Check if this extension is recognizable
+			innerCores := GetCoresForExt(innerExt)
+			if len(innerCores) == 0 {
+				continue
+			}
+
+			// If we have platform-specific cores, prioritize finding one that matches
+			match := true
+			if len(platformCores) > 0 {
+				match = false
+				for _, pc := range platformCores {
+					for _, ic := range innerCores {
+						if pc == ic {
+							match = true
+							break
+						}
+					}
+					if match {
+						break
+					}
+				}
+			}
+
+			if match {
 				foundExt = innerExt
 				// Special case: Pico-8 .png carts inside ZIPs need manual extraction to a .p8 extension
 				// to prevent RetroArch from defaulting to its internal image-viewer core.
-				if innerExt == ".png" && coreName == constants.CoreRetro8 {
+				if innerExt == ".png" && innerCores[0] == constants.CoreRetro8 {
 					tmpFile, err := os.CreateTemp("", "pico8_*.p8")
 					if err != nil {
 						return fmt.Errorf("failed to create temporary file for pico-8 extraction: %v", err)
@@ -225,9 +448,27 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 		ext = foundExt
 	}
 
-	coreBaseName, ok := CoreMap[ext]
-	if !ok {
-		return fmt.Errorf("no default core mapping found for extension: %s", ext)
+	// Resolve the core: use an explicit override if provided, otherwise look up CoreMap or PlatformCoreMap.
+	var coreBaseName string
+	if coreOverride != "" {
+		coreBaseName = filepath.Base(filepath.Clean(coreOverride))
+		if coreBaseName == "." || coreBaseName == ".." {
+			coreBaseName = ""
+		}
+	} else if platform != "" {
+		// Try platform-based lookup first
+		if pCores := GetCoresForPlatform(platform); len(pCores) > 0 {
+			coreBaseName = pCores[0]
+		}
+	}
+
+	// Fallback to extension-based lookup if platform didn't resolve a core
+	if coreBaseName == "" {
+		var ok bool
+		coreBaseName, ok = CoreMap[ext]
+		if !ok {
+			return fmt.Errorf("no default core mapping found for extension: %s", ext)
+		}
 	}
 
 	coreFile := coreBaseName + getCoreExt()
@@ -239,27 +480,28 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass string) er
 	}
 	corePath := filepath.Join(coresDir, coreFile)
 
-	if _, err := os.Stat(corePath); err != nil {
-		ui.EventsEmit("play-status", fmt.Sprintf("Emulator core %s not found locally. Attempting to download...", coreFile))
+	// Detect the required arch once — used for both downloading and arch-mismatch checking.
+	arch := detectRetroArchArch(ui, exePath)
 
-		// Detect architecture for macOS specifically to ensure we download the correct binary type.
-		// On Apple Silicon (arm64), we might still be running an x86_64 build of RetroArch via Rosetta.
-		arch := runtime.GOARCH
-		if runtime.GOOS == constants.OSDarwin {
-			// Try to detect the architecture of the RetroArch binary itself
-			out, err := exec.Command("file", exePath).Output()
-			if err == nil {
-				sout := string(out)
-				if strings.Contains(sout, "x86_64") {
-					arch = constants.ArchAmd64
-				} else if strings.Contains(sout, "arm64") {
-					arch = constants.ArchArm64
-				}
-			}
+	coreExists := false
+	if _, err := os.Stat(corePath); err == nil {
+		coreExists = true
+	}
+
+	if coreExists && runtime.GOOS == constants.OSDarwin {
+		// Verify the existing core's architecture matches what RetroArch needs.
+		// This handles the case where a core was downloaded for a different arch
+		// (e.g. x86_64 via Rosetta) but RetroArch is now running natively (arm64).
+		if !coreArchMatches(corePath, arch) {
+			ui.LogInfof("Launch: Core %s is wrong architecture for %s — deleting and re-downloading.", coreFile, arch)
+			fileio.Remove(corePath, ui.LogErrorf)
+			coreExists = false
 		}
+	}
 
-		err = DownloadCore(ui, coreFile, coresDir, arch)
-		if err != nil {
+	if !coreExists {
+		ui.EventsEmit("play-status", fmt.Sprintf("Emulator core %s not found locally. Attempting to download...", coreFile))
+		if err := DownloadCore(ui, coreFile, coresDir, arch); err != nil {
 			return fmt.Errorf("emulator core not found at %s and auto-download failed: %w", corePath, err)
 		}
 	}
@@ -506,4 +748,76 @@ func ClearCheevosToken(exePath string) error {
 		}
 	}
 	return nil
+}
+
+// isAppleSilicon returns true if the current host is running on Apple Silicon hardware,
+// regardless of whether the current process is running via Rosetta.
+func isAppleSilicon() bool {
+	if runtime.GOOS != constants.OSDarwin {
+		return false
+	}
+	// sysctl -n hw.optional.arm64 returns 1 on Apple Silicon
+	out, err := exec.Command("sysctl", "-n", "hw.optional.arm64").Output()
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(out)) == "1"
+}
+
+// detectRetroArchArch returns the Go-style architecture constant (e.g. "arm64", "amd64")
+// that should be used when downloading cores, based on the RetroArch binary itself.
+// On macOS this inspects the binary so Rosetta installs are handled correctly.
+// On other platforms it falls back to runtime.GOARCH.
+func detectRetroArchArch(ui UIProvider, exePath string) string {
+	arch := runtime.GOARCH
+	if runtime.GOOS != constants.OSDarwin {
+		return arch
+	}
+	out, err := exec.Command("file", exePath).Output()
+	if err != nil {
+		return arch
+	}
+	sout := string(out)
+	hasX86 := strings.Contains(sout, "x86_64")
+	hasARM := strings.Contains(sout, "arm64")
+	switch {
+	case hasARM && hasX86:
+		// Universal binary — prefer arm64 on Apple Silicon hardware.
+		if isAppleSilicon() {
+			arch = constants.ArchArm64
+		} else {
+			arch = constants.ArchAmd64
+		}
+	case hasARM:
+		arch = constants.ArchArm64
+	case hasX86:
+		arch = constants.ArchAmd64
+	}
+	if ui != nil {
+		ui.LogInfof("Launch: Detected RetroArch architecture: %s (ARM=%v, X86=%v)", arch, hasARM, hasX86)
+	}
+	return arch
+}
+
+// coreArchMatches returns true if the dylib at corePath is compiled for the given
+// Go-style arch ("arm64" or "amd64"). Only meaningful on Darwin; always returns
+// true on other platforms so we don't block non-macOS installs.
+func coreArchMatches(corePath, arch string) bool {
+	if runtime.GOOS != constants.OSDarwin {
+		return true
+	}
+	out, err := exec.Command("file", corePath).Output()
+	if err != nil {
+		// Can't determine — assume it's fine to avoid a boot loop.
+		return true
+	}
+	sout := string(out)
+	switch arch {
+	case constants.ArchArm64:
+		return strings.Contains(sout, "arm64")
+	case constants.ArchAmd64:
+		return strings.Contains(sout, "x86_64")
+	default:
+		return true
+	}
 }

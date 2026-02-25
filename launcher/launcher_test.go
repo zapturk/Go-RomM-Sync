@@ -84,7 +84,8 @@ func TestFindRomPath(t *testing.T) {
 	}
 
 	l := New(nil, nil, nil)
-	found := l.findRomPath(tempDir)
+	game := &types.Game{FullPath: "test.sfc"}
+	found := l.findRomPath(game, tempDir)
 	if found != romPath {
 		t.Errorf("Expected %s, got %s", romPath, found)
 	}
@@ -94,7 +95,7 @@ func TestFindRomPath(t *testing.T) {
 	if err := os.WriteFile(hiddenPath, []byte("dummy"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	found = l.findRomPath(tempDir)
+	found = l.findRomPath(game, tempDir)
 	if found != romPath {
 		t.Errorf("Expected to still find %s, got %s", romPath, found)
 	}

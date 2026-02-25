@@ -67,46 +67,73 @@ func (s *Service) getGameFiles(id uint, subDir string) (items []types.FileItem, 
 		return nil, err
 	}
 
-	romDir := s.library.GetRomDir(&game)
-	dirPath := filepath.Join(romDir, subDir)
-
-	items = []types.FileItem{}
+	dirPath := filepath.Join(s.library.GetRomDir(&game), subDir)
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return items, nil
-		}
-		return nil, err
+		return s.handleGetFilesError(err)
 	}
 
+	return s.collectCoreFiles(dirPath, entries), nil
+}
+
+func (s *Service) handleGetFilesError(err error) ([]types.FileItem, error) {
+	if os.IsNotExist(err) {
+		return []types.FileItem{}, nil
+	}
+	return nil, err
+}
+
+func (s *Service) collectCoreFiles(dirPath string, entries []os.DirEntry) []types.FileItem {
+	var items []types.FileItem
 	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		coreName := entry.Name()
-		coreDir := filepath.Join(dirPath, coreName)
-		files, err := os.ReadDir(coreDir)
-		if err != nil {
-			continue
-		}
-		for _, f := range files {
-			if f.IsDir() || strings.HasPrefix(f.Name(), ".") {
-				continue
-			}
-			info, err := f.Info()
-			updatedAt := ""
-			if err == nil {
-				updatedAt = info.ModTime().UTC().Format(time.RFC3339)
-			}
-
-			items = append(items, types.FileItem{
-				Name:      f.Name(),
-				Core:      coreName,
-				UpdatedAt: updatedAt,
-			})
+		if entry.IsDir() {
+			items = append(items, s.scanCoreDir(dirPath, entry.Name())...)
 		}
 	}
-	return items, nil
+	return items
+}
+
+func (s *Service) scanCoreDir(dirPath, coreName string) []types.FileItem {
+	coreDir := filepath.Join(dirPath, coreName)
+	if coreName == "dolphin-emu" {
+		return s.scanDolphinFiles(coreDir)
+	}
+	return s.scanFlatCoreFiles(coreName, coreDir)
+}
+
+func (s *Service) scanDolphinFiles(coreDir string) []types.FileItem {
+	items := make([]types.FileItem, 0, 3) // USA, EUR, JPN
+	gcDir := filepath.Join(coreDir, "User", "GC")
+	for _, region := range []string{"USA", "EUR", "JPN"} {
+		cardDir := filepath.Join(gcDir, region, "Card A")
+		relCore := filepath.Join("dolphin-emu", "User", "GC", region, "Card A")
+		items = append(items, s.scanFlatCoreFiles(relCore, cardDir)...)
+	}
+	return items
+}
+
+func (s *Service) scanFlatCoreFiles(coreName, coreDir string) []types.FileItem {
+	files, err := os.ReadDir(coreDir)
+	if err != nil {
+		return nil
+	}
+	items := make([]types.FileItem, 0, len(files))
+	for _, f := range files {
+		if f.IsDir() || strings.HasPrefix(f.Name(), ".") {
+			continue
+		}
+		info, err := f.Info()
+		updatedAt := ""
+		if err == nil {
+			updatedAt = info.ModTime().UTC().Format(time.RFC3339)
+		}
+		items = append(items, types.FileItem{
+			Name:      f.Name(),
+			Core:      coreName,
+			UpdatedAt: updatedAt,
+		})
+	}
+	return items
 }
 
 // UploadSave reads a local save file and uploads it to RomM.
@@ -228,25 +255,11 @@ func (s *Service) downloadServerAsset(gameID uint, filePath, core, filename, upd
 		filename = serverFilename
 	}
 
-	core, filename, err = s.ValidateAssetPath(core, filename)
+	destPath, err := s.prepareAssetPath(&game, core, filename, subDir)
 	if err != nil {
 		return err
 	}
 
-	romDir := s.library.GetRomDir(&game)
-	baseDir := filepath.Join(romDir, subDir)
-	destDir := filepath.Join(baseDir, core)
-
-	rel, err := filepath.Rel(baseDir, destDir)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		return fmt.Errorf("invalid path traversal detected")
-	}
-
-	if err := os.MkdirAll(destDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create destination directory: %w", err)
-	}
-
-	destPath := filepath.Join(destDir, filename)
 	out, err := os.Create(destPath)
 	if err != nil {
 		return fmt.Errorf("failed to create local %s file: %w", subDir, err)
@@ -258,14 +271,54 @@ func (s *Service) downloadServerAsset(gameID uint, filePath, core, filename, upd
 	}
 
 	if updatedAt != "" {
-		if t, err := utils.ParseTimestamp(updatedAt); err == nil {
-			if err := os.Chtimes(destPath, t, t); err != nil {
-				s.ui.LogErrorf("downloadServerAsset: Failed to update local file time: %v", err)
-			}
-		}
+		s.setFileTime(destPath, updatedAt)
 	}
 
 	return nil
+}
+
+func (s *Service) prepareAssetPath(game *types.Game, core, filename, subDir string) (string, error) {
+	core, filename, err := s.ValidateAssetPath(core, filename)
+	if err != nil {
+		return "", err
+	}
+
+	romDir := s.library.GetRomDir(game)
+	baseDir := filepath.Join(romDir, subDir)
+
+	// Remap the Dolphin "Card A" / "Card B" emulator names from RomM to the correct
+	// local nested path that the dolphin-emu RetroArch core expects.
+	// RomM stores these saves with emulator = "Card A", but locally they must live at:
+	//   saves/dolphin-emu/User/GC/{region}/Card A/
+	// We default to USA region; the file will be placed correctly for NTSC-U games.
+	switch core {
+	case "Card A":
+		core = filepath.Join("dolphin-emu", "User", "GC", "USA", "Card A")
+	case "Card B":
+		core = filepath.Join("dolphin-emu", "User", "GC", "USA", "Card B")
+	}
+
+	destDir := filepath.Join(baseDir, core)
+	rel, err := filepath.Rel(baseDir, destDir)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return "", fmt.Errorf("invalid path traversal detected")
+	}
+
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return "", fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	return filepath.Join(destDir, filename), nil
+}
+
+func (s *Service) setFileTime(destPath, updatedAt string) {
+	t, err := utils.ParseTimestamp(updatedAt)
+	if err != nil {
+		return
+	}
+	if err := os.Chtimes(destPath, t, t); err != nil {
+		s.ui.LogErrorf("setFileTime: Failed to update local file time for %s: %v", destPath, err)
+	}
 }
 
 // ValidateAssetPath sanitizes the core and filename.

@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRom, GetSaves, GetStates, DeleteSave, DeleteState, UploadSave, UploadState, GetServerSaves, GetServerStates, DownloadServerSave, DownloadServerState } from "../wailsjs/go/main/App";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRomWithCore, GetCoresForGame, GetSaves, GetStates, DeleteSave, DeleteState, UploadSave, UploadState, GetServerSaves, GetServerStates, DownloadServerSave, DownloadServerState } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { GameCover } from "./GameCover";
@@ -65,6 +65,9 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const [downloadProgress, setDownloadProgress] = useState<number>(0);
     const [statusFading, setStatusFading] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [availableCores, setAvailableCores] = useState<string[]>([]);
+    const [selectedCore, setSelectedCore] = useState<string>('');
+    const [isPickerOpen, setIsPickerOpen] = useState(false);
     const fadeTimeoutRef = useRef<any>(null);
     const clearStatusTimeoutRef = useRef<any>(null);
     const statusSequenceRef = useRef(0);
@@ -127,6 +130,19 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         },
     });
 
+    const { ref: coreRef, focused: coreFocused, focusSelf: focusCore } = useFocusable({
+        focusKey: 'core-selector',
+        onArrowPress: (direction: string) => direction === 'down' || direction === 'right',
+        onEnterPress: () => {
+            setIsPickerOpen(true);
+        },
+    });
+
+    const closePicker = useCallback(() => {
+        setIsPickerOpen(false);
+        setTimeout(() => focusCore(), 100);
+    }, [focusCore]);
+
     const { ref: downloadRef, focused: downloadFocused, focusSelf: focusDownload } = useFocusable({
         focusKey: 'download-button',
         onArrowPress: (direction: string) => direction === 'down' || direction === 'right', // Allow moving down to Saves/States or right to Delete
@@ -155,11 +171,11 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
     const { ref: playRef, focused: playFocused, focusSelf: focusPlay } = useFocusable({
         focusKey: 'play-button',
-        onArrowPress: (direction: string) => direction === 'right' || direction === 'down', // Allow moving to Delete or down to Saves/States
+        onArrowPress: (direction: string) => direction === 'right' || direction === 'down' || direction === 'up', // Allow moving to Delete, down to Saves/States, or up to Core
         onEnterPress: () => {
             if (game) {
                 setDownloadStatus("Starting RetroArch...");
-                PlayRom(game.id).then(() => {
+                PlayRomWithCore(game.id, selectedCore).then(() => {
                     setSuccessStatus("Game launched successfully!");
                 }).catch((err: string) => {
                     // Check if it's the RetroArch cancelled error
@@ -175,7 +191,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
     const { ref: deleteRef, focused: deleteFocused, focusSelf: focusDelete } = useFocusable({
         focusKey: 'delete-button',
-        onArrowPress: (direction: string) => direction === 'left' || direction === 'down' || direction === 'right', // Allow moving back to Play, down to Saves/States, or right to Saves/States
+        onArrowPress: (direction: string) => direction === 'left' || direction === 'down' || direction === 'right' || direction === 'up', // Allow moving back to Play, down to Saves/States, up to Core, or right to Saves/States
         onEnterPress: () => {
             if (!game) return;
 
@@ -200,13 +216,27 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                     // Set focus to the primary button after data is loaded
                     setTimeout(() => {
                         if (status) {
-                            setFocus('play-button');
+                            if (availableCores.length > 1) {
+                                // If multiple cores, focus the selector first so user can choose
+                                setFocus('core-selector');
+                            } else {
+                                setFocus('play-button');
+                            }
                         } else {
                             setFocus('download-button');
                         }
                     }, 100);
                 }).catch(() => {
                     setStatusChecked(true); // Still mark as checked even on error
+                });
+
+                // Fetch available cores for this game
+                GetCoresForGame(gameId).then((cores: string[]) => {
+                    setAvailableCores(cores || []);
+                    if (cores && cores.length > 0) setSelectedCore(cores[0]);
+                }).catch((err: any) => {
+                    console.warn('GetCoresForGame failed:', err);
+                    // Core selector just won't appear — not a fatal error
                 });
 
                 // Fetch saves and states
@@ -395,14 +425,26 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
             const activeElement = document.activeElement;
             const isTyping = activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA';
 
-            if (!isTyping && e.key.toLowerCase() === 'r') {
+            if (isTyping) return;
+
+            if (e.key.toLowerCase() === 'r') {
                 handleSmartSync();
+            }
+
+            if (e.key === 'Escape') {
+                if (isPickerOpen) {
+                    // Close picker instead of going back to library
+                    e.preventDefault();
+                    e.stopImmediatePropagation(); // Prevent Library.tsx from seeing this
+                    closePicker();
+                }
             }
         };
 
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [saves, serverSaves, states, serverStates, gameId]);
+        // Use capture phase to ensure we catch it before Library.tsx listener
+        window.addEventListener('keydown', handleKeyDown, true);
+        return () => window.removeEventListener('keydown', handleKeyDown, true);
+    }, [saves, serverSaves, states, serverStates, gameId, isPickerOpen, closePicker]);
 
     if (loading) {
         return <div className="game-page-loading">Loading game details...</div>;
@@ -414,6 +456,31 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
     return (
         <div id="game-page" ref={ref}>
+            {isPickerOpen && (
+                <div className="core-picker-overlay" onClick={closePicker}>
+                    <div className="core-picker-modal" onClick={e => e.stopPropagation()}>
+                        <div className="core-picker-header">
+                            <h3>Select Core</h3>
+                        </div>
+                        <div className="core-picker-list">
+                            {availableCores.map((core, idx) => (
+                                <CoreOption
+                                    key={core}
+                                    core={core}
+                                    isSelected={core === selectedCore}
+                                    isFirst={idx === 0}
+                                    onSelect={() => {
+                                        setSelectedCore(core);
+                                        closePicker();
+                                    }}
+                                    focusKey={`core-option-${idx}`}
+                                />
+                            ))}
+                        </div>
+                        <CancelButton onCancel={closePicker} />
+                    </div>
+                </div>
+            )}
             <div className="game-page-content">
                 <div className="game-sidebar">
                     <GameCover game={game} className="game-page-cover" />
@@ -457,58 +524,83 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                 {downloading ? "Downloading..." : "Download to Library"}
                             </button>
                         ) : (
-                            <div className="game-actions-horizontal">
-                                <button
-                                    ref={playRef}
-                                    className={`btn play-btn ${playFocused ? 'focused' : ''} ${isPlaying ? 'disabled' : ''}`}
-                                    disabled={isPlaying}
-                                    onMouseEnter={() => {
-                                        if (getMouseActive() && !isPlaying) {
-                                            focusPlay();
-                                        }
-                                    }}
-                                    onClick={() => {
-                                        if (game && !isPlaying) {
-                                            setDownloadStatus("Starting RetroArch...");
-                                            PlayRom(game.id).then(() => {
-                                                setSuccessStatus("Game launched successfully!");
-                                            }).catch((err: string) => {
-                                                if (err.includes("launch cancelled")) {
-                                                    setDownloadStatus("");
-                                                } else {
-                                                    setDownloadStatus(`Play error: ${err}`);
+                            <>
+                                {availableCores.length > 0 && (
+                                    <div className="core-selector-row">
+                                        <label className="core-selector-label" htmlFor="core-select">Core</label>
+                                        <div
+                                            id="core-select"
+                                            ref={coreRef}
+                                            className={`core-selector-button ${coreFocused ? 'focused' : ''}`}
+                                            onMouseEnter={() => {
+                                                if (getMouseActive() && !isPlaying) {
+                                                    focusCore();
                                                 }
-                                            });
-                                        }
-                                    }}
-                                >
-                                    Play
-                                </button>
-                                <button
-                                    ref={deleteRef}
-                                    className={`btn delete-btn ${deleteFocused ? 'focused' : ''} ${isPlaying ? 'disabled' : ''}`}
-                                    disabled={isPlaying}
-                                    title="Delete ROM"
-                                    onMouseEnter={() => {
-                                        if (getMouseActive() && !isPlaying) {
-                                            focusDelete();
-                                        }
-                                    }}
-                                    onClick={() => {
-                                        if (!game || isPlaying) return;
+                                            }}
+                                            onClick={() => {
+                                                if (!isPlaying) setIsPickerOpen(true);
+                                            }}
+                                        >
+                                            <span className="current-core">
+                                                {selectedCore.replace('_libretro', '').replace(/_/g, ' ')}
+                                            </span>
+                                            <div className="dropdown-arrow"></div>
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="game-actions-horizontal">
+                                    <button
+                                        ref={playRef}
+                                        className={`btn play-btn ${playFocused ? 'focused' : ''} ${isPlaying ? 'disabled' : ''}`}
+                                        disabled={isPlaying}
+                                        onMouseEnter={() => {
+                                            if (getMouseActive() && !isPlaying) {
+                                                focusPlay();
+                                            }
+                                        }}
+                                        onClick={() => {
+                                            if (game && !isPlaying) {
+                                                setDownloadStatus("Starting RetroArch...");
+                                                PlayRomWithCore(game.id, selectedCore).then(() => {
+                                                    setSuccessStatus("Game launched successfully!");
+                                                }).catch((err: string) => {
+                                                    if (err.includes("launch cancelled")) {
+                                                        setDownloadStatus("");
+                                                    } else {
+                                                        setDownloadStatus(`Play error: ${err}`);
+                                                    }
+                                                });
+                                            }
+                                        }}
+                                    >
+                                        Play
+                                    </button>
+                                    <button
+                                        ref={deleteRef}
+                                        className={`btn delete-btn ${deleteFocused ? 'focused' : ''} ${isPlaying ? 'disabled' : ''}`}
+                                        disabled={isPlaying}
+                                        title="Delete ROM"
+                                        onMouseEnter={() => {
+                                            if (getMouseActive() && !isPlaying) {
+                                                focusDelete();
+                                            }
+                                        }}
+                                        onClick={() => {
+                                            if (!game || isPlaying) return;
 
-                                        DeleteRom(game.id).then(() => {
-                                            setIsDownloaded(false);
-                                            setSuccessStatus("ROM deleted from library.");
-                                            setTimeout(() => focusDownload(), 100);
-                                        }).catch((err: any) => {
-                                            setDownloadStatus(`Delete error: ${err}`);
-                                        });
-                                    }}
-                                >
-                                    <TrashIcon />
-                                </button>
-                            </div>
+                                            DeleteRom(game.id).then(() => {
+                                                setIsDownloaded(false);
+                                                setSuccessStatus("ROM deleted from library.");
+                                                setTimeout(() => focusDownload(), 100);
+                                            }).catch((err: any) => {
+                                                setDownloadStatus(`Delete error: ${err}`);
+                                            });
+                                        }}
+                                    >
+                                        <TrashIcon />
+                                    </button>
+                                </div>
+                            </>
                         )
                     )}
                     {downloadStatus && (
@@ -644,6 +736,71 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 </div>
             </div>
         </div>
+    );
+}
+
+function CoreOption({ core, isSelected, onSelect, focusKey, isFirst }: { core: string; isSelected: boolean; onSelect: () => void; focusKey: string; isFirst: boolean }) {
+    const { ref, focused } = useFocusable({
+        focusKey,
+        onEnterPress: onSelect,
+        onArrowPress: (direction: string) => {
+            // Block left/right to keep focus in the list
+            if (direction === 'left' || direction === 'right') return false;
+            // Block up on first item
+            if (direction === 'up' && isFirst) return false;
+            return true;
+        }
+    });
+
+    useEffect(() => {
+        if (isSelected) {
+            setFocus(focusKey);
+        }
+    }, []);
+
+    return (
+        <div
+            ref={ref}
+            className={`core-option ${focused ? 'focused' : ''} ${isSelected ? 'selected' : ''}`}
+            onClick={onSelect}
+            onMouseEnter={() => {
+                if (getMouseActive()) {
+                    setFocus(focusKey);
+                }
+            }}
+        >
+            <span className="core-name">
+                {core.replace('_libretro', '').replace(/_/g, ' ')}
+            </span>
+            {isSelected && <span className="selected-check">✓</span>}
+        </div>
+    );
+}
+
+function CancelButton({ onCancel }: { onCancel: () => void }) {
+    const { ref, focused } = useFocusable({
+        focusKey: 'picker-cancel',
+        onEnterPress: onCancel,
+        onArrowPress: (direction: string) => {
+            // Block left/right/down
+            if (direction === 'left' || direction === 'right' || direction === 'down') return false;
+            return true;
+        }
+    });
+
+    return (
+        <button
+            ref={ref}
+            className={`btn cancel-btn ${focused ? 'focused' : ''}`}
+            onClick={onCancel}
+            onMouseEnter={() => {
+                if (getMouseActive()) {
+                    setFocus('picker-cancel');
+                }
+            }}
+        >
+            Cancel
+        </button>
     );
 }
 

@@ -29,6 +29,8 @@ export function GetCheevosCredentials():Promise<string|string>;
 
 export function GetConfig():Promise<types.AppConfig>;
 
+export function GetCoresForGame(arg1:number):Promise<Array<string>>;
+
 export function GetCover(arg1:number,arg2:string):Promise<string>;
 
 export function GetDefaultLibraryPath():Promise<string>;
@@ -76,6 +78,8 @@ export function OpenDirectoryDialog(arg1:string):Promise<string>;
 export function OpenFileDialog(arg1:string,arg2:Array<string>):Promise<string>;
 
 export function PlayRom(arg1:number):Promise<void>;
+
+export function PlayRomWithCore(arg1:number,arg2:string):Promise<void>;
 
 export function Quit():Promise<void>;
 
