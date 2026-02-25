@@ -27,6 +27,7 @@ const STICK_THRESHOLD = 0.5;
 const INPUT_DELAY = 150;
 
 export function useGamepad() {
+    const prevButtonsRef = useRef<Record<number, boolean>>({});
     const lastInputTime = useRef(0);
     const requestRef = useRef<number>();
     const isPlayingRef = useRef(false);
@@ -50,6 +51,9 @@ export function useGamepad() {
         for (const gp of gamepads) {
             if (!gp) continue;
 
+            const prevButtons = prevButtonsRef.current;
+            const currentButtons: Record<number, boolean> = {};
+
             // D-PAD
             if (gp.buttons[BUTTON_MAPPING.DPAD_UP]?.pressed) triggerKey('ArrowUp');
             if (gp.buttons[BUTTON_MAPPING.DPAD_DOWN]?.pressed) triggerKey('ArrowDown');
@@ -62,15 +66,31 @@ export function useGamepad() {
             if (gp.axes[0] < -STICK_THRESHOLD) triggerKey('ArrowLeft');
             if (gp.axes[0] > STICK_THRESHOLD) triggerKey('ArrowRight');
 
-            // Actions
-            if (gp.buttons[BUTTON_MAPPING.A]?.pressed) triggerKey('Enter');
-            if (gp.buttons[BUTTON_MAPPING.B]?.pressed) triggerKey('Escape'); // Consistent with keyboard refined 'Back'
-            if (gp.buttons[BUTTON_MAPPING.X]?.pressed) triggerKey('r'); // Refresh/Sync
+            // Actions - Trigger on Button Up
+            const ACTION_BUTTONS = {
+                [BUTTON_MAPPING.A]: 'Enter',
+                [BUTTON_MAPPING.B]: 'Escape',
+                [BUTTON_MAPPING.X]: 'r',
+            };
+
+            for (const [btnIdStr, key] of Object.entries(ACTION_BUTTONS)) {
+                const btnId = parseInt(btnIdStr);
+                const isPressed = gp.buttons[btnId]?.pressed || false;
+                currentButtons[btnId] = isPressed;
+
+                // If it was pressed before and is now released
+                if (prevButtons[btnId] && !isPressed) {
+                    triggerKey(key);
+                }
+            }
 
             // Exit (Start + Select/Back)
             if (gp.buttons[BUTTON_MAPPING.START]?.pressed && gp.buttons[BUTTON_MAPPING.BACK]?.pressed) {
                 Quit();
             }
+
+            // Update stored states
+            prevButtonsRef.current = currentButtons;
         }
 
         requestRef.current = requestAnimationFrame(scanGamepads);
