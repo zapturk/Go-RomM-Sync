@@ -67,17 +67,20 @@ export function useGamepad() {
             if (gp.axes[0] > STICK_THRESHOLD) triggerKey('ArrowRight');
 
             // Actions - Trigger on Button Up
-            const buttonsToTrack = [BUTTON_MAPPING.A, BUTTON_MAPPING.B, BUTTON_MAPPING.X];
+            const ACTION_BUTTONS = {
+                [BUTTON_MAPPING.A]: 'Enter',
+                [BUTTON_MAPPING.B]: 'Escape',
+                [BUTTON_MAPPING.X]: 'r',
+            };
 
-            for (const btnId of buttonsToTrack) {
+            for (const [btnIdStr, key] of Object.entries(ACTION_BUTTONS)) {
+                const btnId = parseInt(btnIdStr);
                 const isPressed = gp.buttons[btnId]?.pressed || false;
                 currentButtons[btnId] = isPressed;
 
                 // If it was pressed before and is now released
                 if (prevButtons[btnId] && !isPressed) {
-                    if (btnId === BUTTON_MAPPING.A) triggerKey('Enter');
-                    if (btnId === BUTTON_MAPPING.B) triggerKey('Escape');
-                    if (btnId === BUTTON_MAPPING.X) triggerKey('r');
+                    triggerKey(key);
                 }
             }
 
