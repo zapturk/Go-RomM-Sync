@@ -142,6 +142,10 @@ export function Login() {
   return window['go']['main']['App']['Login']();
 }
 
+export function Logout() {
+  return window['go']['main']['App']['Logout']();
+}
+
 export function OpenDirectoryDialog(arg1) {
   return window['go']['main']['App']['OpenDirectoryDialog'](arg1);
 }

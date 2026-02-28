@@ -73,6 +73,8 @@ export function LogInfof(arg1:string,arg2:Array<any>):Promise<void>;
 
 export function Login():Promise<string>;
 
+export function Logout():Promise<void>;
+
 export function OpenDirectoryDialog(arg1:string):Promise<string>;
 
 export function OpenFileDialog(arg1:string,arg2:Array<string>):Promise<string>;
