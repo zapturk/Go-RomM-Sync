@@ -185,10 +185,6 @@ func TestGetMimeType(t *testing.T) {
 	}
 }
 
-// Note: TestGetCover and TestGetPlatformCover would ideally mock the client's DownloadCover method.
-// Since romm.Client's methods are not on an interface here, it's harder to mock without changing the design or using a test server.
-// However, we can test the local file stat/read logic if we setup a dummy file.
-
 func TestGetCover_Cached(t *testing.T) {
 	homeDir, _ := os.UserHomeDir()
 	cacheDir := filepath.Join(homeDir, ".go-romm-sync", "cache", "covers")
@@ -204,13 +200,14 @@ func TestGetCover_Cached(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if data == "" {
-		t.Errorf("Expected base64 data, got empty string")
+	if !strings.HasPrefix(data, "data:image/jpeg;base64,") {
+		t.Errorf("Expected JPEG data URI, got %s", data)
 	}
 }
 
 func TestGetCover_Download(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/jpeg")
 		w.Write([]byte("downloaded image data"))
 	}))
 	defer server.Close()
@@ -218,9 +215,7 @@ func TestGetCover_Download(t *testing.T) {
 	cfg := &MockConfigProvider{Host: server.URL}
 	s := New(cfg)
 	s.client.Token = "test-token"
-	// No need to manually set client.BaseURL as New(cfg) does it.
 
-	// Ensure cache is clean for this ID
 	homeDir, _ := os.UserHomeDir()
 	cachePath := filepath.Join(homeDir, ".go-romm-sync", "cache", "covers", "1234.jpg")
 	os.Remove(cachePath)
@@ -230,8 +225,33 @@ func TestGetCover_Download(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetCover failed: %v", err)
 	}
-	if data == "" {
-		t.Errorf("Expected base64 data")
+	if !strings.HasPrefix(data, "data:image/jpeg;base64,") {
+		t.Errorf("Expected JPEG data URI, got %s", data)
+	}
+}
+
+func TestGetCover_PNG(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		w.Write([]byte("png data"))
+	}))
+	defer server.Close()
+
+	cfg := &MockConfigProvider{Host: server.URL}
+	s := New(cfg)
+	s.client.Token = "test-token"
+
+	homeDir, _ := os.UserHomeDir()
+	cachePath := filepath.Join(homeDir, ".go-romm-sync", "cache", "covers", "5678.png")
+	os.Remove(cachePath)
+	defer os.Remove(cachePath)
+
+	data, err := s.GetCover(5678, server.URL+"/image.png")
+	if err != nil {
+		t.Fatalf("GetCover failed: %v", err)
+	}
+	if !strings.HasPrefix(data, "data:image/png;base64,") {
+		t.Errorf("Expected PNG data URI, got %s", data)
 	}
 }
 
@@ -249,7 +269,6 @@ func TestGetPlatformCover_Download(t *testing.T) {
 	s := New(cfg)
 	s.client.Token = "test-token"
 
-	// Ensure cache is clean
 	homeDir, _ := os.UserHomeDir()
 	cachePath := filepath.Join(homeDir, ".go-romm-sync", "cache", "platforms", "1.svg")
 	os.Remove(cachePath)

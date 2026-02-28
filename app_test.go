@@ -313,3 +313,31 @@ func TestAppExhaustiveWrappers(t *testing.T) {
 	app.WindowSetAlwaysOnTop(true)
 	app.Greet("test")
 }
+
+func TestClearImageCache(t *testing.T) {
+	homeDir, _ := os.UserHomeDir()
+	coversDir := filepath.Join(homeDir, ".go-romm-sync", "cache", "covers")
+	platformsDir := filepath.Join(homeDir, ".go-romm-sync", "cache", "platforms")
+
+	// Ensure directories exist and have dummy files
+	os.MkdirAll(coversDir, 0o755)
+	os.MkdirAll(platformsDir, 0o755)
+	os.WriteFile(filepath.Join(coversDir, "test.jpg"), []byte("data"), 0o644)
+	os.WriteFile(filepath.Join(platformsDir, "test.svg"), []byte("data"), 0o644)
+
+	app := &App{}
+	err := app.ClearImageCache()
+	if err != nil {
+		t.Fatalf("ClearImageCache failed: %v", err)
+	}
+
+	// Verify files are gone but directories exist
+	files, _ := os.ReadDir(coversDir)
+	if len(files) != 0 {
+		t.Errorf("Expected covers directory to be empty, found %d files", len(files))
+	}
+	files, _ = os.ReadDir(platformsDir)
+	if len(files) != 0 {
+		t.Errorf("Expected platforms directory to be empty, found %d files", len(files))
+	}
+}

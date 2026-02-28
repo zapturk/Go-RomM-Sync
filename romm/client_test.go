@@ -83,24 +83,47 @@ func TestGetLibrary(t *testing.T) {
 }
 
 func TestDownloadCover(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer test-token" {
-			t.Errorf("Expected Authorization header")
+	t.Run("internal URL - sends auth", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "Bearer test-token" {
+				t.Errorf("Expected Authorization header")
+			}
+			w.Write([]byte("internal image"))
+		}))
+		defer server.Close()
+
+		client := NewClient(server.URL)
+		client.Token = "test-token"
+
+		data, err := client.DownloadCover("/cover.jpg")
+		if err != nil {
+			t.Fatalf("DownloadCover failed: %v", err)
 		}
-		w.Write([]byte("image data"))
-	}))
-	defer server.Close()
+		if string(data) != "internal image" {
+			t.Errorf("Expected internal image, got %s", string(data))
+		}
+	})
 
-	client := NewClient(server.URL)
-	client.Token = "test-token"
+	t.Run("external URL - no auth", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "" {
+				t.Errorf("Did NOT expect Authorization header for external URL")
+			}
+			w.Write([]byte("external image"))
+		}))
+		defer server.Close()
 
-	data, err := client.DownloadCover("/cover.jpg")
-	if err != nil {
-		t.Fatalf("DownloadCover failed: %v", err)
-	}
-	if string(data) != "image data" {
-		t.Errorf("Expected image data, got %s", string(data))
-	}
+		client := NewClient("http://romm.internal")
+		client.Token = "test-token"
+
+		data, err := client.DownloadCover(server.URL + "/cover.png")
+		if err != nil {
+			t.Fatalf("DownloadCover failed: %v", err)
+		}
+		if string(data) != "external image" {
+			t.Errorf("Expected external image, got %s", string(data))
+		}
+	})
 }
 
 func TestGetPlatforms(t *testing.T) {
