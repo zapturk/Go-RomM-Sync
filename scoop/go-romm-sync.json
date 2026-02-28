@@ -7,6 +7,7 @@
         "64bit": {
             "url": "https://github.com/zapturk/Go-RomM-Sync/releases/download/v0.2.7/go-romm-sync-windows-amd64.zip",
             "bin": "go-romm-sync.exe",
+            "hash": "sha256:9ea1b25ca5c7403d6abaa5f2b37f299ecd2cfcb54a81a6df585386ef92253939",
             "shortcuts": [
                 [
                     "go-romm-sync.exe",
