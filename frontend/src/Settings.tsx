@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
-import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath } from "../wailsjs/go/main/App";
+import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath, Logout } from "../wailsjs/go/main/App";
 import { types } from "../wailsjs/go/models";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
 
 interface SettingsProps {
     isActive?: boolean;
+    onLogout?: () => void;
 }
 
-function Settings({ isActive = false }: SettingsProps) {
+function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [config, setConfig] = useState<types.AppConfig | null>(null);
     const [status, setStatus] = useState("Configure your application settings");
     const [isSaving, setIsSaving] = useState(false);
@@ -101,6 +102,25 @@ function Settings({ isActive = false }: SettingsProps) {
             });
     };
 
+    const handleLogout = () => {
+        if (isSaving) return;
+        setIsSaving(true);
+        setStatus("Logging out...");
+        Logout()
+            .then(() => {
+                setStatus("Logged out successfully.");
+                setCheevosUser('');
+                setCheevosPass('');
+                if (onLogout) onLogout();
+            })
+            .catch((err: any) => {
+                setStatus("Error during logout: " + err);
+            })
+            .finally(() => {
+                setIsSaving(false);
+            });
+    };
+
     const handleInputKeyDown = (e: React.KeyboardEvent) => {
         if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
             e.stopPropagation();
@@ -129,6 +149,11 @@ function Settings({ isActive = false }: SettingsProps) {
     const { ref: defaultLibRef, focused: defaultLibFocused } = useFocusable({
         focusKey: 'default-lib-button',
         onEnterPress: handleSetDefaultLib
+    });
+
+    const { ref: logoutRef, focused: logoutFocused } = useFocusable({
+        focusKey: 'logout-button',
+        onEnterPress: handleLogout
     });
 
     const { ref: saveRef, focused: saveFocused } = useFocusable({
@@ -241,12 +266,12 @@ function Settings({ isActive = false }: SettingsProps) {
                     </div>
                 </div>
 
-                <div style={{ marginTop: '2rem', width: '100%', maxWidth: '500px', display: 'flex', justifyContent: 'center' }}>
+                <div style={{ marginTop: '2rem', width: '100%', maxWidth: '500px', display: 'flex', gap: '1rem' }}>
                     <button
                         ref={saveRef}
                         className={`btn play-btn ${saveFocused ? 'focused' : ''}`}
                         style={{
-                            width: '100%',
+                            flex: 1,
                             height: '50px',
                             fontSize: '1.1rem',
                             display: 'flex',
@@ -259,6 +284,27 @@ function Settings({ isActive = false }: SettingsProps) {
                         onMouseEnter={() => getMouseActive() && setFocus('save-button')}
                     >
                         {isSaving ? "Saving..." : "Save Settings"}
+                    </button>
+                    <button
+                        ref={logoutRef}
+                        className={`btn ${logoutFocused ? 'focused' : ''}`}
+                        style={{
+                            flex: 1,
+                            height: '50px',
+                            fontSize: '1.1rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            margin: 0,
+                            backgroundColor: logoutFocused ? '#ff4444' : 'rgba(255, 68, 68, 0.2)',
+                            borderColor: '#ff4444',
+                            color: 'white'
+                        }}
+                        onClick={handleLogout}
+                        disabled={isSaving}
+                        onMouseEnter={() => getMouseActive() && !isSaving && setFocus('logout-button')}
+                    >
+                        Logout
                     </button>
                 </div>
             </div>

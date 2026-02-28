@@ -100,7 +100,13 @@ function App() {
             ) : (
                 <>
                     <div className={view === 'settings' ? '' : 'hidden-view'}>
-                        <Settings isActive={view === 'settings'} />
+                        <Settings
+                            isActive={view === 'settings'}
+                            onLogout={() => {
+                                setIsLoggedIn(false);
+                                setView('library'); // Reset view for next login
+                            }}
+                        />
                     </div>
                     <div className={view === 'library' ? '' : 'hidden-view'}>
                         <Library

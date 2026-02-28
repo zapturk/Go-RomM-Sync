@@ -92,6 +92,15 @@ func (a *App) Login() (string, error) {
 	return a.rommSrv.Login()
 }
 
+func (a *App) Logout() error {
+	cfg := a.configManager.GetConfig()
+	cfg.Username = ""
+	cfg.Password = ""
+	cfg.CheevosUsername = ""
+	cfg.CheevosPassword = ""
+	return a.configManager.Save(&cfg)
+}
+
 func (a *App) GetLibrary() ([]types.Game, error) {
 	return a.rommSrv.GetLibrary()
 }

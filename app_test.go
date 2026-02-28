@@ -47,6 +47,32 @@ func TestSaveConfigMerge(t *testing.T) {
 	}
 }
 
+func TestLogout(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "app-logout-test")
+	defer os.RemoveAll(tmpDir)
+
+	configPath := filepath.Join(tmpDir, "config.json")
+	cm := config.NewConfigManager()
+	cm.ConfigPath = configPath
+	cm.Config = &types.AppConfig{
+		Username:        "user",
+		Password:        "pass",
+		CheevosUsername: "cheevos-user",
+		CheevosPassword: "cheevos-pass",
+	}
+
+	app := NewApp(cm)
+
+	if err := app.Logout(); err != nil {
+		t.Fatalf("Logout failed: %v", err)
+	}
+
+	finalCfg := cm.GetConfig()
+	if finalCfg.Username != "" || finalCfg.Password != "" || finalCfg.CheevosUsername != "" || finalCfg.CheevosPassword != "" {
+		t.Errorf("Logout did not clear all credentials: %+v", finalCfg)
+	}
+}
+
 func TestRommSrvLifecycle(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "app-lifecycle-test")
 	defer os.RemoveAll(tmpDir)
@@ -254,6 +280,7 @@ func TestAppExhaustiveWrappers(t *testing.T) {
 	app.DeleteState(1, "core", "file")
 	app.ValidateAssetPath("core", "file")
 	app.PlayRom(1)
+	app.Logout()
 
 	// Provider implementations
 	app.ConfigGetConfig()
