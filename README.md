@@ -98,6 +98,14 @@ brew tap zapturk/homebrew-tap
 brew install --cask go-romm-sync
 ```
 
+### Windows (Scoop)
+
+If you use [Scoop](https://scoop.sh/), you can install Go-RomM-Sync directly from the manifest in this repository:
+
+```powershell
+scoop install https://raw.githubusercontent.com/zapturk/Go-RomM-Sync/main/scoop/go-romm-sync.json
+```
+
 ### Manual Installation
 
 Alternatively, you can download the latest release for your platform from the [Releases page](https://github.com/zapturk/Go-RomM-Sync/releases) and move the executable to your applications/bin directory.
