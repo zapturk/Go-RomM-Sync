@@ -179,7 +179,10 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to create cover request: %w", err)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+c.Token)
+	// Only send authorization if it's an internal RomM request
+	if c.shouldSendToken(targetURL) {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
 
 	resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
 	if err != nil {
@@ -502,4 +505,25 @@ func (c *Client) downloadAsset(filePath, fallbackFilename string) (reader io.Rea
 	}
 
 	return resp.Body, filename, nil
+}
+
+// shouldSendToken determines if the authentication token should be sent to the target URL.
+// It returns true if the target URL is relative or if it matches the BaseURL's scheme and host.
+func (c *Client) shouldSendToken(targetURL string) bool {
+	if !strings.HasPrefix(targetURL, "http") {
+		return true // Relative URL
+	}
+
+	target, err := url.Parse(targetURL)
+	if err != nil {
+		return false
+	}
+
+	base, err := url.Parse(c.BaseURL)
+	if err != nil {
+		return false
+	}
+
+	// Compare scheme and host (which includes port)
+	return target.Scheme == base.Scheme && target.Host == base.Host
 }

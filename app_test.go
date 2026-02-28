@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"go-romm-sync/config"
+	"go-romm-sync/constants"
 	"go-romm-sync/types"
 	"os"
 	"path/filepath"
@@ -312,4 +313,39 @@ func TestAppExhaustiveWrappers(t *testing.T) {
 	app.WindowUnminimise()
 	app.WindowSetAlwaysOnTop(true)
 	app.Greet("test")
+}
+
+func TestClearImageCache(t *testing.T) {
+	homeDir, _ := os.UserHomeDir()
+	coversDir := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.CoversDir)
+	platformsDir := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.PlatformsDir)
+
+	// Ensure directories exist and have dummy files
+	os.MkdirAll(coversDir, 0o755)
+	os.MkdirAll(platformsDir, 0o755)
+	os.WriteFile(filepath.Join(coversDir, "test.jpg"), []byte("data"), 0o644)
+	os.WriteFile(filepath.Join(platformsDir, "test.svg"), []byte("data"), 0o644)
+
+	app := &App{}
+	err := app.ClearImageCache()
+	if err != nil {
+		t.Fatalf("ClearImageCache failed: %v", err)
+	}
+
+	// Verify files are gone but directories exist
+	files, err := os.ReadDir(coversDir)
+	if err != nil {
+		t.Fatalf("Failed to read covers dir: %v", err)
+	}
+	if len(files) != 0 {
+		t.Errorf("Expected covers directory to be empty, found %d files", len(files))
+	}
+
+	files, err = os.ReadDir(platformsDir)
+	if err != nil {
+		t.Fatalf("Failed to read platforms dir: %v", err)
+	}
+	if len(files) != 0 {
+		t.Errorf("Expected platforms directory to be empty, found %d files", len(files))
+	}
 }

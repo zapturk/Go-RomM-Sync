@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath, Logout } from "../wailsjs/go/main/App";
+import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath, Logout, ClearImageCache } from "../wailsjs/go/main/App";
 import { types } from "../wailsjs/go/models";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
@@ -119,6 +119,22 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             });
     };
 
+    const handleClearCache = () => {
+        if (isSaving) return;
+        setIsSaving(true);
+        setStatus("Clearing image cache...");
+        ClearImageCache()
+            .then(() => {
+                setStatus("Image cache cleared successfully!");
+            })
+            .catch((err: any) => {
+                setStatus("Error clearing cache: " + err);
+            })
+            .finally(() => {
+                setIsSaving(false);
+            });
+    };
+
     const handleInputKeyDown = (e: React.KeyboardEvent) => {
         if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
             e.stopPropagation();
@@ -147,6 +163,11 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const { ref: defaultLibRef, focused: defaultLibFocused } = useFocusable({
         focusKey: 'default-lib-button',
         onEnterPress: handleSetDefaultLib
+    });
+
+    const { ref: clearCacheRef, focused: clearCacheFocused } = useFocusable({
+        focusKey: 'clear-cache-button',
+        onEnterPress: handleClearCache
     });
 
     const { ref: logoutRef, focused: logoutFocused } = useFocusable({
@@ -229,6 +250,26 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                                 onMouseEnter={() => getMouseActive() && !isSaving && setFocus('default-lib-button')}
                             >
                                 Set Default
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Maintenance Section */}
+                <div className="section" style={{ width: '100%', maxWidth: '500px' }}>
+                    <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', marginBottom: '1.5rem', color: 'rgba(255,255,255,0.9)' }}>Maintenance</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'rgba(255,255,255,0.7)' }}>Local Image Cache</span>
+                            <button
+                                ref={clearCacheRef}
+                                className={`btn ${clearCacheFocused ? 'focused' : ''} ${isSaving ? 'disabled' : ''}`}
+                                style={{ margin: 0, minWidth: '160px' }}
+                                onClick={handleClearCache}
+                                disabled={isSaving}
+                                onMouseEnter={() => getMouseActive() && !isSaving && setFocus('clear-cache-button')}
+                            >
+                                Clear Image Cache
                             </button>
                         </div>
                     </div>

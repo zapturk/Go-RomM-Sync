@@ -3,6 +3,8 @@
 import {types} from '../models';
 import {io} from '../models';
 
+export function ClearImageCache():Promise<void>;
+
 export function ConfigGetConfig():Promise<types.AppConfig>;
 
 export function ConfigSave(arg1:types.AppConfig):Promise<void>;
