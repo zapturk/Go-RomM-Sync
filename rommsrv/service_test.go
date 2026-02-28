@@ -283,3 +283,89 @@ func TestGetPlatformCover_Download(t *testing.T) {
 		t.Errorf("Expected SVG data URI, got %s", data)
 	}
 }
+
+func TestToDataURI(t *testing.T) {
+	data := []byte("hello")
+	expectedMime := "image/png"
+	// base64.StdEncoding.EncodeToString([]byte("hello")) is "aGVsbG8="
+	expectedPrefix := "data:" + expectedMime + ";base64,"
+
+	actual := toDataURI(data, ".png")
+	if !strings.HasPrefix(actual, expectedPrefix) {
+		t.Errorf("toDataURI failed, expected prefix %s, got %s", expectedPrefix, actual)
+	}
+	if !strings.Contains(actual, "aGVsbG8=") {
+		t.Errorf("toDataURI failed, expected encoded data aGVsbG8=, got %s", actual)
+	}
+}
+
+func TestTryGetPlatformCoverFromCache(t *testing.T) {
+	homeDir, _ := os.UserHomeDir()
+	cacheDir := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, "test_platforms")
+	os.MkdirAll(cacheDir, 0o755)
+	defer os.RemoveAll(cacheDir)
+
+	platformID := uint(777)
+	exts := []string{".png", ".svg"}
+
+	// 1. Test miss
+	s := &Service{}
+	data, ext := s.tryGetPlatformCoverFromCache(cacheDir, platformID, exts)
+	if data != nil || ext != "" {
+		t.Errorf("Expected nil data and empty ext for cache miss, got %v and %s", data, ext)
+	}
+
+	// 2. Test hit (png)
+	pngPath := filepath.Join(cacheDir, "777.png")
+	os.WriteFile(pngPath, []byte("png-data"), 0o644)
+	data, ext = s.tryGetPlatformCoverFromCache(cacheDir, platformID, exts)
+	if string(data) != "png-data" || ext != ".png" {
+		t.Errorf("Expected png-data and .png, got %s and %s", string(data), ext)
+	}
+
+	// 3. Test priority (svg before png if listed first)
+	svgPath := filepath.Join(cacheDir, "777.svg")
+	os.WriteFile(svgPath, []byte("svg-data"), 0o644)
+	data, ext = s.tryGetPlatformCoverFromCache(cacheDir, platformID, []string{".svg", ".png"})
+	if string(data) != "svg-data" || ext != ".svg" {
+		t.Errorf("Expected svg-data and .svg, got %s and %s", string(data), ext)
+	}
+}
+
+func TestTryDownloadPlatformCover(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "snes.png") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("snes-png"))
+		} else if strings.HasSuffix(r.URL.Path, "snes_alt.svg") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("snes-alt-svg"))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := &MockConfigProvider{Host: server.URL}
+	s := New(cfg)
+	s.client.Token = "test-token"
+	exts := []string{".png", ".svg"}
+
+	// 1. Primary slug hit
+	data, ext := s.tryDownloadPlatformCover("snes", exts)
+	if string(data) != "snes-png" || ext != ".png" {
+		t.Errorf("Expected snes-png and .png, got '%s' and '%s'", string(data), ext)
+	}
+
+	// 2. Alt slug hit
+	data, ext = s.tryDownloadPlatformCover("snes-alt", exts)
+	if string(data) != "snes-alt-svg" || ext != ".svg" {
+		t.Errorf("Expected snes-alt-svg and .svg, got '%s' and '%s'", string(data), ext)
+	}
+
+	// 3. Miss
+	data, ext = s.tryDownloadPlatformCover("nonexistent", exts)
+	if data != nil || ext != "" {
+		t.Errorf("Expected nil data and empty ext for download miss, got %v and %s", data, ext)
+	}
+}

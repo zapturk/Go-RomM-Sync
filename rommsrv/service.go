@@ -133,48 +133,12 @@ func (s *Service) GetPlatformCover(platformID uint, slug string) (string, error)
 
 	extensions := []string{".svg", ".ico", ".png", ".jpg"}
 
-	var data []byte
-	var foundExt string
-
 	// 1. Try Cache
-	for _, ext := range extensions {
-		filename := fmt.Sprintf("%d%s", platformID, ext)
-		cachePath := filepath.Join(cacheDir, filename)
-		if _, err := os.Stat(cachePath); err == nil {
-			d, err := os.ReadFile(cachePath)
-			if err == nil {
-				data = d
-				foundExt = ext
-				break
-			}
-		}
-	}
+	data, foundExt := s.tryGetPlatformCoverFromCache(cacheDir, platformID, extensions)
 
 	// 2. Try Download if not in cache
 	if data == nil {
-		for _, ext := range extensions {
-			url := fmt.Sprintf("/assets/platforms/%s%s", slug, ext)
-			d, err := s.client.DownloadCover(url)
-			if err == nil {
-				data = d
-				foundExt = ext
-				break
-			}
-		}
-
-		if data == nil && strings.Contains(slug, "-") {
-			altSlug := strings.ReplaceAll(slug, "-", "_")
-			for _, ext := range extensions {
-				url := fmt.Sprintf("/assets/platforms/%s%s", altSlug, ext)
-				d, err := s.client.DownloadCover(url)
-				if err == nil {
-					data = d
-					foundExt = ext
-					break
-				}
-			}
-		}
-
+		data, foundExt = s.tryDownloadPlatformCover(slug, extensions)
 		if data == nil {
 			return "", fmt.Errorf("failed to download cover")
 		}
@@ -188,6 +152,39 @@ func (s *Service) GetPlatformCover(platformID uint, slug string) (string, error)
 	}
 
 	return toDataURI(data, foundExt), nil
+}
+
+func (s *Service) tryGetPlatformCoverFromCache(cacheDir string, platformID uint, extensions []string) ([]byte, string) {
+	for _, ext := range extensions {
+		filename := fmt.Sprintf("%d%s", platformID, ext)
+		cachePath := filepath.Join(cacheDir, filename)
+		if _, err := os.Stat(cachePath); err == nil {
+			if d, err := os.ReadFile(cachePath); err == nil {
+				return d, ext
+			}
+		}
+	}
+	return nil, ""
+}
+
+func (s *Service) tryDownloadPlatformCover(slug string, extensions []string) ([]byte, string) {
+	for _, ext := range extensions {
+		url := fmt.Sprintf("/assets/platforms/%s%s", slug, ext)
+		if d, err := s.client.DownloadCover(url); err == nil {
+			return d, ext
+		}
+	}
+
+	if strings.Contains(slug, "-") {
+		altSlug := strings.ReplaceAll(slug, "-", "_")
+		for _, ext := range extensions {
+			url := fmt.Sprintf("/assets/platforms/%s%s", altSlug, ext)
+			if d, err := s.client.DownloadCover(url); err == nil {
+				return d, ext
+			}
+		}
+	}
+	return nil, ""
 }
 
 func getMimeType(ext string) string {
