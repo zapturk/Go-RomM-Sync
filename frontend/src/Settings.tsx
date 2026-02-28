@@ -115,8 +115,6 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             })
             .catch((err: any) => {
                 setStatus("Error during logout: " + err);
-            })
-            .finally(() => {
                 setIsSaving(false);
             });
     };

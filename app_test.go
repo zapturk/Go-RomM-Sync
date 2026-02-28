@@ -87,13 +87,20 @@ func TestRommSrvLifecycle(t *testing.T) {
 	app := NewApp(cm)
 	initialSrv := app.rommSrv
 
-	// 1. Save with same host
+	// 1. Save with same host but DIFFERENT username (SHOULD be recreated for security)
 	app.SaveConfig(&types.AppConfig{Username: "user1"})
+	if app.rommSrv == initialSrv {
+		t.Error("RomM service SHOULD have been recreated when credentials changed for security")
+	}
+	initialSrv = app.rommSrv
+
+	// 2. Save with NOTHING changed (should NOT be recreated)
+	app.SaveConfig(&types.AppConfig{}) // empty update means nothing changes
 	if app.rommSrv != initialSrv {
-		t.Error("RomM service should NOT have been recreated when host remained the same")
+		t.Error("RomM service should NOT have been recreated when nothing changed")
 	}
 
-	// 2. Save with different host
+	// 3. Save with different host
 	app.SaveConfig(&types.AppConfig{RommHost: "http://host2.com"})
 	if app.rommSrv == initialSrv {
 		t.Error("RomM service SHOULD have been recreated when host changed")

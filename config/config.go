@@ -91,6 +91,27 @@ func (cm *ConfigManager) Save(newConfig *types.AppConfig) error {
 	return os.WriteFile(cm.ConfigPath, data, 0o644)
 }
 
+// Update performs an atomic read-modify-write operation on the config (Thread-Safe)
+func (cm *ConfigManager) Update(fn func(*types.AppConfig)) error {
+	cm.Mu.Lock()
+	defer cm.Mu.Unlock()
+
+	fn(cm.Config)
+
+	// Ensure directory exists
+	dir := filepath.Dir(cm.ConfigPath)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	data, err := json.MarshalIndent(cm.Config, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(cm.ConfigPath, data, 0o644)
+}
+
 // GetDefaultLibraryPath returns the cross-platform default library path
 func GetDefaultLibraryPath() (string, error) {
 	home, err := os.UserHomeDir()

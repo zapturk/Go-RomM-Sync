@@ -61,18 +61,51 @@ func (a *App) GetConfig() types.AppConfig {
 }
 
 func (a *App) SaveConfig(cfg *types.AppConfig) string {
-	res, hostChanged := a.configSrv.SaveConfig(cfg)
+	// Use atomic update to prevent race conditions
+	var hostOrCredsChanged bool
+	err := a.configManager.Update(func(current *types.AppConfig) {
+		oldHost := current.RommHost
+		oldUser := current.Username
+		oldPass := current.Password
+
+		updateIfNotEmpty(&current.RommHost, cfg.RommHost)
+		updateIfNotEmpty(&current.Username, cfg.Username)
+		updateIfNotEmpty(&current.Password, cfg.Password)
+		updateIfNotEmpty(&current.LibraryPath, cfg.LibraryPath)
+		updateIfNotEmpty(&current.RetroArchPath, cfg.RetroArchPath)
+		updateIfNotEmpty(&current.RetroArchExecutable, cfg.RetroArchExecutable)
+		updateIfNotEmpty(&current.CheevosUsername, cfg.CheevosUsername)
+		updateIfNotEmpty(&current.CheevosPassword, cfg.CheevosPassword)
+
+		if current.RommHost != oldHost || current.Username != oldUser || current.Password != oldPass {
+			hostOrCredsChanged = true
+		}
+	})
+
+	if err != nil {
+		return fmt.Sprintf("Error saving config: %v", err)
+	}
+
+	// Re-initialize RomM service if host or credentials changed
+	if hostOrCredsChanged {
+		a.rommSrv = rommsrv.New(a)
+	}
 
 	// Clear RetroArch cheevos token on save to ensure fresh login on credentials change
 	fullCfg := a.configManager.GetConfig()
-	if err := retroarch.ClearCheevosToken(fullCfg.RetroArchPath); err != nil {
-		a.LogErrorf("Failed to clear RetroArch cheevos token: %v", err)
+	if fullCfg.RetroArchPath != "" {
+		if err := retroarch.ClearCheevosToken(fullCfg.RetroArchPath); err != nil {
+			a.LogErrorf("Failed to clear RetroArch cheevos token: %v", err)
+		}
 	}
 
-	if hostChanged {
-		a.rommSrv = rommsrv.New(a)
+	return "Configuration saved successfully!"
+}
+
+func updateIfNotEmpty(target *string, value string) {
+	if value != "" {
+		*target = value
 	}
-	return res
 }
 
 func (a *App) SelectRetroArchExecutable() (string, error) {
@@ -93,12 +126,28 @@ func (a *App) Login() (string, error) {
 }
 
 func (a *App) Logout() error {
-	cfg := a.configManager.GetConfig()
-	cfg.Username = ""
-	cfg.Password = ""
-	cfg.CheevosUsername = ""
-	cfg.CheevosPassword = ""
-	return a.configManager.Save(&cfg)
+	// 1. Atomic update to clear credentials
+	if err := a.configManager.Update(func(cfg *types.AppConfig) {
+		cfg.Username = ""
+		cfg.Password = ""
+		cfg.CheevosUsername = ""
+		cfg.CheevosPassword = ""
+	}); err != nil {
+		return err
+	}
+
+	// 2. Clear RetroArch cheevos token
+	fullCfg := a.configManager.GetConfig()
+	if fullCfg.RetroArchPath != "" {
+		if err := retroarch.ClearCheevosToken(fullCfg.RetroArchPath); err != nil {
+			a.LogErrorf("Failed to clear RetroArch cheevos token: %v", err)
+		}
+	}
+
+	// 3. Reset RomM service to clear in-memory session/token
+	a.rommSrv = rommsrv.New(a)
+
+	return nil
 }
 
 func (a *App) GetLibrary() ([]types.Game, error) {
