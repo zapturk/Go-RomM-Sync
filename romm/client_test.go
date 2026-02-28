@@ -117,11 +117,18 @@ func TestDownloadCover(t *testing.T) {
 		client.Token = "test-token"
 
 		data, err := client.DownloadCover(server.URL + "/cover.png")
-		if err != nil {
-			t.Fatalf("DownloadCover failed: %v", err)
+		if err != nil || string(data) != "external image" {
+			t.Errorf("External fetch failed: %v", err)
 		}
-		if string(data) != "external image" {
-			t.Errorf("Expected external image, got %s", string(data))
+	})
+
+	t.Run("malicious subdomain - no auth", func(t *testing.T) {
+		client := NewClient("http://romm.example.com")
+		client.Token = "test-token"
+
+		maliciousURL := "http://romm.example.com.attacker.com/exploit.jpg"
+		if client.shouldSendToken(maliciousURL) {
+			t.Errorf("shouldSendToken should be false for malicious subdomain")
 		}
 	})
 }

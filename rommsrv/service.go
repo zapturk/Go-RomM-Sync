@@ -3,6 +3,7 @@ package rommsrv
 import (
 	"encoding/base64"
 	"fmt"
+	"go-romm-sync/constants"
 	"go-romm-sync/romm"
 	"go-romm-sync/types"
 	"os"
@@ -83,7 +84,7 @@ func (s *Service) GetCover(romID uint, coverURL string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get user home dir: %w", err)
 	}
-	cacheDir := filepath.Join(homeDir, ".go-romm-sync", "cache", "covers")
+	cacheDir := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.CoversDir)
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return "", fmt.Errorf("failed to create cache dir: %w", err)
 	}
@@ -95,26 +96,24 @@ func (s *Service) GetCover(romID uint, coverURL string) (string, error) {
 	filename := fmt.Sprintf("%d%s", romID, ext)
 	cachePath := filepath.Join(cacheDir, filename)
 
+	var data []byte
 	if _, err := os.Stat(cachePath); err == nil {
-		data, err := os.ReadFile(cachePath)
+		data, err = os.ReadFile(cachePath)
 		if err != nil {
 			return "", fmt.Errorf("failed to read cached cover: %w", err)
 		}
-		mimeType := getMimeType(ext)
-		return fmt.Sprintf("data:%s;base64,%s", mimeType, base64.StdEncoding.EncodeToString(data)), nil
+	} else {
+		data, err = s.client.DownloadCover(coverURL)
+		if err != nil {
+			return "", fmt.Errorf("failed to download cover: %w", err)
+		}
+
+		if err := os.WriteFile(cachePath, data, 0o644); err != nil {
+			fmt.Printf("Warning: failed to write to cache: %v\n", err)
+		}
 	}
 
-	data, err := s.client.DownloadCover(coverURL)
-	if err != nil {
-		return "", fmt.Errorf("failed to download cover: %w", err)
-	}
-
-	if err := os.WriteFile(cachePath, data, 0o644); err != nil {
-		fmt.Printf("Warning: failed to write to cache: %v\n", err)
-	}
-
-	mimeType := getMimeType(ext)
-	return fmt.Sprintf("data:%s;base64,%s", mimeType, base64.StdEncoding.EncodeToString(data)), nil
+	return toDataURI(data, ext), nil
 }
 
 // GetPlatformCover returns the data URI for the platform cover, using a local cache.
@@ -127,44 +126,22 @@ func (s *Service) GetPlatformCover(platformID uint, slug string) (string, error)
 	if err != nil {
 		return "", fmt.Errorf("failed to get user home dir: %w", err)
 	}
-	cacheDir := filepath.Join(homeDir, ".go-romm-sync", "cache", "platforms")
+	cacheDir := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.PlatformsDir)
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return "", fmt.Errorf("failed to create cache dir: %w", err)
 	}
 
 	extensions := []string{".svg", ".ico", ".png", ".jpg"}
 
+	var data []byte
+	var foundExt string
+
+	// 1. Try Cache
 	for _, ext := range extensions {
 		filename := fmt.Sprintf("%d%s", platformID, ext)
 		cachePath := filepath.Join(cacheDir, filename)
 		if _, err := os.Stat(cachePath); err == nil {
-			data, err := os.ReadFile(cachePath)
-			if err != nil {
-				continue
-			}
-			mimeType := getMimeType(ext)
-			return fmt.Sprintf("data:%s;base64,%s", mimeType, base64.StdEncoding.EncodeToString(data)), nil
-		}
-	}
-
-	var data []byte
-	var foundExt string
-
-	for _, ext := range extensions {
-		url := fmt.Sprintf("/assets/platforms/%s%s", slug, ext)
-		d, err := s.client.DownloadCover(url)
-		if err == nil {
-			data = d
-			foundExt = ext
-			break
-		}
-	}
-
-	if data == nil && strings.Contains(slug, "-") {
-		altSlug := strings.ReplaceAll(slug, "-", "_")
-		for _, ext := range extensions {
-			url := fmt.Sprintf("/assets/platforms/%s%s", altSlug, ext)
-			d, err := s.client.DownloadCover(url)
+			d, err := os.ReadFile(cachePath)
 			if err == nil {
 				data = d
 				foundExt = ext
@@ -173,18 +150,44 @@ func (s *Service) GetPlatformCover(platformID uint, slug string) (string, error)
 		}
 	}
 
+	// 2. Try Download if not in cache
 	if data == nil {
-		return "", fmt.Errorf("failed to download cover")
+		for _, ext := range extensions {
+			url := fmt.Sprintf("/assets/platforms/%s%s", slug, ext)
+			d, err := s.client.DownloadCover(url)
+			if err == nil {
+				data = d
+				foundExt = ext
+				break
+			}
+		}
+
+		if data == nil && strings.Contains(slug, "-") {
+			altSlug := strings.ReplaceAll(slug, "-", "_")
+			for _, ext := range extensions {
+				url := fmt.Sprintf("/assets/platforms/%s%s", altSlug, ext)
+				d, err := s.client.DownloadCover(url)
+				if err == nil {
+					data = d
+					foundExt = ext
+					break
+				}
+			}
+		}
+
+		if data == nil {
+			return "", fmt.Errorf("failed to download cover")
+		}
+
+		// Save to cache
+		filename := fmt.Sprintf("%d%s", platformID, foundExt)
+		cachePath := filepath.Join(cacheDir, filename)
+		if err := os.WriteFile(cachePath, data, 0o644); err != nil {
+			fmt.Printf("Warning: failed to write to cache: %v\n", err)
+		}
 	}
 
-	filename := fmt.Sprintf("%d%s", platformID, foundExt)
-	cachePath := filepath.Join(cacheDir, filename)
-	if err := os.WriteFile(cachePath, data, 0o644); err != nil {
-		fmt.Printf("Warning: failed to write to cache: %v\n", err)
-	}
-
-	mimeType := getMimeType(foundExt)
-	return fmt.Sprintf("data:%s;base64,%s", mimeType, base64.StdEncoding.EncodeToString(data)), nil
+	return toDataURI(data, foundExt), nil
 }
 
 func getMimeType(ext string) string {
@@ -200,6 +203,11 @@ func getMimeType(ext string) string {
 	default:
 		return "application/octet-stream"
 	}
+}
+
+func toDataURI(data []byte, ext string) string {
+	mimeType := getMimeType(ext)
+	return fmt.Sprintf("data:%s;base64,%s", mimeType, base64.StdEncoding.EncodeToString(data))
 }
 
 // GetServerSaves gets a list of server saves from RomM.

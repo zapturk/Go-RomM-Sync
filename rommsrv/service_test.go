@@ -1,6 +1,7 @@
 package rommsrv
 
 import (
+	"go-romm-sync/constants"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -187,7 +188,7 @@ func TestGetMimeType(t *testing.T) {
 
 func TestGetCover_Cached(t *testing.T) {
 	homeDir, _ := os.UserHomeDir()
-	cacheDir := filepath.Join(homeDir, ".go-romm-sync", "cache", "covers")
+	cacheDir := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.CoversDir)
 	os.MkdirAll(cacheDir, 0o755)
 
 	romID := uint(9999)
@@ -214,10 +215,10 @@ func TestGetCover_Download(t *testing.T) {
 
 	cfg := &MockConfigProvider{Host: server.URL}
 	s := New(cfg)
-	s.client.Token = "test-token"
+	s.client.Token = "test-token" // Ensure cache is clean for this ID
 
 	homeDir, _ := os.UserHomeDir()
-	cachePath := filepath.Join(homeDir, ".go-romm-sync", "cache", "covers", "1234.jpg")
+	cachePath := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.CoversDir, "1234.jpg")
 	os.Remove(cachePath)
 	defer os.Remove(cachePath)
 
@@ -267,10 +268,10 @@ func TestGetPlatformCover_Download(t *testing.T) {
 
 	cfg := &MockConfigProvider{Host: server.URL}
 	s := New(cfg)
-	s.client.Token = "test-token"
+	s.client.Token = "test-token" // Ensure cache is clean
 
 	homeDir, _ := os.UserHomeDir()
-	cachePath := filepath.Join(homeDir, ".go-romm-sync", "cache", "platforms", "1.svg")
+	cachePath := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.PlatformsDir, "1.svg")
 	os.Remove(cachePath)
 	defer os.Remove(cachePath)
 

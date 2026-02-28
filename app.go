@@ -157,8 +157,8 @@ func (a *App) ClearImageCache() error {
 	}
 
 	cacheDirs := []string{
-		filepath.Join(homeDir, ".go-romm-sync", "cache", "covers"),
-		filepath.Join(homeDir, ".go-romm-sync", "cache", "platforms"),
+		filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.CoversDir),
+		filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.PlatformsDir),
 	}
 
 	for _, dir := range cacheDirs {

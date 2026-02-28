@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"go-romm-sync/config"
+	"go-romm-sync/constants"
 	"go-romm-sync/types"
 	"os"
 	"path/filepath"
@@ -316,8 +317,8 @@ func TestAppExhaustiveWrappers(t *testing.T) {
 
 func TestClearImageCache(t *testing.T) {
 	homeDir, _ := os.UserHomeDir()
-	coversDir := filepath.Join(homeDir, ".go-romm-sync", "cache", "covers")
-	platformsDir := filepath.Join(homeDir, ".go-romm-sync", "cache", "platforms")
+	coversDir := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.CoversDir)
+	platformsDir := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.PlatformsDir)
 
 	// Ensure directories exist and have dummy files
 	os.MkdirAll(coversDir, 0o755)
@@ -332,11 +333,18 @@ func TestClearImageCache(t *testing.T) {
 	}
 
 	// Verify files are gone but directories exist
-	files, _ := os.ReadDir(coversDir)
+	files, err := os.ReadDir(coversDir)
+	if err != nil {
+		t.Fatalf("Failed to read covers dir: %v", err)
+	}
 	if len(files) != 0 {
 		t.Errorf("Expected covers directory to be empty, found %d files", len(files))
 	}
-	files, _ = os.ReadDir(platformsDir)
+
+	files, err = os.ReadDir(platformsDir)
+	if err != nil {
+		t.Fatalf("Failed to read platforms dir: %v", err)
+	}
 	if len(files) != 0 {
 		t.Errorf("Expected platforms directory to be empty, found %d files", len(files))
 	}

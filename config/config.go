@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"go-romm-sync/constants"
 	"go-romm-sync/types"
 	"os"
 	"path/filepath"
@@ -31,7 +32,7 @@ func NewConfigManager() *ConfigManager {
 			Config:     &types.AppConfig{},
 		}
 	}
-	configPath := filepath.Join(home, ".go-romm-sync", "config", "config.json")
+	configPath := filepath.Join(home, constants.AppDir, constants.ConfigDir, "config.json")
 
 	return &ConfigManager{
 		ConfigPath: configPath,

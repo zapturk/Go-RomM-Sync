@@ -27,6 +27,15 @@ const (
 	DirStates = "states"
 )
 
+// Path Components
+const (
+	AppDir       = ".go-romm-sync"
+	CacheDir     = "cache"
+	ConfigDir    = "config"
+	CoversDir    = "covers"
+	PlatformsDir = "platforms"
+)
+
 // Known Cores
 const (
 	CoreRetro8 = "retro8_libretro"
