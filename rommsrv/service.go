@@ -154,7 +154,7 @@ func (s *Service) GetPlatformCover(platformID uint, slug string) (string, error)
 	return toDataURI(data, foundExt), nil
 }
 
-func (s *Service) tryGetPlatformCoverFromCache(cacheDir string, platformID uint, extensions []string) ([]byte, string) {
+func (s *Service) tryGetPlatformCoverFromCache(cacheDir string, platformID uint, extensions []string) (data []byte, ext string) {
 	for _, ext := range extensions {
 		filename := fmt.Sprintf("%d%s", platformID, ext)
 		cachePath := filepath.Join(cacheDir, filename)
@@ -167,7 +167,7 @@ func (s *Service) tryGetPlatformCoverFromCache(cacheDir string, platformID uint,
 	return nil, ""
 }
 
-func (s *Service) tryDownloadPlatformCover(slug string, extensions []string) ([]byte, string) {
+func (s *Service) tryDownloadPlatformCover(slug string, extensions []string) (data []byte, ext string) {
 	for _, ext := range extensions {
 		url := fmt.Sprintf("/assets/platforms/%s%s", slug, ext)
 		if d, err := s.client.DownloadCover(url); err == nil {
