@@ -19,9 +19,9 @@ export function GameCover({ game, className }: GameCoverProps) {
         }
 
         GetCover(game.id, game.url_cover)
-            .then((base64) => {
-                if (base64) {
-                    setImageSrc(`data:image/jpeg;base64,${base64}`);
+            .then((dataUri) => {
+                if (dataUri) {
+                    setImageSrc(dataUri);
                 }
             })
             .catch((err) => {

@@ -100,7 +100,8 @@ func (s *Service) GetCover(romID uint, coverURL string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("failed to read cached cover: %w", err)
 		}
-		return base64.StdEncoding.EncodeToString(data), nil
+		mimeType := getMimeType(ext)
+		return fmt.Sprintf("data:%s;base64,%s", mimeType, base64.StdEncoding.EncodeToString(data)), nil
 	}
 
 	data, err := s.client.DownloadCover(coverURL)
@@ -112,7 +113,8 @@ func (s *Service) GetCover(romID uint, coverURL string) (string, error) {
 		fmt.Printf("Warning: failed to write to cache: %v\n", err)
 	}
 
-	return base64.StdEncoding.EncodeToString(data), nil
+	mimeType := getMimeType(ext)
+	return fmt.Sprintf("data:%s;base64,%s", mimeType, base64.StdEncoding.EncodeToString(data)), nil
 }
 
 // GetPlatformCover returns the data URI for the platform cover, using a local cache.

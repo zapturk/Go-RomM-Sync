@@ -179,7 +179,10 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to create cover request: %w", err)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+c.Token)
+	// Only send authorization if it's an internal RomM request
+	if strings.HasPrefix(targetURL, c.BaseURL) {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
 
 	resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
 	if err != nil {

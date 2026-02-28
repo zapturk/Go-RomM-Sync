@@ -150,6 +150,31 @@ func (a *App) Logout() error {
 	return nil
 }
 
+func (a *App) ClearImageCache() error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get user home dir: %w", err)
+	}
+
+	cacheDirs := []string{
+		filepath.Join(homeDir, ".go-romm-sync", "cache", "covers"),
+		filepath.Join(homeDir, ".go-romm-sync", "cache", "platforms"),
+	}
+
+	for _, dir := range cacheDirs {
+		if err := os.RemoveAll(dir); err != nil {
+			a.LogErrorf("Failed to clear cache directory %s: %v", dir, err)
+			continue
+		}
+		// Re-create it so future operations don't fail if they expect it
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			a.LogErrorf("Failed to recreate cache directory %s: %v", dir, err)
+		}
+	}
+
+	return nil
+}
+
 func (a *App) GetLibrary() ([]types.Game, error) {
 	return a.rommSrv.GetLibrary()
 }
