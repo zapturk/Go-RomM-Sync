@@ -108,9 +108,7 @@ func (s *Service) GetCover(romID uint, coverURL string) (string, error) {
 			return "", fmt.Errorf("failed to download cover: %w", err)
 		}
 
-		if err := os.WriteFile(cachePath, data, 0o644); err != nil {
-			fmt.Printf("Warning: failed to write to cache: %v\n", err)
-		}
+		_ = os.WriteFile(cachePath, data, 0o644)
 	}
 
 	return toDataURI(data, ext), nil
@@ -146,9 +144,7 @@ func (s *Service) GetPlatformCover(platformID uint, slug string) (string, error)
 		// Save to cache
 		filename := fmt.Sprintf("%d%s", platformID, foundExt)
 		cachePath := filepath.Join(cacheDir, filename)
-		if err := os.WriteFile(cachePath, data, 0o644); err != nil {
-			fmt.Printf("Warning: failed to write to cache: %v\n", err)
-		}
+		_ = os.WriteFile(cachePath, data, 0o644)
 	}
 
 	return toDataURI(data, foundExt), nil

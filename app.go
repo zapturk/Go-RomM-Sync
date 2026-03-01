@@ -182,13 +182,7 @@ func (a *App) GetLibrary(limit, offset int, platformID int) (types.LibraryResult
 
 func (a *App) GetPlatforms(limit, offset int) (types.LibraryResult[types.Platform], error) {
 	items, total, err := a.rommSrv.GetPlatforms(limit, offset)
-	if err != nil {
-		return types.LibraryResult[types.Platform]{}, err
-	}
-	return types.LibraryResult[types.Platform]{
-		Items: items,
-		Total: total,
-	}, nil
+	return types.LibraryResult[types.Platform]{Items: items, Total: total}, err
 }
 
 func (a *App) DownloadRom(id uint) (string, error) {

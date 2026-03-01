@@ -289,3 +289,43 @@ func TestDownloadAsset(t *testing.T) {
 		t.Errorf("Expected test.sav, got %s", filename)
 	}
 }
+func TestReadAllWithLimit(t *testing.T) {
+	client := NewClient("http://localhost")
+	limit := int64(10)
+
+	t.Run("under limit", func(t *testing.T) {
+		r := strings.NewReader("hello")
+		data, err := client.readAllWithLimit(r, limit)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if string(data) != "hello" {
+			t.Errorf("Expected hello, got %s", string(data))
+		}
+	})
+
+	t.Run("at limit", func(t *testing.T) {
+		r := strings.NewReader("0123456789")
+		data, err := client.readAllWithLimit(r, limit)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if len(data) != 10 {
+			t.Errorf("Expected 10 bytes, got %d", len(data))
+		}
+	})
+
+	t.Run("over limit", func(t *testing.T) {
+		r := strings.NewReader("0123456789A")
+		data, err := client.readAllWithLimit(r, limit)
+		if err == nil {
+			t.Error("Expected error for exceeding limit, got nil")
+		}
+		if !strings.Contains(err.Error(), "exceeded limit") {
+			t.Errorf("Expected limit exceeded error, got: %v", err)
+		}
+		if len(data) != 10 {
+			t.Errorf("Expected 10 bytes (truncated), got %d", len(data))
+		}
+	})
+}

@@ -561,10 +561,6 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 		ui.LogInfof("Launch: Created temporary config at: %s with content:\n%s", appendConfigPath, content)
 	}
 
-	fmt.Fprintln(os.Stderr, "--- PRE-LAUNCH CHECK ---")
-	fmt.Fprintf(os.Stderr, "Exe: '%s'\nCore: '%s'\nROM: '%s'\nSaves: '%s'\nStates: '%s'\nAppend: '%s'\n",
-		exePath, corePath, romPath, savesDir, statesDir, appendConfigPath)
-
 	args := []string{"-L", corePath, "-f", "-v"}
 	if appendConfigPath != "" {
 		args = append(args, "--appendconfig", appendConfigPath)
@@ -594,12 +590,7 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 		if runtime.GOOS == constants.OSDarwin {
 			ui.WindowHide()
 		}
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			fmt.Printf("\n--- RETROARCH CRASHED ---\nError: %v\nOutput: %s\n", err, string(out))
-		} else {
-			fmt.Printf("\n--- RETROARCH EXITED ---\nOutput: %s\n", string(out))
-		}
+		_, _ = cmd.CombinedOutput()
 	}()
 
 	// We return nil immediately since it's running detached
