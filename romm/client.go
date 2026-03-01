@@ -137,35 +137,35 @@ func (c *Client) GetLibrary(limit, offset int, platformID int) ([]types.Game, in
 
 	// Try unmarshalling as array first (backward compatibility or non-paginated)
 	if err := json.Unmarshal(raw, &pageItems); err == nil {
-		totalCount = len(pageItems)
-	} else {
-		// Try unmarshalling as paginated object
-		var paginated struct {
-			Items    []types.Game `json:"items"`
-			Total    int          `json:"total_count"`
-			TotalAlt int          `json:"total"`
-			Total3   int          `json:"count"`
-			Total4   int          `json:"total_results"`
-		}
-		if err := json.Unmarshal(raw, &paginated); err == nil && paginated.Items != nil {
-			pageItems = paginated.Items
-			if paginated.Total != 0 {
-				totalCount = paginated.Total
-			} else if paginated.TotalAlt != 0 {
-				totalCount = paginated.TotalAlt
-			} else if paginated.Total3 != 0 {
-				totalCount = paginated.Total3
-			} else if paginated.Total4 != 0 {
-				totalCount = paginated.Total4
-			} else {
-				totalCount = len(pageItems)
-			}
-		} else {
-			return nil, 0, fmt.Errorf("unknown library response format: %s", string(raw))
-		}
+		return pageItems, len(pageItems), nil
 	}
 
-	return pageItems, totalCount, nil
+	// Try unmarshalling as paginated object
+	var paginated struct {
+		Items []types.Game `json:"items"`
+		Total int          `json:"total_count"`
+		Alt   int          `json:"total"`
+		Cnt   int          `json:"count"`
+		Res   int          `json:"total_results"`
+	}
+	if err := json.Unmarshal(raw, &paginated); err == nil && paginated.Items != nil {
+		pageItems = paginated.Items
+		switch {
+		case paginated.Total != 0:
+			totalCount = paginated.Total
+		case paginated.Alt != 0:
+			totalCount = paginated.Alt
+		case paginated.Cnt != 0:
+			totalCount = paginated.Cnt
+		case paginated.Res != 0:
+			totalCount = paginated.Res
+		default:
+			totalCount = len(pageItems)
+		}
+		return pageItems, totalCount, nil
+	}
+
+	return nil, 0, fmt.Errorf("unknown library response format: %s", string(raw))
 }
 
 // DownloadCover fetches the cover image from the provided URL
@@ -239,11 +239,11 @@ func (c *Client) GetPlatforms(limit, offset int) ([]types.Platform, int, error) 
 	}
 
 	var allPlatforms []types.Platform
-	if err := json.Unmarshal(raw, &allPlatforms); err != nil {
+	if err := json.Unmarshal(raw, &allPlatforms); err == nil {
+		// Successfully parsed as array
+	} else {
 		var paginated struct {
-			Items    []types.Platform `json:"items"`
-			Total    int              `json:"total_count"`
-			TotalAlt int              `json:"total"`
+			Items []types.Platform `json:"items"`
 		}
 		if err := json.Unmarshal(raw, &paginated); err == nil && paginated.Items != nil {
 			allPlatforms = paginated.Items

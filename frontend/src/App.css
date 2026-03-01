@@ -625,6 +625,12 @@ body.input-keyboard .show-keyboard {
     display: inline-block;
 }
 
+.icon-group {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
 /* Saves and States Section */
 .game-saves-states-section {
     display: flex;

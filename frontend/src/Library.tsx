@@ -113,7 +113,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         refreshLibrary(0);
     }, [selectedPlatform]);
 
-    // Handle "Back" navigation (Escape/B Button)
+    // Handle "Back" navigation (Escape/B Button) and Pagination (PageUp/PageDown / LB/RB)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (!isActive) return;
@@ -126,11 +126,29 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
                 } else if (selectedPlatform) {
                     setSelectedPlatform(null);
                 }
+            } else if (e.key === 'PageUp' || e.code === 'PageUp') {
+                e.preventDefault();
+                if (selectedGameId) return; // Don't paginate on game page
+
+                if (selectedPlatform) {
+                    if (offset > 0) handlePageChange(offset - PAGE_SIZE);
+                } else {
+                    if (platformOffset > 0) handlePlatformPageChange(platformOffset - PAGE_SIZE);
+                }
+            } else if (e.key === 'PageDown' || e.code === 'PageDown') {
+                e.preventDefault();
+                if (selectedGameId) return; // Don't paginate on game page
+
+                if (selectedPlatform) {
+                    if (offset + PAGE_SIZE < totalGames) handlePageChange(offset + PAGE_SIZE);
+                } else {
+                    if (platformOffset + PAGE_SIZE < totalPlatforms) handlePlatformPageChange(platformOffset + PAGE_SIZE);
+                }
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedPlatform, selectedGameId, isActive]);
+    }, [selectedPlatform, selectedGameId, isActive, offset, platformOffset, totalGames, totalPlatforms]);
 
     // Handle "Refresh" (R key)
     useEffect(() => {
@@ -222,6 +240,24 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
                     <span>{status}</span>
                 </div>
                 <div className="footer-right">
+                    {!selectedGameId && (
+                        <div className="legend-item">
+                            <div className="show-gamepad">
+                                <div className="icon-group">
+                                    <div className="pill-icon">LB</div>
+                                    <div className="pill-icon">RB</div>
+                                </div>
+                            </div>
+                            <div className="show-keyboard">
+                                <div className="icon-group">
+                                    <div className="key-icon" style={{ width: 'auto', padding: '0 4px' }}>PgUp</div>
+                                    <div className="key-icon" style={{ width: 'auto', padding: '0 4px' }}>PgDn</div>
+                                </div>
+                            </div>
+                            <span>Page</span>
+                        </div>
+                    )}
+
                     <div className="legend-item">
                         {/* Gamepad Icon */}
                         <div className="btn-icon show-gamepad">
@@ -261,7 +297,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
 
                     <div className="legend-item">
                         <div className="show-gamepad">
-                            <div style={{ display: 'flex', gap: '4px' }}>
+                            <div className="icon-group">
                                 <div className="pill-icon">SELECT</div>
                                 <div className="pill-icon">START</div>
                             </div>
