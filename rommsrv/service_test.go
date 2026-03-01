@@ -1,7 +1,10 @@
 package rommsrv
 
 import (
+	"encoding/json"
+	"fmt"
 	"go-romm-sync/constants"
+	"go-romm-sync/types"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -86,9 +89,38 @@ func TestGetLibrary(t *testing.T) {
 }
 
 func TestGetPlatforms(t *testing.T) {
+	// Mock server that returns platforms in batches
+	platformsData := []types.Platform{
+		{ID: 1, Name: "SNES", Slug: "snes", RomCount: 1},       // Supported 1
+		{ID: 2, Name: "NES", Slug: "nes", RomCount: 1},         // Supported 2
+		{ID: 3, Name: "Unknown", Slug: "unknown", RomCount: 1}, // Unsupported
+		{ID: 4, Name: "GB", Slug: "gb", RomCount: 0},           // Supported but 0 roms (filtered)
+		{ID: 5, Name: "GBA", Slug: "gba", RomCount: 1},         // Supported 3
+		{ID: 6, Name: "Genesis", Slug: "genesis", RomCount: 1}, // Supported 4
+	}
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		limitStr := r.URL.Query().Get("limit")
+		offsetStr := r.URL.Query().Get("offset")
+		var limit, offset int
+		fmt.Sscanf(limitStr, "%d", &limit)
+		fmt.Sscanf(offsetStr, "%d", &offset)
+
+		end := offset + limit
+		if end > len(platformsData) {
+			end = len(platformsData)
+		}
+
+		batch := []types.Platform{}
+		if offset < len(platformsData) {
+			batch = platformsData[offset:end]
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[{"id": 1, "name": "NES", "rom_count": 1}]`))
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"items":       batch,
+			"total_count": len(platformsData),
+		})
 	}))
 	defer server.Close()
 
@@ -96,16 +128,40 @@ func TestGetPlatforms(t *testing.T) {
 	s := New(cfg)
 	s.client.Token = "test-token"
 
-	platforms, total, err := s.GetPlatforms(25, 0)
-	if err != nil {
-		t.Fatalf("GetPlatforms failed: %v", err)
-	}
-	if len(platforms) != 1 {
-		t.Errorf("Expected 1 platform, got %d", len(platforms))
-	}
-	if total != 1 {
-		t.Errorf("Expected total 1, got %d", total)
-	}
+	t.Run("first page", func(t *testing.T) {
+		platforms, total, err := s.GetPlatforms(2, 0)
+		if err != nil {
+			t.Fatalf("GetPlatforms failed: %v", err)
+		}
+		// Supported found: SNES, NES, GBA, Genesis (Total 4)
+		// Limit 2, Offset 0: Returns SNES, NES
+		if len(platforms) != 2 {
+			t.Errorf("Expected 2 platforms, got %d", len(platforms))
+		}
+		if total != 4 {
+			t.Errorf("Expected total 4 supported platforms, got %d", total)
+		}
+		if platforms[0].Slug != "snes" || platforms[1].Slug != "nes" {
+			t.Errorf("Unexpected platforms: %s, %s", platforms[0].Slug, platforms[1].Slug)
+		}
+	})
+
+	t.Run("second page", func(t *testing.T) {
+		platforms, total, err := s.GetPlatforms(2, 2)
+		if err != nil {
+			t.Fatalf("GetPlatforms failed: %v", err)
+		}
+		// Limit 2, Offset 2: Returns GBA, Genesis
+		if len(platforms) != 2 {
+			t.Errorf("Expected 2 platforms, got %d", len(platforms))
+		}
+		if total != 4 {
+			t.Errorf("Expected total 4 supported platforms, got %d", total)
+		}
+		if platforms[0].Slug != "gba" || platforms[1].Slug != "genesis" {
+			t.Errorf("Unexpected platforms: %s, %s", platforms[0].Slug, platforms[1].Slug)
+		}
+	})
 }
 
 func TestGetRom(t *testing.T) {

@@ -21,9 +21,6 @@ const (
 	MaxMetadataSize = 10 * 1024 * 1024
 	// MaxAssetSize is the maximum size (50MB) for assets like cover images read into memory.
 	MaxAssetSize = 50 * 1024 * 1024
-	// maxPlatformsToFetch is the maximum number of platforms to fetch in a single request (1000).
-	// Used as a workaround because RomM doesn't have a native "has games" filter for platforms.
-	maxPlatformsToFetch = 1000
 )
 
 // Client handles communication with the RomM API

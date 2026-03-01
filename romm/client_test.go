@@ -140,25 +140,47 @@ func TestDownloadCover(t *testing.T) {
 }
 
 func TestGetPlatforms(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[{"id": 1, "name": "SNES", "slug": "snes", "rom_count": 1}]`))
-	}))
-	defer server.Close()
+	t.Run("array response", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("limit") != "50" || r.URL.Query().Get("offset") != "10" {
+				t.Errorf("Expected limit=50, offset=10, got limit=%s, offset=%s", r.URL.Query().Get("limit"), r.URL.Query().Get("offset"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`[{"id": 1, "name": "SNES", "slug": "snes", "rom_count": 1}]`))
+		}))
+		defer server.Close()
 
-	client := NewClient(server.URL)
-	client.Token = "test-token"
+		client := NewClient(server.URL)
+		client.Token = "test-token"
+		platforms, total, err := client.GetPlatforms(50, 10)
+		if err != nil {
+			t.Fatalf("GetPlatforms failed: %v", err)
+		}
+		if len(platforms) != 1 || total != 1 {
+			t.Errorf("Expected 1 platform, total 1; got len=%d, total=%d", len(platforms), total)
+		}
+	})
 
-	platforms, total, err := client.GetPlatforms(25, 0)
-	if err != nil {
-		t.Fatalf("GetPlatforms failed: %v", err)
-	}
-	if len(platforms) != 1 {
-		t.Errorf("Expected 1 platform, got %d", len(platforms))
-	}
-	if total != 1 {
-		t.Errorf("Expected total 1, got %d", total)
-	}
+	t.Run("paginated object response", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"items": [{"id": 1, "name": "NES", "slug": "nes", "rom_count": 5}], "total_count": 100}`))
+		}))
+		defer server.Close()
+
+		client := NewClient(server.URL)
+		client.Token = "test-token"
+		platforms, total, err := client.GetPlatforms(25, 0)
+		if err != nil {
+			t.Fatalf("GetPlatforms failed: %v", err)
+		}
+		if len(platforms) != 1 || total != 100 {
+			t.Errorf("Expected 1 platform, total 100; got len=%d, total=%d", len(platforms), total)
+		}
+		if platforms[0].Name != "NES" {
+			t.Errorf("Expected NES, got %s", platforms[0].Name)
+		}
+	})
 }
 
 func TestGetRom(t *testing.T) {

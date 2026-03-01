@@ -69,13 +69,8 @@ func (s *Service) GetLibrary(limit, offset, platformID int) ([]types.Game, int, 
 // It filters out platforms that aren't recognized by RetroArch mappings.
 func (s *Service) GetPlatforms(limit, offset int) ([]types.Platform, int, error) {
 	const batchSize = 100
+	const maxScan = 2000
 	var supported []types.Platform
-
-	// We scan until we find enough platforms for the requested page.
-	// We also need the total count if we want an accurate pagination.
-	// However, if there are thousands of platforms, scanning everything on every request is slow.
-	// For now, we'll scan up to a reasonable limit (e.g., 2000 total platforms)
-	// or until we reach the end of the server's list.
 
 	currentOffset := 0
 	foundCount := 0
@@ -89,9 +84,9 @@ func (s *Service) GetPlatforms(limit, offset int) ([]types.Platform, int, error)
 			break
 		}
 
+		// 1. Collect platforms for the current page
 		for _, p := range batch {
-			// Check if supported by RetroArch and has games
-			if p.RomCount > 0 && (retroarch.IdentifyPlatform(p.Name) != "" || retroarch.IdentifyPlatform(p.Slug) != "") {
+			if isPlatformSupported(p) {
 				if foundCount >= offset && len(supported) < limit {
 					supported = append(supported, p)
 				}
@@ -101,26 +96,11 @@ func (s *Service) GetPlatforms(limit, offset int) ([]types.Platform, int, error)
 
 		currentOffset += len(batch)
 
-		// Optimization: if we've filled our page AND reached the end of the server list, or a high limit
-		if (len(supported) >= limit && currentOffset >= totalOnServer) || currentOffset >= 2000 {
-			// If we haven't scanned everything, totalCount is estimated or partial
-			if currentOffset < totalOnServer {
-				// We can continue scanning to get a perfect totalCount if performance allows,
-				// or just return what we found so far.
-				// Let's continue scanning to get an accurate totalCount for now,
-				// but without collecting platforms beyond our limit.
-				for currentOffset < totalOnServer && currentOffset < 2000 {
-					batch, totalOnServer, err = s.client.GetPlatforms(batchSize, currentOffset)
-					if err != nil || len(batch) == 0 {
-						break
-					}
-					for _, p := range batch {
-						if p.RomCount > 0 && (retroarch.IdentifyPlatform(p.Name) != "" || retroarch.IdentifyPlatform(p.Slug) != "") {
-							foundCount++
-						}
-					}
-					currentOffset += len(batch)
-				}
+		// 2. Optimization: if we've filled our page OR reached an upper scan limit
+		if (len(supported) >= limit && currentOffset >= totalOnServer) || currentOffset >= maxScan {
+			// Scan remaining server platforms only to get an accurate total count
+			if currentOffset < totalOnServer && currentOffset < maxScan {
+				foundCount += s.countRemainingSupported(totalOnServer, currentOffset, batchSize, maxScan)
 			}
 			break
 		}
@@ -131,6 +111,30 @@ func (s *Service) GetPlatforms(limit, offset int) ([]types.Platform, int, error)
 	}
 
 	return supported, foundCount, nil
+}
+
+// countRemainingSupported continues scanning platforms from the server just to update the supported count.
+func (s *Service) countRemainingSupported(totalOnServer, startOffset, batchSize, maxScan int) int {
+	additionalCount := 0
+	currentOffset := startOffset
+	for currentOffset < totalOnServer && currentOffset < maxScan {
+		batch, _, err := s.client.GetPlatforms(batchSize, currentOffset)
+		if err != nil || len(batch) == 0 {
+			break
+		}
+		for _, p := range batch {
+			if isPlatformSupported(p) {
+				additionalCount++
+			}
+		}
+		currentOffset += len(batch)
+	}
+	return additionalCount
+}
+
+func isPlatformSupported(p types.Platform) bool {
+	// Check if supported by RetroArch and has games
+	return p.RomCount > 0 && (retroarch.IdentifyPlatform(p.Name) != "" || retroarch.IdentifyPlatform(p.Slug) != "")
 }
 
 // GetRom fetches a single ROM from RomM.
