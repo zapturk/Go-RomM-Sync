@@ -1,0 +1,3 @@
+[submodule "Go-RomM-Sync.wiki"]
+	path = Go-RomM-Sync.wiki
+	url = https://github.com/zapturk/Go-RomM-Sync.wiki.git
