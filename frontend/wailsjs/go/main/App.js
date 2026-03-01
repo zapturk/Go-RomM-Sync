@@ -86,8 +86,8 @@ export function GetPlatformCover(arg1, arg2) {
   return window['go']['main']['App']['GetPlatformCover'](arg1, arg2);
 }
 
-export function GetPlatforms() {
-  return window['go']['main']['App']['GetPlatforms']();
+export function GetPlatforms(arg1, arg2) {
+  return window['go']['main']['App']['GetPlatforms'](arg1, arg2);
 }
 
 export function GetRetroArchPath() {

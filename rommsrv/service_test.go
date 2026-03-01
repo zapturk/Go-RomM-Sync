@@ -96,12 +96,15 @@ func TestGetPlatforms(t *testing.T) {
 	s := New(cfg)
 	s.client.Token = "test-token"
 
-	platforms, err := s.GetPlatforms(25, 0)
+	platforms, total, err := s.GetPlatforms(25, 0)
 	if err != nil {
 		t.Fatalf("GetPlatforms failed: %v", err)
 	}
 	if len(platforms) != 1 {
 		t.Errorf("Expected 1 platform, got %d", len(platforms))
+	}
+	if total != 1 {
+		t.Errorf("Expected total 1, got %d", total)
 	}
 }
 

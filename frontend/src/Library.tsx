@@ -27,6 +27,8 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     // Pagination state
     const [offset, setOffset] = useState(0);
     const [totalGames, setTotalGames] = useState(0);
+    const [platformOffset, setPlatformOffset] = useState(0);
+    const [totalPlatforms, setTotalPlatforms] = useState(0);
     const PAGE_SIZE = 25;
 
     useEffect(() => {
@@ -53,13 +55,13 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         trackChildren: true
     });
 
-    const refreshLibrary = (currentOffset: number = offset) => {
+    const refreshLibrary = (currentOffset: number = offset, currentPlatformOffset: number = platformOffset) => {
         setIsLoading(true);
         setStatus("Syncing...");
         setSyncTrigger(prev => prev + 1);
 
-        const platform = platforms.find(p => p.name === selectedPlatform);
-        const platformId = platform?.id || 0;
+        const activePlatform = platforms.find(p => p.name === selectedPlatform);
+        const platformId = activePlatform?.id || 0;
 
         const gamesPromise = GetLibrary(PAGE_SIZE, currentOffset, platformId)
             .then((result) => {
@@ -71,9 +73,10 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
                 setStatus("Error: " + err);
             });
 
-        const platformsPromise = GetPlatforms()
+        const platformsPromise = GetPlatforms(PAGE_SIZE, currentPlatformOffset)
             .then((result) => {
-                setPlatforms(result);
+                setPlatforms(result.items || []);
+                setTotalPlatforms(result.total || 0);
                 setStatus("Ready");
             })
             .catch((err) => {
@@ -88,7 +91,15 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
 
     const handlePageChange = (newOffset: number) => {
         setOffset(newOffset);
-        refreshLibrary(newOffset);
+        refreshLibrary(newOffset, platformOffset);
+        if (gridRef.current) {
+            gridRef.current.scrollTop = 0;
+        }
+    };
+
+    const handlePlatformPageChange = (newOffset: number) => {
+        setPlatformOffset(newOffset);
+        refreshLibrary(offset, newOffset);
         if (gridRef.current) {
             gridRef.current.scrollTop = 0;
         }
@@ -155,7 +166,6 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
 
     const sortedPlatforms = [...platforms].sort((a, b) => a.name.localeCompare(b.name));
 
-    const visiblePlatforms = sortedPlatforms.filter(p => p.rom_count > 0); // Only show platforms with at least one ROM
 
     if (selectedGameId) {
         return (
@@ -172,12 +182,16 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         <div id="library" ref={ref}>
             {!selectedPlatform || !currentPlatformObj ? (
                 <PlatformGridView
-                    platforms={visiblePlatforms}
+                    platforms={sortedPlatforms}
                     isLoading={isLoading}
+                    offset={platformOffset}
+                    totalPlatforms={totalPlatforms}
+                    pageSize={PAGE_SIZE}
                     onSelectPlatform={(p) => {
                         setSelectedPlatform(p.name);
                         lastViewedPlatformId.current = p.id;
                     }}
+                    onPageChange={handlePlatformPageChange}
                     onOpenSettings={onOpenSettings}
                     columns={columns}
                     syncTrigger={syncTrigger}

@@ -65,7 +65,7 @@ func (s *Service) GetLibrary(limit, offset int, platformID int) ([]types.Game, i
 }
 
 // GetPlatforms fetches a page of platforms from RomM.
-func (s *Service) GetPlatforms(limit, offset int) ([]types.Platform, error) {
+func (s *Service) GetPlatforms(limit, offset int) ([]types.Platform, int, error) {
 	return s.client.GetPlatforms(limit, offset)
 }
 

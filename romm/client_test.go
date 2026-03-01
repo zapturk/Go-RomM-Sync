@@ -142,19 +142,22 @@ func TestDownloadCover(t *testing.T) {
 func TestGetPlatforms(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[{"id": 1, "name": "SNES", "slug": "snes"}]`))
+		w.Write([]byte(`[{"id": 1, "name": "SNES", "slug": "snes", "rom_count": 1}]`))
 	}))
 	defer server.Close()
 
 	client := NewClient(server.URL)
 	client.Token = "test-token"
 
-	platforms, err := client.GetPlatforms(25, 0)
+	platforms, total, err := client.GetPlatforms(25, 0)
 	if err != nil {
 		t.Fatalf("GetPlatforms failed: %v", err)
 	}
 	if len(platforms) != 1 {
 		t.Errorf("Expected 1 platform, got %d", len(platforms))
+	}
+	if total != 1 {
+		t.Errorf("Expected total 1, got %d", total)
 	}
 }
 

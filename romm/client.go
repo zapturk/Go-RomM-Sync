@@ -196,50 +196,79 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 // types with different JSON decode strategies; a generic refactor would add complexity without benefit.
 //
 //nolint:dupl // GetLibrary/GetPlatforms have similar pagination structures but operate on different
-func (c *Client) GetPlatforms(limit, offset int) ([]types.Platform, error) {
+func (c *Client) GetPlatforms(limit, offset int) ([]types.Platform, int, error) {
 	if c.Token == "" {
-		return nil, fmt.Errorf("not authenticated")
+		return nil, 0, fmt.Errorf("not authenticated")
 	}
 
-	urlStr := fmt.Sprintf("%s/api/platforms?limit=%d&offset=%d", c.BaseURL, limit, offset)
+	// Fetch all platforms (up to 1000) to perform filtering and correct pagination
+	// RomM doesn't seem to have a native "has games" filter for platforms
+	urlStr := fmt.Sprintf("%s/api/platforms?limit=1000&offset=0", c.BaseURL)
 	req, err := http.NewRequest("GET", urlStr, http.NoBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create platforms request: %w", err)
+		return nil, 0, fmt.Errorf("failed to create platforms request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
 	resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
 	if err != nil {
-		return nil, fmt.Errorf("failed to perform platforms request: %w", err)
+		return nil, 0, fmt.Errorf("failed to perform platforms request: %w", err)
 	}
 	defer fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("platforms fetch failed with status %d: %s", resp.StatusCode, string(body))
+		return nil, 0, fmt.Errorf("platforms fetch failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var raw json.RawMessage
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		return nil, fmt.Errorf("failed to decode platforms response: %w", err)
+		return nil, 0, fmt.Errorf("failed to decode platforms response: %w", err)
+	}
+
+	var allPlatforms []types.Platform
+	if err := json.Unmarshal(raw, &allPlatforms); err != nil {
+		var paginated struct {
+			Items    []types.Platform `json:"items"`
+			Total    int              `json:"total_count"`
+			TotalAlt int              `json:"total"`
+		}
+		if err := json.Unmarshal(raw, &paginated); err == nil && paginated.Items != nil {
+			allPlatforms = paginated.Items
+		} else {
+			return nil, 0, fmt.Errorf("failed to parse platforms response: unknown format")
+		}
+	}
+
+	// Filter platforms with games
+	var filtered []types.Platform
+	for _, p := range allPlatforms {
+		if p.RomCount > 0 {
+			filtered = append(filtered, p)
+		}
+	}
+
+	totalCount := len(filtered)
+
+	// Apply pagination to the filtered list
+	start := offset
+	if start > totalCount {
+		start = totalCount
+	}
+	end := offset + limit
+	if end > totalCount {
+		end = totalCount
 	}
 
 	var pageItems []types.Platform
-
-	if err := json.Unmarshal(raw, &pageItems); err != nil {
-		var paginated struct {
-			Items []types.Platform `json:"items"`
-			Total int              `json:"total_count"`
-		}
-		if err := json.Unmarshal(raw, &paginated); err == nil {
-			pageItems = paginated.Items
-		} else {
-			return nil, fmt.Errorf("failed to parse platforms response: unknown format")
-		}
+	if start < end {
+		pageItems = filtered[start:end]
+	} else {
+		pageItems = []types.Platform{}
 	}
 
-	return pageItems, nil
+	return pageItems, totalCount, nil
 }
 
 // GetRom fetches a single ROM by its ID

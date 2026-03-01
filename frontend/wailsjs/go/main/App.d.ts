@@ -37,7 +37,7 @@ export function GetCover(arg1:number,arg2:string):Promise<string>;
 
 export function GetDefaultLibraryPath():Promise<string>;
 
-export function GetLibrary(arg1:number,arg2:number,arg3:number):Promise<any>;
+export function GetLibrary(arg1:number,arg2:number,arg3:number):Promise<types.LibraryResult_go_romm_sync_types_Game_>;
 
 export function GetLibraryPath():Promise<string>;
 
@@ -45,7 +45,7 @@ export function GetPassword():Promise<string>;
 
 export function GetPlatformCover(arg1:number,arg2:string):Promise<string>;
 
-export function GetPlatforms():Promise<Array<types.Platform>>;
+export function GetPlatforms(arg1:number,arg2:number):Promise<types.LibraryResult_go_romm_sync_types_Platform_>;
 
 export function GetRetroArchPath():Promise<string>;
 

@@ -212,7 +212,7 @@ func TestAppDelegationWrappers(t *testing.T) {
 	// even if they return errors due to uninitialized network clients.
 
 	app.GetLibrary(25, 0, 1)
-	app.GetPlatforms()
+	app.GetPlatforms(25, 0)
 	app.GetServerSaves(1)
 	app.GetServerStates(1)
 
@@ -272,7 +272,7 @@ func TestAppExhaustiveWrappers(t *testing.T) {
 	defer func() { recover() }()
 
 	// Call remaining simple methods
-	app.GetPlatforms()
+	app.GetPlatforms(25, 0)
 	app.GetDefaultLibraryPath()
 	app.SelectRetroArchExecutable()
 	app.SelectLibraryPath()

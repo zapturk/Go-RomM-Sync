@@ -8,7 +8,11 @@ import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation
 interface PlatformGridViewProps {
     platforms: types.Platform[];
     isLoading: boolean;
+    offset: number;
+    totalPlatforms: number;
+    pageSize: number;
     onSelectPlatform: (platform: types.Platform) => void;
+    onPageChange: (newOffset: number) => void;
     onOpenSettings: () => void;
     columns: number;
     syncTrigger: number;
@@ -19,7 +23,11 @@ interface PlatformGridViewProps {
 export function PlatformGridView({
     platforms,
     isLoading,
+    offset,
+    totalPlatforms,
+    pageSize,
     onSelectPlatform,
+    onPageChange,
     onOpenSettings,
     columns,
     syncTrigger,
@@ -39,6 +47,20 @@ export function PlatformGridView({
                 return false;
             }
             return true;
+        }
+    });
+
+    const { ref: prevRef, focused: prevFocused, focusSelf: focusPrev } = useFocusable({
+        focusKey: 'prev-plats-page',
+        onEnterPress: () => {
+            if (offset > 0) onPageChange(offset - pageSize);
+        }
+    });
+
+    const { ref: nextRef, focused: nextFocused, focusSelf: focusNext } = useFocusable({
+        focusKey: 'next-plats-page',
+        onEnterPress: () => {
+            if (offset + pageSize < totalPlatforms) onPageChange(offset + pageSize);
         }
     });
 
@@ -87,6 +109,9 @@ export function PlatformGridView({
                     <SettingsIcon size={24} />
                 </button>
                 <h1 style={{ margin: 0 }}>Platforms</h1>
+                <span style={{ position: 'absolute', right: '40px', opacity: 0.6, fontSize: '0.9rem' }}>
+                    {totalPlatforms > 0 ? `${offset + 1}-${Math.min(offset + pageSize, totalPlatforms)} of ${totalPlatforms}` : '0 platforms'}
+                </span>
             </div>
             <div className="grid-container" ref={gridRef}>
                 {platforms.map((platform, index) => (
@@ -100,6 +125,38 @@ export function PlatformGridView({
                     />
                 ))}
             </div>
+
+            {!isLoading && (offset > 0 || (offset + pageSize < totalPlatforms)) && (
+                <div className="pagination-controls" style={{ display: 'flex', justifyContent: 'center', gap: '20px', padding: '20px', paddingBottom: '80px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                    {offset > 0 && (
+                        <button
+                            ref={prevRef}
+                            className={`btn ${prevFocused ? 'focused' : ''}`}
+                            onClick={() => onPageChange(offset - pageSize)}
+                            onMouseEnter={() => {
+                                if (getMouseActive()) focusPrev();
+                            }}
+                            style={{ padding: '8px 20px', minWidth: '120px' }}
+                        >
+                            Previous
+                        </button>
+                    )}
+                    {offset + pageSize < totalPlatforms && (
+                        <button
+                            ref={nextRef}
+                            className={`btn ${nextFocused ? 'focused' : ''}`}
+                            onClick={() => onPageChange(offset + pageSize)}
+                            onMouseEnter={() => {
+                                if (getMouseActive()) focusNext();
+                            }}
+                            style={{ padding: '8px 20px', minWidth: '120px' }}
+                        >
+                            Next
+                        </button>
+                    )}
+                </div>
+            )}
+
             {platforms.length === 0 && !isLoading && (
                 <div className="empty-state-container">
                     <div className="empty-state-card">
