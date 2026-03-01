@@ -26,7 +26,7 @@ Go-RomM-Sync uses RetroArch (Libretro) cores to launch games. Below is a compreh
 | **Nintendo 3DS** | `citra_libretro` | .3ds, .3dsx, .cia | ✅ | ❌ | ✅ | ❌ | ✅ |
 | **Nintendo GameCube**| `dolphin_libretro` | .gcm, .rvz, .iso | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Nintendo Wii** | `dolphin_libretro` | .wbfs, .wia | ✅ | ✅ | ✅ | ❌ | ❌ |
-| **Nintendo Wii U** | `cemu_libretro`* | .wud, .wux, .rpx | ⚠️ (Exp) | ❌ | ❌ | ❌ | ❌ |
+| **Nintendo Wii U** | `cemu_libretro`* | .wud, .wux, .rpx | ❌ | ❌ | ❌ | ❌ | ❌ |
 | **PC Engine (PCE)** | `mednafen_pce_fast`| .pce, .sgx | ✅ | ✅ | ✅ | ✅ | ❌ |
 | **Pico-8** | `retro8_libretro` | .p8, .png | ✅ | ✅ | ✅ | ❌ | ✅ |
 | **PlayStation 1** | `pcsx_rearmed` | .iso, .cue, .chd, .bin | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -37,8 +37,9 @@ Go-RomM-Sync uses RetroArch (Libretro) cores to launch games. Below is a compreh
 | **Sega Master Sys** | `genesis_plus_gx` | .sms, .gg | ✅ | ✅ | ✅ | ✅ | ❌ |
 | **Sega Saturn** | `mednafen_saturn` | .cue | ✅ | ✅ | ✅ | ✅ | ❌ |
 | **SG-1000** | `smsplus_libretro` | .sg | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **WonderSwan** | `mednafen_wswan` | .ws, .wsc | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-*\* Cemu-Libretro is currently only available for Windows (x86_64) and must be manually installed or auto-downloaded via the app's custom handler.*
+*\* Cemu-Libretro currently is having issues with launching games. It is not recommended to use this core at this time.*
 
 ## Notes
 - **Auto-Download**: The app will attempt to download missing cores from the Libretro buildbot automatically when you click "Play".
