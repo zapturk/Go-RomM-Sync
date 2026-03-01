@@ -85,14 +85,14 @@ var ExtCoreMap = map[string][]string{
 	// Sega – 32X
 	".32x": {"picodrive_libretro"},
 
-	// Sega – CD / Saturn / shared CUE
+	// Sega – CD / Saturn / shared CUE / Dreamcast
 	".msu": {"genesis_plus_gx_libretro"},
-	".cue": {"genesis_plus_gx_libretro", "pcsx_rearmed_libretro", "mednafen_saturn_libretro"},
+	".cue": {"genesis_plus_gx_libretro", "pcsx_rearmed_libretro", "mednafen_saturn_libretro", "flycast_libretro"},
+	".gdi": {"flycast_libretro"},
+	".cdi": {"flycast_libretro"},
 
 	// Sony – PS1
-	".iso": {"pcsx_rearmed_libretro", "beetle_psx_libretro"},
 	".bin": {"pcsx_rearmed_libretro", "beetle_psx_libretro"},
-	".chd": {"pcsx_rearmed_libretro", "beetle_psx_libretro"},
 
 	// Sony – PSP
 	".cso": {"ppsspp_libretro"},
@@ -110,8 +110,20 @@ var ExtCoreMap = map[string][]string{
 	".t64": {"vice_x64sc_libretro"},
 	".adf": {"puae_libretro"},
 	".uae": {"puae_libretro"},
+	".dsk": {"caprice32_libretro", "apple2enh_libretro"},
+	".sna": {"caprice32_libretro"},
+	".do":  {"apple2enh_libretro"},
 
 	// Others
+	".iso": {"pcsx_rearmed_libretro", "beetle_psx_libretro", "pcsx2_libretro", "opera_libretro"},
+	".chd": {"pcsx_rearmed_libretro", "beetle_psx_libretro", "pcsx2_libretro", "opera_libretro", "flycast_libretro"},
+	".sg":  {"smsplus_libretro"},
+	".col": {"gearcoleco_libretro"},
+	".mx1": {"bluemsx_libretro"},
+	".mx2": {"bluemsx_libretro"},
+	".rom": {"bluemsx_libretro", "gearcoleco_libretro"},
+	".zip": {"fbneo_libretro", "mame2003_plus_libretro"},
+	".7z":  {"fbneo_libretro", "mame2003_plus_libretro"},
 	".pce": {"mednafen_pce_fast_libretro", "mednafen_pce_libretro"},
 	".sgx": {"mednafen_pce_fast_libretro"},
 	".ws":  {"mednafen_wswan_libretro"},
@@ -159,6 +171,17 @@ var PlatformCoreMap = map[string][]string{
 	"lynx":         {"handy_libretro"},
 	"pce_fast":     {"mednafen_pce_fast_libretro"},
 	"supergrafx":   {"mednafen_pce_fast_libretro"},
+	"a78":          {"prosystem_libretro"},
+	"atari7800":    {"prosystem_libretro"},
+	"3do":          {"opera_libretro"},
+	"amstrad":      {"caprice32_libretro"},
+	"apple2":       {"apple2enh_libretro"},
+	"arcade":       {"fbneo_libretro", "mame2003_plus_libretro"},
+	"coleco":       {"gearcoleco_libretro"},
+	"msx":          {"bluemsx_libretro"},
+	"ps2":          {"pcsx2_libretro"},
+	"sg1000":       {"smsplus_libretro"},
+	"neogeo":       {"fbneo_libretro"},
 }
 
 // GetCoresForPlatform returns the ordered list of known-working libretro core
@@ -204,6 +227,16 @@ var platformSearchPatterns = []struct {
 	{"dreamcast", []string{"dreamcast"}, false},
 	{"lynx", []string{"lynx"}, false},
 	{"vb", []string{"virtual", "boy"}, true},
+	{"a78", []string{"7800"}, false},
+	{"3do", []string{"3do"}, false},
+	{"amstrad", []string{"amstrad", "cpc"}, false},
+	{"apple2", []string{"apple", "ii"}, true},
+	{"arcade", []string{"arcade", "mame", "fbneo"}, false},
+	{"coleco", []string{"coleco"}, false},
+	{"msx", []string{"msx"}, false},
+	{"ps2", []string{"ps2", "playstation 2"}, false},
+	{"sg1000", []string{"sg-1000", "sg1000"}, false},
+	{"neogeo", []string{"neo geo", "neogeo"}, false},
 }
 
 // IdentifyPlatform attempts to resolve a canonical platform slug from a string,

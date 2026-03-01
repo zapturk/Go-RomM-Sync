@@ -130,6 +130,6 @@ Alternatively, you can download the latest release for your platform from the [R
 ## Roadmap
 
 - [x] **Save Syncing Management**: Bidirectional synchronization of saves and states between local storage and RomM.
-- [ ] **Add Pico-8 Support**: Add support for Pico-8 games.
+- [x] **Add Pico-8 Support**: Add support for Pico-8 games.
 - [ ] **Detailed Achievements**: View RetroAchievements progress and badges directly on the game page.
 - [ ] **Advanced Filtering**: Filter games by genre, platform, or download status.
