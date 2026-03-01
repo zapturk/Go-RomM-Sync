@@ -14,50 +14,38 @@ interface FileItemRowProps {
     isDisabled?: boolean;
 }
 
+interface ActionButtonProps {
+    focusKey: string;
+    onEnterPress: () => void;
+    onArrowPress?: (direction: string) => boolean;
+    className: string;
+    children: React.ReactNode;
+    title: string;
+}
+
+const ActionButton = ({ focusKey, onEnterPress, onArrowPress, className, children, title }: ActionButtonProps) => {
+    const { ref, focused } = useFocusable({
+        focusKey,
+        onEnterPress,
+        onArrowPress
+    });
+
+    return (
+        <button
+            ref={ref}
+            className={`${className} ${focused ? 'focused' : ''}`}
+            onClick={(e) => {
+                e.stopPropagation();
+                onEnterPress();
+            }}
+            title={title}
+        >
+            {children}
+        </button>
+    );
+};
+
 export const FileItemRow = ({ item, onDelete, onUpload, onDownload, focusKeyPrefix, status, isDisabled = false }: FileItemRowProps) => {
-    const { ref: downloadRef, focused: downloadFocused } = useFocusable({
-        focusKey: onDownload && !isDisabled ? `${focusKeyPrefix}-download` : undefined,
-        onEnterPress: onDownload,
-        onArrowPress: (direction: string) => {
-            if (direction === 'up') {
-                return false;
-            }
-            if (direction === 'right' && onDelete) {
-                setFocus(`${focusKeyPrefix}-delete`);
-                return false;
-            }
-            return true;
-        }
-    });
-
-    const { ref: uploadRef, focused: uploadFocused } = useFocusable({
-        focusKey: onUpload && !isDisabled ? `${focusKeyPrefix}-upload` : undefined,
-        onEnterPress: onUpload,
-        onArrowPress: (direction: string) => {
-            if (direction === 'up') {
-                return false;
-            }
-            if (direction === 'right' && onDelete) {
-                setFocus(`${focusKeyPrefix}-delete`);
-                return false;
-            }
-            return true;
-        }
-    });
-
-    const { ref: deleteRef, focused: deleteFocused } = useFocusable({
-        focusKey: onDelete && !isDisabled ? `${focusKeyPrefix}-delete` : undefined,
-        onEnterPress: onDelete,
-        onArrowPress: (direction: string) => {
-            if (direction === 'left') {
-                if (onUpload) setFocus(`${focusKeyPrefix}-upload`);
-                else if (onDownload) setFocus(`${focusKeyPrefix}-download`);
-                return false;
-            }
-            return true;
-        }
-    });
-
     // Provide a default focus receiver if the prefix is targeted directly
     const { ref: rowRef } = useFocusable({
         focusKey: !isDisabled ? focusKeyPrefix : undefined,
@@ -81,47 +69,59 @@ export const FileItemRow = ({ item, onDelete, onUpload, onDownload, focusKeyPref
             )}
             <span className="file-core">{coreName}</span>
             <div className={`file-item-actions ${isDisabled ? 'hidden' : ''}`}>
-                {onDownload && (
-                    <button
-                        className={`file-action-btn file-download-btn ${downloadFocused ? 'focused' : ''} ${isDisabled ? 'disabled' : ''}`}
-                        ref={downloadRef}
-                        disabled={isDisabled}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            if (!isDisabled) onDownload();
-                        }}
+                {onDownload && !isDisabled && (
+                    <ActionButton
+                        focusKey={`${focusKeyPrefix}-download`}
+                        onEnterPress={onDownload}
+                        className="file-action-btn file-download-btn"
                         title="Download from RomM"
+                        onArrowPress={(direction) => {
+                            if (direction === 'up') return false;
+                            if (direction === 'right' && onDelete) {
+                                setFocus(`${focusKeyPrefix}-delete`);
+                                return false;
+                            }
+                            return true;
+                        }}
                     >
                         <DownloadIcon size={16} />
-                    </button>
+                    </ActionButton>
                 )}
-                {onUpload && (
-                    <button
-                        className={`file-action-btn file-upload-btn ${uploadFocused ? 'focused' : ''} ${isDisabled ? 'disabled' : ''}`}
-                        ref={uploadRef}
-                        disabled={isDisabled}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            if (!isDisabled) onUpload();
-                        }}
+                {onUpload && !isDisabled && (
+                    <ActionButton
+                        focusKey={`${focusKeyPrefix}-upload`}
+                        onEnterPress={onUpload}
+                        className="file-action-btn file-upload-btn"
                         title="Upload save to RomM"
+                        onArrowPress={(direction) => {
+                            if (direction === 'up') return false;
+                            if (direction === 'right' && onDelete) {
+                                setFocus(`${focusKeyPrefix}-delete`);
+                                return false;
+                            }
+                            return true;
+                        }}
                     >
                         <UploadIcon size={16} />
-                    </button>
+                    </ActionButton>
                 )}
-                {onDelete && (
-                    <button
-                        className={`file-action-btn file-delete-btn ${deleteFocused ? 'focused' : ''} ${isDisabled ? 'disabled' : ''}`}
-                        ref={deleteRef}
-                        disabled={isDisabled}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            if (!isDisabled) onDelete();
-                        }}
+                {onDelete && !isDisabled && (
+                    <ActionButton
+                        focusKey={`${focusKeyPrefix}-delete`}
+                        onEnterPress={onDelete}
+                        className="file-action-btn file-delete-btn"
                         title="Delete locally"
+                        onArrowPress={(direction) => {
+                            if (direction === 'left') {
+                                if (onUpload) setFocus(`${focusKeyPrefix}-upload`);
+                                else if (onDownload) setFocus(`${focusKeyPrefix}-download`);
+                                return false;
+                            }
+                            return true;
+                        }}
                     >
                         <TrashIcon size={16} />
-                    </button>
+                    </ActionButton>
                 )}
             </div>
         </div>

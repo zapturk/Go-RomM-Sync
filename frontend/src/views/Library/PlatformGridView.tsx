@@ -4,6 +4,7 @@ import { PlatformCard } from "../../PlatformCard";
 import { SettingsIcon } from "../../components/Icons";
 import { getMouseActive } from '../../inputMode';
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
+import { FocusableButton } from '../../components/FocusableButton';
 
 interface PlatformGridViewProps {
     platforms: types.Platform[];
@@ -35,7 +36,7 @@ export function PlatformGridView({
     gridRef
 }: PlatformGridViewProps) {
 
-    const { ref, focusKey } = useFocusable({
+    const { ref } = useFocusable({
         trackChildren: true
     });
 
@@ -47,20 +48,6 @@ export function PlatformGridView({
                 return false;
             }
             return true;
-        }
-    });
-
-    const { ref: prevRef, focused: prevFocused, focusSelf: focusPrev } = useFocusable({
-        focusKey: 'prev-plats-page',
-        onEnterPress: () => {
-            if (offset > 0) onPageChange(offset - pageSize);
-        }
-    });
-
-    const { ref: nextRef, focused: nextFocused, focusSelf: focusNext } = useFocusable({
-        focusKey: 'next-plats-page',
-        onEnterPress: () => {
-            if (offset + pageSize < totalPlatforms) onPageChange(offset + pageSize);
         }
     });
 
@@ -129,30 +116,32 @@ export function PlatformGridView({
             {!isLoading && (offset > 0 || (offset + pageSize < totalPlatforms)) && (
                 <div className="pagination-controls" style={{ display: 'flex', justifyContent: 'center', gap: '20px', padding: '20px', paddingBottom: '80px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                     {offset > 0 && (
-                        <button
-                            ref={prevRef}
-                            className={`btn ${prevFocused ? 'focused' : ''}`}
+                        <FocusableButton
+                            focusKey="prev-plats-page"
+                            className="btn"
+                            onEnterPress={() => onPageChange(offset - pageSize)}
                             onClick={() => onPageChange(offset - pageSize)}
                             onMouseEnter={() => {
-                                if (getMouseActive()) focusPrev();
+                                if (getMouseActive()) setFocus('prev-plats-page');
                             }}
                             style={{ padding: '8px 20px', minWidth: '120px' }}
                         >
                             Previous
-                        </button>
+                        </FocusableButton>
                     )}
                     {offset + pageSize < totalPlatforms && (
-                        <button
-                            ref={nextRef}
-                            className={`btn ${nextFocused ? 'focused' : ''}`}
+                        <FocusableButton
+                            focusKey="next-plats-page"
+                            className="btn"
+                            onEnterPress={() => onPageChange(offset + pageSize)}
                             onClick={() => onPageChange(offset + pageSize)}
                             onMouseEnter={() => {
-                                if (getMouseActive()) focusNext();
+                                if (getMouseActive()) setFocus('next-plats-page');
                             }}
                             style={{ padding: '8px 20px', minWidth: '120px' }}
                         >
                             Next
-                        </button>
+                        </FocusableButton>
                     )}
                 </div>
             )}
@@ -176,3 +165,4 @@ export function PlatformGridView({
         </div>
     );
 }
+
