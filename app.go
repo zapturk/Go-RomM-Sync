@@ -175,12 +175,19 @@ func (a *App) ClearImageCache() error {
 	return nil
 }
 
-func (a *App) GetLibrary() ([]types.Game, error) {
-	return a.rommSrv.GetLibrary()
+func (a *App) GetLibrary(limit, offset int, platformID int) (struct {
+	Items []types.Game `json:"items"`
+	Total int          `json:"total"`
+}, error) {
+	items, total, err := a.rommSrv.GetLibrary(limit, offset, platformID)
+	return struct {
+		Items []types.Game `json:"items"`
+		Total int          `json:"total"`
+	}{Items: items, Total: total}, err
 }
 
 func (a *App) GetPlatforms() ([]types.Platform, error) {
-	return a.rommSrv.GetPlatforms()
+	return a.rommSrv.GetPlatforms(25, 0)
 }
 
 func (a *App) DownloadRom(id uint) (string, error) {

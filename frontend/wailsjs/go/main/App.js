@@ -70,8 +70,8 @@ export function GetDefaultLibraryPath() {
   return window['go']['main']['App']['GetDefaultLibraryPath']();
 }
 
-export function GetLibrary() {
-  return window['go']['main']['App']['GetLibrary']();
+export function GetLibrary(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GetLibrary'](arg1, arg2, arg3);
 }
 
 export function GetLibraryPath() {

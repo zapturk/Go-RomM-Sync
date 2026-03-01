@@ -59,17 +59,23 @@ func TestGetLibrary(t *testing.T) {
 		if r.Header.Get("Authorization") != "Bearer test-token" {
 			t.Errorf("Expected Authorization header Bearer test-token, got %s", r.Header.Get("Authorization"))
 		}
+		if r.URL.Query().Get("platform_ids") != "1" {
+			t.Errorf("Expected platform_ids=1, got %s", r.URL.Query().Get("platform_ids"))
+		}
+		if r.URL.Query().Get("limit") != "25" {
+			t.Errorf("Expected limit=25, got %s", r.URL.Query().Get("limit"))
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		// Respond with a paginated list of games
-		w.Write([]byte(`{"items": [{"id": 1, "name": "Test Game", "rom_id": 123, "url_cover": "http://example.com/cover.jpg"}], "total": 1}`))
+		w.Write([]byte(`{"items": [{"id": 1, "name": "Test Game", "rom_id": 123, "url_cover": "http://example.com/cover.jpg"}], "total_count": 1}`))
 	}))
 	defer server.Close()
 
 	client := NewClient(server.URL)
 	client.Token = "test-token"
 
-	games, err := client.GetLibrary()
+	games, _, err := client.GetLibrary(25, 0, 1)
 	if err != nil {
 		t.Fatalf("GetLibrary failed: %v", err)
 	}
@@ -143,7 +149,7 @@ func TestGetPlatforms(t *testing.T) {
 	client := NewClient(server.URL)
 	client.Token = "test-token"
 
-	platforms, err := client.GetPlatforms()
+	platforms, err := client.GetPlatforms(25, 0)
 	if err != nil {
 		t.Fatalf("GetPlatforms failed: %v", err)
 	}

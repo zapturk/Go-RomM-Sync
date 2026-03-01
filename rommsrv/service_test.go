@@ -76,7 +76,7 @@ func TestGetLibrary(t *testing.T) {
 	s := New(cfg)
 	s.client.Token = "test-token"
 
-	games, err := s.GetLibrary()
+	games, _, err := s.GetLibrary(25, 0, 1)
 	if err != nil {
 		t.Fatalf("GetLibrary failed: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestGetPlatforms(t *testing.T) {
 	s := New(cfg)
 	s.client.Token = "test-token"
 
-	platforms, err := s.GetPlatforms()
+	platforms, err := s.GetPlatforms(25, 0)
 	if err != nil {
 		t.Fatalf("GetPlatforms failed: %v", err)
 	}

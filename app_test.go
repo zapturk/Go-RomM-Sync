@@ -211,8 +211,7 @@ func TestAppDelegationWrappers(t *testing.T) {
 	// Test a few delegation wrappers to ensure they don't panic or fail
 	// even if they return errors due to uninitialized network clients.
 
-	// RomM Wrappers
-	app.GetLibrary()
+	app.GetLibrary(25, 0, 1)
 	app.GetPlatforms()
 	app.GetServerSaves(1)
 	app.GetServerStates(1)
@@ -278,7 +277,7 @@ func TestAppExhaustiveWrappers(t *testing.T) {
 	app.SelectRetroArchExecutable()
 	app.SelectLibraryPath()
 	app.Login()
-	app.GetLibrary()
+	app.GetLibrary(25, 0, 1)
 	app.GetCover(1, "/url")
 	app.GetPlatformCover(1, "slug")
 	app.GetServerSaves(1)

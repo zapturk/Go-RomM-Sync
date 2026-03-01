@@ -37,7 +37,7 @@ export function GetCover(arg1:number,arg2:string):Promise<string>;
 
 export function GetDefaultLibraryPath():Promise<string>;
 
-export function GetLibrary():Promise<Array<types.Game>>;
+export function GetLibrary(arg1:number,arg2:number,arg3:number):Promise<any>;
 
 export function GetLibraryPath():Promise<string>;
 

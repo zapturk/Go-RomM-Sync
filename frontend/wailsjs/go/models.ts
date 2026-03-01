@@ -47,6 +47,7 @@ export namespace types {
 	    name: string;
 	    slug: string;
 	    url_icon: string;
+	    rom_count: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Platform(source);
@@ -58,6 +59,7 @@ export namespace types {
 	        this.name = source["name"];
 	        this.slug = source["slug"];
 	        this.url_icon = source["url_icon"];
+	        this.rom_count = source["rom_count"];
 	    }
 	}
 	export class Game {

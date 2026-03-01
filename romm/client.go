@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"go-romm-sync/utils/fileio"
 )
@@ -26,7 +27,9 @@ type Client struct {
 func NewClient(baseURL string) *Client {
 	return &Client{
 		BaseURL: strings.TrimRight(baseURL, "/"),
-		Client:  &http.Client{},
+		Client: &http.Client{
+			Timeout: 60 * time.Second,
+		},
 	}
 }
 
@@ -73,93 +76,85 @@ func (c *Client) Login(username, password string) (string, error) {
 // types with different JSON decode strategies; a generic refactor would add complexity without benefit.
 //
 //nolint:dupl // GetLibrary/GetPlatforms have similar pagination structures but operate on different
-func (c *Client) GetLibrary() ([]types.Game, error) {
+func (c *Client) GetLibrary(limit, offset int, platformID int) ([]types.Game, int, error) {
 	if c.Token == "" {
-		return nil, fmt.Errorf("not authenticated")
+		return nil, 0, fmt.Errorf("not authenticated")
 	}
 
-	var allGames []types.Game
-	seenIDs := make(map[uint]bool)
-	limit := 100
-	offset := 0
+	// Construct URL with pagination and filtering parameters
+	u, err := url.Parse(c.BaseURL + "/api/roms")
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to parse base URL: %w", err)
+	}
+	q := u.Query()
+	q.Set("limit", fmt.Sprintf("%d", limit))
+	q.Set("offset", fmt.Sprintf("%d", offset))
+	if platformID > 0 {
+		q.Set("platform_ids", fmt.Sprintf("%d", platformID))
+	}
+	u.RawQuery = q.Encode()
 
-	for {
-		// Construct URL with pagination parameters
-		urlStr := fmt.Sprintf("%s/api/roms?limit=%d&offset=%d", c.BaseURL, limit, offset)
-		req, err := http.NewRequest("GET", urlStr, http.NoBody)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create library request: %w", err)
-		}
-
-		req.Header.Set("Authorization", "Bearer "+c.Token)
-
-		resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close at each loop exit point
-		if err != nil {
-			return nil, fmt.Errorf("failed to perform library request: %w", err)
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(resp.Body)
-			fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
-			return nil, fmt.Errorf("library fetch failed with status %d: %s", resp.StatusCode, string(body))
-		}
-
-		// Check if response is an array or object (pagination)
-		// We'll decode into a raw message first to check
-		var raw json.RawMessage
-		if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-			return nil, fmt.Errorf("failed to decode library response: %w", err)
-		}
-
-		var pageItems []types.Game
-
-		// Try unmarshalling as array first (backward compatibility or non-paginated)
-		if err := json.Unmarshal(raw, &pageItems); err != nil {
-			// Try unmarshalling as paginated object
-			var paginated struct {
-				Items []types.Game `json:"items"`
-				Total int          `json:"total_count"` // Guessing field name, catching just items for now
-			}
-			if err := json.Unmarshal(raw, &paginated); err == nil {
-				pageItems = paginated.Items
-			} else {
-				// Failed both
-				return nil, fmt.Errorf("failed to parse library response: unknown format")
-			}
-		}
-
-		if len(pageItems) == 0 {
-			fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
-			break
-		}
-
-		// Check for duplicates (indicates ignored pagination params or end of list loop)
-		newItems := false
-		for i := range pageItems {
-			game := &pageItems[i]
-			if !seenIDs[game.ID] {
-				seenIDs[game.ID] = true
-				allGames = append(allGames, *game)
-				newItems = true
-			}
-		}
-
-		if !newItems {
-			// If all items in this page were already seen, stop to avoid infinite loop
-			fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
-			break
-		}
-
-		if len(pageItems) < limit {
-			fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
-			break
-		}
-
-		fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
-		offset += limit
+	req, err := http.NewRequest("GET", u.String(), http.NoBody)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to create library request: %w", err)
 	}
 
-	return allGames, nil
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to perform library request: %w", err)
+	}
+	defer fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, 0, fmt.Errorf("library fetch failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Check if response is an array or object (pagination)
+	var raw json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil, 0, fmt.Errorf("failed to decode library response: %w", err)
+	}
+
+	var pageItems []types.Game
+	totalCount := 0
+
+	// Try unmarshalling as array first (backward compatibility or non-paginated)
+	if err := json.Unmarshal(raw, &pageItems); err == nil {
+		totalCount = len(pageItems)
+	} else {
+		// Try unmarshalling as paginated object
+		var paginated struct {
+			Items    []types.Game `json:"items"`
+			Total    int          `json:"total_count"`
+			TotalAlt int          `json:"total"`
+			Total3   int          `json:"count"`
+			Total4   int          `json:"total_results"`
+		}
+		if err := json.Unmarshal(raw, &paginated); err == nil && paginated.Items != nil {
+			pageItems = paginated.Items
+			totalCount = paginated.Total
+			if totalCount == 0 {
+				totalCount = paginated.TotalAlt
+			}
+			if totalCount == 0 {
+				totalCount = paginated.Total3
+			}
+			if totalCount == 0 {
+				totalCount = paginated.Total4
+			}
+
+			if totalCount == 0 {
+				totalCount = len(pageItems)
+			}
+		} else {
+			return nil, 0, fmt.Errorf("unknown library response format: %s", string(raw))
+		}
+	}
+
+	return pageItems, totalCount, nil
 }
 
 // DownloadCover fetches the cover image from the provided URL
@@ -201,85 +196,50 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 // types with different JSON decode strategies; a generic refactor would add complexity without benefit.
 //
 //nolint:dupl // GetLibrary/GetPlatforms have similar pagination structures but operate on different
-func (c *Client) GetPlatforms() ([]types.Platform, error) {
+func (c *Client) GetPlatforms(limit, offset int) ([]types.Platform, error) {
 	if c.Token == "" {
 		return nil, fmt.Errorf("not authenticated")
 	}
 
-	var allPlatforms []types.Platform
-	seenIDs := make(map[uint]bool)
-	limit := 100
-	offset := 0
-
-	for {
-		urlStr := fmt.Sprintf("%s/api/platforms?limit=%d&offset=%d", c.BaseURL, limit, offset)
-		req, err := http.NewRequest("GET", urlStr, http.NoBody)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create platforms request: %w", err)
-		}
-
-		req.Header.Set("Authorization", "Bearer "+c.Token)
-
-		resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
-		if err != nil {
-			return nil, fmt.Errorf("failed to perform platforms request: %w", err)
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(resp.Body)
-			fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
-			return nil, fmt.Errorf("platforms fetch failed with status %d: %s", resp.StatusCode, string(body))
-		}
-
-		var raw json.RawMessage
-		if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-			return nil, fmt.Errorf("failed to decode platforms response: %w", err)
-		}
-
-		var pageItems []types.Platform
-
-		if err := json.Unmarshal(raw, &pageItems); err != nil {
-			var paginated struct {
-				Items []types.Platform `json:"items"`
-				Total int              `json:"total_count"`
-			}
-			if err := json.Unmarshal(raw, &paginated); err == nil {
-				pageItems = paginated.Items
-			} else {
-				return nil, fmt.Errorf("failed to parse platforms response: unknown format")
-			}
-		}
-
-		if len(pageItems) == 0 {
-			fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
-			break
-		}
-
-		newItems := false
-		for i := range pageItems {
-			item := &pageItems[i]
-			if !seenIDs[item.ID] {
-				seenIDs[item.ID] = true
-				allPlatforms = append(allPlatforms, *item)
-				newItems = true
-			}
-		}
-
-		if !newItems {
-			fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
-			break
-		}
-
-		if len(pageItems) < limit {
-			fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
-			break
-		}
-
-		fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
-		offset += limit
+	urlStr := fmt.Sprintf("%s/api/platforms?limit=%d&offset=%d", c.BaseURL, limit, offset)
+	req, err := http.NewRequest("GET", urlStr, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create platforms request: %w", err)
 	}
 
-	return allPlatforms, nil
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform platforms request: %w", err)
+	}
+	defer fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("platforms fetch failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var raw json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil, fmt.Errorf("failed to decode platforms response: %w", err)
+	}
+
+	var pageItems []types.Platform
+
+	if err := json.Unmarshal(raw, &pageItems); err != nil {
+		var paginated struct {
+			Items []types.Platform `json:"items"`
+			Total int              `json:"total_count"`
+		}
+		if err := json.Unmarshal(raw, &paginated); err == nil {
+			pageItems = paginated.Items
+		} else {
+			return nil, fmt.Errorf("failed to parse platforms response: unknown format")
+		}
+	}
+
+	return pageItems, nil
 }
 
 // GetRom fetches a single ROM by its ID
