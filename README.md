@@ -114,13 +114,13 @@ Alternatively, you can download the latest release for your platform from the [R
 
 ## Setup and Usage
 
-Please refer to the **[Setup and Usage Guide](https://github.com/zapturk/Go-RomM-Sync/wiki/Setup.md)** in the project wiki for detailed instructions on:
+Please refer to the **[Setup and Usage Guide](https://github.com/zapturk/Go-RomM-Sync/wiki/Setup)** in the project wiki for detailed instructions on:
 - First-time authentication and configuration.
 - Selecting your RetroArch executable.
 - Downloading and playing games from your RomM library.
 - Synchronizing saves and states.
 
-For a list of all supported emulators and platforms, see the **[Supported Platforms & Cores](https://github.com/zapturk/Go-RomM-Sync/wiki/Platforms.md)** page.
+For a list of all supported emulators and platforms, see the **[Supported Platforms & Cores](https://github.com/zapturk/Go-RomM-Sync/wiki/Platforms)** page.
 
 ## Roadmap
 
