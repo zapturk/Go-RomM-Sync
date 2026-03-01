@@ -11,22 +11,39 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"go-romm-sync/utils/fileio"
 )
 
+const (
+	// MaxMetadataSize is the maximum size (10MB) for JSON responses like lists of games or platforms.
+	MaxMetadataSize = 10 * 1024 * 1024
+	// MaxAssetSize is the maximum size (50MB) for assets like cover images read into memory.
+	MaxAssetSize = 50 * 1024 * 1024
+	// maxPlatformsToFetch is the maximum number of platforms to fetch in a single request (1000).
+	// Used as a workaround because RomM doesn't have a native "has games" filter for platforms.
+	maxPlatformsToFetch = 1000
+)
+
 // Client handles communication with the RomM API
 type Client struct {
-	BaseURL string
-	Token   string
-	Client  *http.Client
+	BaseURL    string
+	Token      string
+	APIClient  *http.Client // For standard API calls (60s timeout)
+	FileClient *http.Client // For large file downloads (2h timeout)
 }
 
 // NewClient creates a new RomM API client
 func NewClient(baseURL string) *Client {
 	return &Client{
 		BaseURL: strings.TrimRight(baseURL, "/"),
-		Client:  &http.Client{},
+		APIClient: &http.Client{
+			Timeout: 60 * time.Second,
+		},
+		FileClient: &http.Client{
+			Timeout: 2 * time.Hour,
+		},
 	}
 }
 
@@ -44,14 +61,14 @@ func (c *Client) Login(username, password string) (string, error) {
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
+	resp, err := c.APIClient.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
 	if err != nil {
 		return "", fmt.Errorf("failed to perform login request: %w", err)
 	}
 	defer fileio.Close(resp.Body, nil, "Login: Failed to close response body")
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
 		return "", fmt.Errorf("login failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -73,93 +90,82 @@ func (c *Client) Login(username, password string) (string, error) {
 // types with different JSON decode strategies; a generic refactor would add complexity without benefit.
 //
 //nolint:dupl // GetLibrary/GetPlatforms have similar pagination structures but operate on different
-func (c *Client) GetLibrary() ([]types.Game, error) {
+func (c *Client) GetLibrary(limit, offset, platformID int) ([]types.Game, int, error) {
 	if c.Token == "" {
-		return nil, fmt.Errorf("not authenticated")
+		return nil, 0, fmt.Errorf("not authenticated")
 	}
 
-	var allGames []types.Game
-	seenIDs := make(map[uint]bool)
-	limit := 100
-	offset := 0
+	// Construct URL with pagination and filtering parameters
+	u, err := url.Parse(c.BaseURL + "/api/roms")
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to parse base URL: %w", err)
+	}
+	q := u.Query()
+	q.Set("limit", fmt.Sprintf("%d", limit))
+	q.Set("offset", fmt.Sprintf("%d", offset))
+	if platformID > 0 {
+		q.Set("platform_ids", fmt.Sprintf("%d", platformID))
+	}
+	u.RawQuery = q.Encode()
 
-	for {
-		// Construct URL with pagination parameters
-		urlStr := fmt.Sprintf("%s/api/roms?limit=%d&offset=%d", c.BaseURL, limit, offset)
-		req, err := http.NewRequest("GET", urlStr, http.NoBody)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create library request: %w", err)
-		}
-
-		req.Header.Set("Authorization", "Bearer "+c.Token)
-
-		resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close at each loop exit point
-		if err != nil {
-			return nil, fmt.Errorf("failed to perform library request: %w", err)
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(resp.Body)
-			fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
-			return nil, fmt.Errorf("library fetch failed with status %d: %s", resp.StatusCode, string(body))
-		}
-
-		// Check if response is an array or object (pagination)
-		// We'll decode into a raw message first to check
-		var raw json.RawMessage
-		if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-			return nil, fmt.Errorf("failed to decode library response: %w", err)
-		}
-
-		var pageItems []types.Game
-
-		// Try unmarshalling as array first (backward compatibility or non-paginated)
-		if err := json.Unmarshal(raw, &pageItems); err != nil {
-			// Try unmarshalling as paginated object
-			var paginated struct {
-				Items []types.Game `json:"items"`
-				Total int          `json:"total_count"` // Guessing field name, catching just items for now
-			}
-			if err := json.Unmarshal(raw, &paginated); err == nil {
-				pageItems = paginated.Items
-			} else {
-				// Failed both
-				return nil, fmt.Errorf("failed to parse library response: unknown format")
-			}
-		}
-
-		if len(pageItems) == 0 {
-			fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
-			break
-		}
-
-		// Check for duplicates (indicates ignored pagination params or end of list loop)
-		newItems := false
-		for i := range pageItems {
-			game := &pageItems[i]
-			if !seenIDs[game.ID] {
-				seenIDs[game.ID] = true
-				allGames = append(allGames, *game)
-				newItems = true
-			}
-		}
-
-		if !newItems {
-			// If all items in this page were already seen, stop to avoid infinite loop
-			fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
-			break
-		}
-
-		if len(pageItems) < limit {
-			fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
-			break
-		}
-
-		fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
-		offset += limit
+	req, err := http.NewRequest("GET", u.String(), http.NoBody)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to create library request: %w", err)
 	}
 
-	return allGames, nil
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	resp, err := c.APIClient.Do(req) //nolint:bodyclose // body is closed via fileio.Close
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to perform library request: %w", err)
+	}
+	defer fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
+		return nil, 0, fmt.Errorf("library fetch failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Check if response is an array or object (pagination)
+	var raw json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil, 0, fmt.Errorf("failed to decode library response: %w", err)
+	}
+
+	var pageItems []types.Game
+	totalCount := 0
+
+	// Try unmarshalling as array first (backward compatibility or non-paginated)
+	if err := json.Unmarshal(raw, &pageItems); err == nil {
+		return pageItems, len(pageItems), nil
+	}
+
+	// Try unmarshalling as paginated object
+	var paginated struct {
+		Items []types.Game `json:"items"`
+		Total int          `json:"total_count"`
+		Alt   int          `json:"total"`
+		Cnt   int          `json:"count"`
+		Res   int          `json:"total_results"`
+	}
+	if err := json.Unmarshal(raw, &paginated); err == nil && paginated.Items != nil {
+		pageItems = paginated.Items
+		switch {
+		case paginated.Total != 0:
+			totalCount = paginated.Total
+		case paginated.Alt != 0:
+			totalCount = paginated.Alt
+		case paginated.Cnt != 0:
+			totalCount = paginated.Cnt
+		case paginated.Res != 0:
+			totalCount = paginated.Res
+		default:
+			totalCount = len(pageItems)
+		}
+		return pageItems, totalCount, nil
+	}
+
+	return nil, 0, fmt.Errorf("unknown library response format: %s", string(raw))
 }
 
 // DownloadCover fetches the cover image from the provided URL
@@ -184,7 +190,7 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}
 
-	resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
+	resp, err := c.FileClient.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform cover request: %w", err)
 	}
@@ -193,7 +199,7 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("cover fetch failed with status %d", resp.StatusCode)
 	}
-	return io.ReadAll(resp.Body)
+	return c.readAllWithLimit(resp.Body, MaxAssetSize)
 }
 
 // GetPlatforms fetches the list of platforms
@@ -201,85 +207,79 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 // types with different JSON decode strategies; a generic refactor would add complexity without benefit.
 //
 //nolint:dupl // GetLibrary/GetPlatforms have similar pagination structures but operate on different
-func (c *Client) GetPlatforms() ([]types.Platform, error) {
+func (c *Client) GetPlatforms(limit, offset int) ([]types.Platform, int, error) {
 	if c.Token == "" {
-		return nil, fmt.Errorf("not authenticated")
+		return nil, 0, fmt.Errorf("not authenticated")
+	}
+
+	// Fetch all platforms (up to maxPlatformsToFetch) to perform filtering and correct pagination
+	// RomM doesn't seem to have a native "has games" filter for platforms
+	urlStr := fmt.Sprintf("%s/api/platforms?limit=%d&offset=0", c.BaseURL, maxPlatformsToFetch)
+	req, err := http.NewRequest("GET", urlStr, http.NoBody)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to create platforms request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	resp, err := c.APIClient.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to perform platforms request: %w", err)
+	}
+	defer fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
+		return nil, 0, fmt.Errorf("platforms fetch failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var raw json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil, 0, fmt.Errorf("failed to decode platforms response: %w", err)
 	}
 
 	var allPlatforms []types.Platform
-	seenIDs := make(map[uint]bool)
-	limit := 100
-	offset := 0
-
-	for {
-		urlStr := fmt.Sprintf("%s/api/platforms?limit=%d&offset=%d", c.BaseURL, limit, offset)
-		req, err := http.NewRequest("GET", urlStr, http.NoBody)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create platforms request: %w", err)
+	if err := json.Unmarshal(raw, &allPlatforms); err == nil {
+		// Successfully parsed as array
+	} else {
+		var paginated struct {
+			Items []types.Platform `json:"items"`
 		}
-
-		req.Header.Set("Authorization", "Bearer "+c.Token)
-
-		resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
-		if err != nil {
-			return nil, fmt.Errorf("failed to perform platforms request: %w", err)
+		if err := json.Unmarshal(raw, &paginated); err == nil && paginated.Items != nil {
+			allPlatforms = paginated.Items
+		} else {
+			return nil, 0, fmt.Errorf("failed to parse platforms response: unknown format")
 		}
-
-		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(resp.Body)
-			fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
-			return nil, fmt.Errorf("platforms fetch failed with status %d: %s", resp.StatusCode, string(body))
-		}
-
-		var raw json.RawMessage
-		if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-			return nil, fmt.Errorf("failed to decode platforms response: %w", err)
-		}
-
-		var pageItems []types.Platform
-
-		if err := json.Unmarshal(raw, &pageItems); err != nil {
-			var paginated struct {
-				Items []types.Platform `json:"items"`
-				Total int              `json:"total_count"`
-			}
-			if err := json.Unmarshal(raw, &paginated); err == nil {
-				pageItems = paginated.Items
-			} else {
-				return nil, fmt.Errorf("failed to parse platforms response: unknown format")
-			}
-		}
-
-		if len(pageItems) == 0 {
-			fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
-			break
-		}
-
-		newItems := false
-		for i := range pageItems {
-			item := &pageItems[i]
-			if !seenIDs[item.ID] {
-				seenIDs[item.ID] = true
-				allPlatforms = append(allPlatforms, *item)
-				newItems = true
-			}
-		}
-
-		if !newItems {
-			fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
-			break
-		}
-
-		if len(pageItems) < limit {
-			fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
-			break
-		}
-
-		fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
-		offset += limit
 	}
 
-	return allPlatforms, nil
+	// Filter platforms with games
+	var filtered []types.Platform
+	for _, p := range allPlatforms {
+		if p.RomCount > 0 {
+			filtered = append(filtered, p)
+		}
+	}
+
+	totalCount := len(filtered)
+
+	// Apply pagination to the filtered list
+	start := offset
+	if start > totalCount {
+		start = totalCount
+	}
+	end := offset + limit
+	if end > totalCount {
+		end = totalCount
+	}
+
+	var pageItems []types.Platform
+	if start < end {
+		pageItems = filtered[start:end]
+	} else {
+		pageItems = []types.Platform{}
+	}
+
+	return pageItems, totalCount, nil
 }
 
 // GetRom fetches a single ROM by its ID
@@ -296,14 +296,14 @@ func (c *Client) GetRom(id uint) (types.Game, error) {
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
+	resp, err := c.APIClient.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
 	if err != nil {
 		return types.Game{}, fmt.Errorf("failed to perform ROM request: %w", err)
 	}
 	defer fileio.Close(resp.Body, nil, "GetRom: Failed to close response body")
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
 		return types.Game{}, fmt.Errorf("ROM fetch failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -332,7 +332,7 @@ func (c *Client) DownloadFile(game *types.Game) (reader io.ReadCloser, filename 
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
+	resp, err := c.FileClient.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to perform download request: %w", err)
 	}
@@ -399,14 +399,14 @@ func (c *Client) uploadAsset(romID uint, emulator, filename string, content []by
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("accept", "application/json")
 
-	resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
+	resp, err := c.APIClient.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
 	if err != nil {
 		return fmt.Errorf("failed to perform upload request: %w", err)
 	}
 	defer fileio.Close(resp.Body, nil, "uploadAsset: Failed to close response body")
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
 		return fmt.Errorf("upload failed with status %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -436,18 +436,21 @@ func fetchAssets[T any](c *Client, urlStr, assetType string) ([]T, error) {
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.Client.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
+	resp, err := c.APIClient.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform %s request: %w", assetType, err)
 	}
 	defer fileio.Close(resp.Body, nil, "fetchAssets: Failed to close response body")
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
 		return nil, fmt.Errorf("%s fetch failed with status %d: %s", assetType, resp.StatusCode, string(body))
 	}
 
-	bodyBytes, _ := io.ReadAll(resp.Body)
+	bodyBytes, err := c.readAllWithLimit(resp.Body, MaxMetadataSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %s response: %w", assetType, err)
+	}
 
 	if len(bodyBytes) == 0 {
 		return []T{}, nil
@@ -484,13 +487,13 @@ func (c *Client) downloadAsset(filePath, fallbackFilename string) (reader io.Rea
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.Client.Do(req)
+	resp, err := c.FileClient.Do(req)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to perform download request: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
 		fileio.Close(resp.Body, nil, "downloadAsset: Failed to close response body")
 		return nil, "", fmt.Errorf("download failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
@@ -526,4 +529,18 @@ func (c *Client) shouldSendToken(targetURL string) bool {
 
 	// Compare scheme and host (which includes port)
 	return target.Scheme == base.Scheme && target.Host == base.Host
+}
+
+// readAllWithLimit reads from r until EOF or limit is reached.
+// It returns the data read and an error if the limit is exceeded.
+func (c *Client) readAllWithLimit(r io.Reader, limit int64) ([]byte, error) {
+	lr := io.LimitReader(r, limit+1)
+	data, err := io.ReadAll(lr)
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return data[:limit], fmt.Errorf("response exceeded limit of %d bytes", limit)
+	}
+	return data, nil
 }

@@ -6,4 +6,5 @@ type Platform struct {
 	Name     string `json:"name"`
 	Slug     string `json:"slug"`
 	ImageURL string `json:"url_icon"` // Assuming icon/cover URL field
+	RomCount int    `json:"rom_count"`
 }

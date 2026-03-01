@@ -139,8 +139,6 @@ func (cm *ConfigManager) createDefault() error {
 	}
 	cm.Config = &defaultConfig
 
-	fmt.Println("Config file not found. Creating default at:", cm.ConfigPath)
-
 	// Create the directory if it doesn't exist
 	dir := filepath.Dir(cm.ConfigPath)
 	if err := os.MkdirAll(dir, 0o755); err != nil {

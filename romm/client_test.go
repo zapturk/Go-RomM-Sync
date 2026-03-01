@@ -59,17 +59,23 @@ func TestGetLibrary(t *testing.T) {
 		if r.Header.Get("Authorization") != "Bearer test-token" {
 			t.Errorf("Expected Authorization header Bearer test-token, got %s", r.Header.Get("Authorization"))
 		}
+		if r.URL.Query().Get("platform_ids") != "1" {
+			t.Errorf("Expected platform_ids=1, got %s", r.URL.Query().Get("platform_ids"))
+		}
+		if r.URL.Query().Get("limit") != "25" {
+			t.Errorf("Expected limit=25, got %s", r.URL.Query().Get("limit"))
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		// Respond with a paginated list of games
-		w.Write([]byte(`{"items": [{"id": 1, "name": "Test Game", "rom_id": 123, "url_cover": "http://example.com/cover.jpg"}], "total": 1}`))
+		w.Write([]byte(`{"items": [{"id": 1, "name": "Test Game", "rom_id": 123, "url_cover": "http://example.com/cover.jpg"}], "total_count": 1}`))
 	}))
 	defer server.Close()
 
 	client := NewClient(server.URL)
 	client.Token = "test-token"
 
-	games, err := client.GetLibrary()
+	games, _, err := client.GetLibrary(25, 0, 1)
 	if err != nil {
 		t.Fatalf("GetLibrary failed: %v", err)
 	}
@@ -136,19 +142,22 @@ func TestDownloadCover(t *testing.T) {
 func TestGetPlatforms(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[{"id": 1, "name": "SNES", "slug": "snes"}]`))
+		w.Write([]byte(`[{"id": 1, "name": "SNES", "slug": "snes", "rom_count": 1}]`))
 	}))
 	defer server.Close()
 
 	client := NewClient(server.URL)
 	client.Token = "test-token"
 
-	platforms, err := client.GetPlatforms()
+	platforms, total, err := client.GetPlatforms(25, 0)
 	if err != nil {
 		t.Fatalf("GetPlatforms failed: %v", err)
 	}
 	if len(platforms) != 1 {
 		t.Errorf("Expected 1 platform, got %d", len(platforms))
+	}
+	if total != 1 {
+		t.Errorf("Expected total 1, got %d", total)
 	}
 }
 
@@ -279,4 +288,44 @@ func TestDownloadAsset(t *testing.T) {
 	if filename != "test.sav" {
 		t.Errorf("Expected test.sav, got %s", filename)
 	}
+}
+func TestReadAllWithLimit(t *testing.T) {
+	client := NewClient("http://localhost")
+	limit := int64(10)
+
+	t.Run("under limit", func(t *testing.T) {
+		r := strings.NewReader("hello")
+		data, err := client.readAllWithLimit(r, limit)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if string(data) != "hello" {
+			t.Errorf("Expected hello, got %s", string(data))
+		}
+	})
+
+	t.Run("at limit", func(t *testing.T) {
+		r := strings.NewReader("0123456789")
+		data, err := client.readAllWithLimit(r, limit)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if len(data) != 10 {
+			t.Errorf("Expected 10 bytes, got %d", len(data))
+		}
+	})
+
+	t.Run("over limit", func(t *testing.T) {
+		r := strings.NewReader("0123456789A")
+		data, err := client.readAllWithLimit(r, limit)
+		if err == nil {
+			t.Error("Expected error for exceeding limit, got nil")
+		}
+		if !strings.Contains(err.Error(), "exceeded limit") {
+			t.Errorf("Expected limit exceeded error, got: %v", err)
+		}
+		if len(data) != 10 {
+			t.Errorf("Expected 10 bytes (truncated), got %d", len(data))
+		}
+	})
 }

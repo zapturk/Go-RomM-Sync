@@ -70,8 +70,8 @@ export function GetDefaultLibraryPath() {
   return window['go']['main']['App']['GetDefaultLibraryPath']();
 }
 
-export function GetLibrary() {
-  return window['go']['main']['App']['GetLibrary']();
+export function GetLibrary(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GetLibrary'](arg1, arg2, arg3);
 }
 
 export function GetLibraryPath() {
@@ -86,8 +86,8 @@ export function GetPlatformCover(arg1, arg2) {
   return window['go']['main']['App']['GetPlatformCover'](arg1, arg2);
 }
 
-export function GetPlatforms() {
-  return window['go']['main']['App']['GetPlatforms']();
+export function GetPlatforms(arg1, arg2) {
+  return window['go']['main']['App']['GetPlatforms'](arg1, arg2);
 }
 
 export function GetRetroArchPath() {

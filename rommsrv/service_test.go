@@ -76,7 +76,7 @@ func TestGetLibrary(t *testing.T) {
 	s := New(cfg)
 	s.client.Token = "test-token"
 
-	games, err := s.GetLibrary()
+	games, _, err := s.GetLibrary(25, 0, 1)
 	if err != nil {
 		t.Fatalf("GetLibrary failed: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestGetLibrary(t *testing.T) {
 func TestGetPlatforms(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[{"id": 1, "name": "Platform 1"}]`))
+		w.Write([]byte(`[{"id": 1, "name": "Platform 1", "rom_count": 1}]`))
 	}))
 	defer server.Close()
 
@@ -96,12 +96,15 @@ func TestGetPlatforms(t *testing.T) {
 	s := New(cfg)
 	s.client.Token = "test-token"
 
-	platforms, err := s.GetPlatforms()
+	platforms, total, err := s.GetPlatforms(25, 0)
 	if err != nil {
 		t.Fatalf("GetPlatforms failed: %v", err)
 	}
 	if len(platforms) != 1 {
 		t.Errorf("Expected 1 platform, got %d", len(platforms))
+	}
+	if total != 1 {
+		t.Errorf("Expected total 1, got %d", total)
 	}
 }
 

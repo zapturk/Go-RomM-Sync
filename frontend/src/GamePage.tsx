@@ -454,6 +454,22 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         return <div className="game-page-error">Game not found.</div>;
     }
 
+    const isMac = navigator.userAgent.includes('Mac');
+    const is3DS = (game.platform.slug?.toLowerCase() === '3ds') ||
+        (game.platform.name?.toLowerCase().includes('3ds')) ||
+        (game.full_path?.toLowerCase().includes('/3ds/'));
+    const isUnsupported = isMac && is3DS;
+
+    console.log("GamePage Detection:", {
+        userAgent: navigator.userAgent,
+        isMac,
+        platformSlug: game.platform.slug,
+        platformName: game.platform.name,
+        fullPath: game.full_path,
+        is3DS,
+        isUnsupported
+    });
+
     return (
         <div id="game-page" ref={ref}>
             {isPickerOpen && (
@@ -491,38 +507,48 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                     )}
                     {statusChecked && (
                         !isDownloaded ? (
-                            <button
-                                ref={downloadRef}
-                                className={`btn download-btn ${downloadFocused ? 'focused' : ''} ${downloading || isPlaying ? 'disabled' : ''}`}
-                                disabled={downloading || isPlaying}
-                                onMouseEnter={() => {
-                                    if (getMouseActive() && !downloading && !isPlaying) {
-                                        focusDownload();
-                                    }
-                                }}
-                                onClick={() => {
-                                    if (!downloading && !isPlaying) {
-                                        setDownloading(true);
-                                        setDownloadStatus("Starting download...");
-                                        DownloadRomToLibrary(game.id)
-                                            .then(() => {
-                                                setSuccessStatus("Download complete!");
-                                                setIsDownloaded(true);
-                                                setTimeout(() => {
-                                                    setFocus('play-button');
-                                                }, 100);
-                                            })
-                                            .catch((err: string) => {
-                                                setDownloadStatus(`Error: ${err}`);
-                                            })
-                                            .finally(() => {
-                                                setDownloading(false);
-                                            });
-                                    }
-                                }}
-                            >
-                                {downloading ? "Downloading..." : "Download to Library"}
-                            </button>
+                            isUnsupported ? (
+                                <button
+                                    className="btn download-btn disabled"
+                                    disabled={true}
+                                    style={{ opacity: 0.5, cursor: 'not-allowed' }}
+                                >
+                                    Not Supported on macOS
+                                </button>
+                            ) : (
+                                <button
+                                    ref={downloadRef}
+                                    className={`btn download-btn ${downloadFocused ? 'focused' : ''} ${downloading || isPlaying ? 'disabled' : ''}`}
+                                    disabled={downloading || isPlaying}
+                                    onMouseEnter={() => {
+                                        if (getMouseActive() && !downloading && !isPlaying) {
+                                            focusDownload();
+                                        }
+                                    }}
+                                    onClick={() => {
+                                        if (!downloading && !isPlaying) {
+                                            setDownloading(true);
+                                            setDownloadStatus("Starting download...");
+                                            DownloadRomToLibrary(game.id)
+                                                .then(() => {
+                                                    setSuccessStatus("Download complete!");
+                                                    setIsDownloaded(true);
+                                                    setTimeout(() => {
+                                                        setFocus('play-button');
+                                                    }, 100);
+                                                })
+                                                .catch((err: string) => {
+                                                    setDownloadStatus(`Error: ${err}`);
+                                                })
+                                                .finally(() => {
+                                                    setDownloading(false);
+                                                });
+                                        }
+                                    }}
+                                >
+                                    {downloading ? "Downloading..." : "Download to Library"}
+                                </button>
+                            )
                         ) : (
                             <>
                                 {availableCores.length > 0 && (

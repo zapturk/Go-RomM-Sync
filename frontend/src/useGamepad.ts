@@ -71,6 +71,8 @@ export function useGamepad() {
                 [BUTTON_MAPPING.A]: 'Enter',
                 [BUTTON_MAPPING.B]: 'Escape',
                 [BUTTON_MAPPING.X]: 'r',
+                [BUTTON_MAPPING.LB]: 'PageUp',
+                [BUTTON_MAPPING.RB]: 'PageDown',
             };
 
             for (const [btnIdStr, key] of Object.entries(ACTION_BUTTONS)) {

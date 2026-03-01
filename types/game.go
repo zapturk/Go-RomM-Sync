@@ -1,5 +1,11 @@
 package types
 
+// LibraryResult is a generic paginated response from the RomM library
+type LibraryResult[T any] struct {
+	Items []T `json:"items"`
+	Total int `json:"total"`
+}
+
 // Game represents a ROM/Game from the RomM library
 type Game struct {
 	ID       uint     `json:"id"`

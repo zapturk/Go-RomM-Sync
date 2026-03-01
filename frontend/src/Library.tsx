@@ -1,12 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { GetLibrary, GetPlatforms, SelectRetroArchExecutable, Quit } from "../wailsjs/go/main/App";
+import { GetLibrary, GetPlatforms, Quit } from "../wailsjs/go/main/App";
 import { types } from "../wailsjs/go/models";
-import { GameCard } from "./GameCard";
-import { PlatformCard } from "./PlatformCard";
 import { GamePage } from "./GamePage";
-import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
-import { getMouseActive } from './inputMode';
-import { SettingsIcon } from './components/Icons';
+import { PlatformGridView } from "./views/Library/PlatformGridView";
+import { GameGridView } from "./views/Library/GameGridView";
+import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 
 interface LibraryProps {
     onOpenSettings: () => void;
@@ -26,6 +24,13 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     const gridRef = useRef<HTMLDivElement>(null);
     const [columns, setColumns] = useState(1);
 
+    // Pagination state
+    const [offset, setOffset] = useState(0);
+    const [totalGames, setTotalGames] = useState(0);
+    const [platformOffset, setPlatformOffset] = useState(0);
+    const [totalPlatforms, setTotalPlatforms] = useState(0);
+    const PAGE_SIZE = 25;
+
     useEffect(() => {
         const updateColumns = () => {
             if (gridRef.current) {
@@ -44,44 +49,34 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         updateColumns();
 
         return () => observer.disconnect();
-    }, [selectedPlatform]); // Re-run when view toggles to ensure new ref is observed
+    }, [selectedPlatform]);
 
-    const { ref, focusKey } = useFocusable({
+    const { ref } = useFocusable({
         trackChildren: true
     });
 
-    const { ref: configRef, focused: configFocused, focusSelf: focusConfig } = useFocusable({
-        focusKey: 'config-button',
-        onEnterPress: () => {
-            onOpenSettings();
-        },
-        onArrowPress: (direction: string) => {
-            if (direction === 'up' || direction === 'left') {
-                return false;
-            }
-            return true;
-        }
-    });
-
-    const refreshLibrary = () => {
+    const refreshLibrary = (currentOffset: number = offset, currentPlatformOffset: number = platformOffset) => {
         setIsLoading(true);
         setStatus("Syncing...");
         setSyncTrigger(prev => prev + 1);
 
-        const gamesPromise = GetLibrary()
+        const activePlatform = platforms.find(p => p.name === selectedPlatform);
+        const platformId = activePlatform?.id || 0;
+
+        const gamesPromise = GetLibrary(PAGE_SIZE, currentOffset, platformId)
             .then((result) => {
-                console.log("Library fetched:", result);
-                setGames(result);
+                setGames(result.items || []);
+                setTotalGames(result.total || 0);
             })
             .catch((err) => {
                 console.error("Failed to fetch library:", err);
                 setStatus("Error: " + err);
             });
 
-        const platformsPromise = GetPlatforms()
+        const platformsPromise = GetPlatforms(PAGE_SIZE, currentPlatformOffset)
             .then((result) => {
-                console.log("Platforms fetched:", result);
-                setPlatforms(result);
+                setPlatforms(result.items || []);
+                setTotalPlatforms(result.total || 0);
                 setStatus("Ready");
             })
             .catch((err) => {
@@ -94,35 +89,66 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         });
     };
 
-    useEffect(() => {
-        refreshLibrary();
-    }, []);
+    const handlePageChange = (newOffset: number) => {
+        setOffset(newOffset);
+        refreshLibrary(newOffset, platformOffset);
+        if (gridRef.current) {
+            gridRef.current.scrollTop = 0;
+        }
+    };
 
-    // Handle "Back" navigation (Escape/B Button)
+    const handlePlatformPageChange = (newOffset: number) => {
+        setPlatformOffset(newOffset);
+        refreshLibrary(offset, newOffset);
+        if (gridRef.current) {
+            gridRef.current.scrollTop = 0;
+        }
+    };
+
+    useEffect(() => {
+        // Clear games when platform changes to prevent flicker
+        setGames([]);
+        setOffset(0);
+        setTotalGames(0);
+        refreshLibrary(0);
+    }, [selectedPlatform]);
+
+    // Handle "Back" navigation (Escape/B Button) and Pagination (PageUp/PageDown / LB/RB)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (!isActive) return;
 
             if (e.code === 'Escape' || e.key === 'Escape') {
-                // If we are in any part of the library, we want to at least consume the Escape
-                // so it doesn't bubble out to the browser/Wails system level.
                 e.preventDefault();
 
                 if (selectedGameId) {
                     setSelectedGameId(null);
                 } else if (selectedPlatform) {
                     setSelectedPlatform(null);
+                }
+            } else if (e.key === 'PageUp' || e.code === 'PageUp') {
+                e.preventDefault();
+                if (selectedGameId) return; // Don't paginate on game page
+
+                if (selectedPlatform) {
+                    if (offset > 0) handlePageChange(offset - PAGE_SIZE);
                 } else {
-                    // Already at root platform page, ensure focus stays here
-                    if (!document.querySelector('.focused')) {
-                        focusConfig();
-                    }
+                    if (platformOffset > 0) handlePlatformPageChange(platformOffset - PAGE_SIZE);
+                }
+            } else if (e.key === 'PageDown' || e.code === 'PageDown') {
+                e.preventDefault();
+                if (selectedGameId) return; // Don't paginate on game page
+
+                if (selectedPlatform) {
+                    if (offset + PAGE_SIZE < totalGames) handlePageChange(offset + PAGE_SIZE);
+                } else {
+                    if (platformOffset + PAGE_SIZE < totalPlatforms) handlePlatformPageChange(platformOffset + PAGE_SIZE);
                 }
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedPlatform, selectedGameId, isActive, focusConfig]);
+    }, [selectedPlatform, selectedGameId, isActive, offset, platformOffset, totalGames, totalPlatforms]);
 
     // Handle "Refresh" (R key)
     useEffect(() => {
@@ -140,7 +166,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isActive]);
+    }, [isActive, offset, selectedPlatform, platforms]);
 
     // Handle "Exit" (Alt+F4 or similar)
     useEffect(() => {
@@ -158,77 +184,6 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
 
     const sortedPlatforms = [...platforms].sort((a, b) => a.name.localeCompare(b.name));
 
-    // Helper to get games for a platform
-    const getGamesForPlatform = (platform: types.Platform) => {
-        return games.filter(game => {
-            return game.full_path.includes("/" + platform.name + "/") ||
-                game.full_path.includes("/" + platform.slug + "/");
-        });
-    };
-
-    const visiblePlatforms = sortedPlatforms.filter(p => getGamesForPlatform(p).length > 0);
-
-    // Auto-focus first platform or last viewed platform when configured
-    useEffect(() => {
-        if (!isActive) return;
-
-        if (!selectedPlatform && visiblePlatforms.length > 0) {
-            // Give a moment for the DOM to settle
-            setTimeout(() => {
-                if (lastViewedPlatformId.current && visiblePlatforms.some(p => p.id === lastViewedPlatformId.current)) {
-                    setFocus(`platform-${lastViewedPlatformId.current}`);
-                    lastViewedPlatformId.current = null; // Clear after restoring
-                } else {
-                    const key = `platform-${visiblePlatforms[0].id}`;
-                    setFocus(key);
-                }
-            }, 100);
-        } else if (!selectedPlatform && visiblePlatforms.length === 0) {
-            // If no platforms, focus the settings button so the user can fix the config
-            setTimeout(() => {
-                focusConfig();
-            }, 100);
-        }
-    }, [visiblePlatforms.length, selectedPlatform, setFocus, isActive]);
-
-    // Ensure focus is restored when coming back from settings
-    useEffect(() => {
-        if (isActive) {
-            // Small delay to ensure the view is visible
-            setTimeout(() => {
-                // If we're on the main platform screen, the other effect might handle it,
-                // but if we're deeper in the UI or nothing is focused, this ensures survival.
-                if (!document.querySelector('.focused')) {
-                    focusConfig();
-                }
-            }, 50);
-        }
-    }, [isActive, focusConfig]);
-
-    // Auto-focus first game or last viewed game when platform selected
-    useEffect(() => {
-        if (!isActive) return;
-
-        if (selectedPlatform && !selectedGameId) {
-            const platform = platforms.find(p => p.name === selectedPlatform);
-            if (platform) {
-                const platformGames = getGamesForPlatform(platform);
-                if (platformGames.length > 0) {
-                    setTimeout(() => {
-                        // Check if we have a last viewed game to restore focus to
-                        if (lastViewedGameId.current && platformGames.some(g => g.id === lastViewedGameId.current)) {
-                            setFocus(`game-${lastViewedGameId.current}`);
-                            lastViewedGameId.current = null; // Clear after restoring
-                        } else {
-                            // Default to first game
-                            const key = `game-${platformGames[0].id}`;
-                            setFocus(key);
-                        }
-                    }, 100);
-                }
-            }
-        }
-    }, [selectedPlatform, selectedGameId, games, platforms, setFocus, isActive]);
 
     if (selectedGameId) {
         return (
@@ -239,98 +194,45 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         );
     }
 
+    const currentPlatformObj = platforms.find(p => p.name === selectedPlatform);
+
     return (
         <div id="library" ref={ref}>
-            {!selectedPlatform ? (
-                // Platform Grid View
-                <>
-                    <div className="nav-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: '60px' }}>
-                        <button
-                            ref={configRef}
-                            className={`btn config-btn ${configFocused ? 'focused' : ''} ${isLoading ? 'disabled' : ''}`}
-                            title="Open Settings"
-                            disabled={isLoading}
-                            style={{
-                                margin: 0,
-                                padding: '5px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                background: 'transparent',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                position: 'absolute',
-                                left: '40px'
-                            }}
-                            onMouseEnter={() => {
-                                if (getMouseActive() && !isLoading) {
-                                    focusConfig();
-                                }
-                            }}
-                            onClick={onOpenSettings}
-                        >
-                            <SettingsIcon size={24} />
-                        </button>
-                        <h1 style={{ margin: 0 }}>Platforms</h1>
-                    </div>
-                    <div className="grid-container" ref={gridRef}>
-                        {visiblePlatforms.map((platform, index) => (
-                            <PlatformCard
-                                key={platform.id}
-                                platform={platform}
-                                isLeftmost={index % columns === 0}
-                                onClick={() => {
-                                    setSelectedPlatform(platform.name);
-                                    lastViewedPlatformId.current = platform.id;
-                                }}
-                                onEnterPress={() => {
-                                    setSelectedPlatform(platform.name);
-                                    lastViewedPlatformId.current = platform.id;
-                                }}
-                                syncTrigger={syncTrigger}
-                            />
-                        ))}
-                        {!isLoading && visiblePlatforms.length === 0 && (
-                            <div className="empty-state-container">
-                                <div className="empty-state-card">
-                                    <div className="empty-state-icon">🎮</div>
-                                    <h2>No platforms found</h2>
-                                    <p>Your library is empty. Please check your RomM host and local library path in settings to connect your collection.</p>
-                                    <button
-                                        className="btn play-btn"
-                                        style={{ marginTop: '1.5rem', width: 'auto', padding: '10px 30px' }}
-                                        onClick={onOpenSettings}
-                                    >
-                                        Open Settings
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </>
+            {!selectedPlatform || !currentPlatformObj ? (
+                <PlatformGridView
+                    platforms={sortedPlatforms}
+                    isLoading={isLoading}
+                    offset={platformOffset}
+                    totalPlatforms={totalPlatforms}
+                    pageSize={PAGE_SIZE}
+                    onSelectPlatform={(p) => {
+                        setSelectedPlatform(p.name);
+                        lastViewedPlatformId.current = p.id;
+                    }}
+                    onPageChange={handlePlatformPageChange}
+                    onOpenSettings={onOpenSettings}
+                    columns={columns}
+                    syncTrigger={syncTrigger}
+                    lastViewedPlatformId={lastViewedPlatformId.current}
+                    gridRef={gridRef}
+                />
             ) : (
-                // Game Grid View
-                <>
-                    <div className="nav-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60px' }}>
-                        <h1 style={{ margin: 0 }}>{selectedPlatform}</h1>
-                    </div>
-                    <div className="grid-container" ref={gridRef}>
-                        {selectedPlatform && platforms.find(p => p.name === selectedPlatform) ?
-                            getGamesForPlatform(platforms.find(p => p.name === selectedPlatform)!).map((game, index) => (
-                                <GameCard
-                                    key={game.id}
-                                    game={game}
-                                    isLeftmost={index % columns === 0}
-                                    isTopRow={index < columns}
-                                    onClick={() => {
-                                        setSelectedGameId(game.id);
-                                        lastViewedGameId.current = game.id;
-                                    }}
-                                />
-                            ))
-                            : <p>No games found (mapping issue?)</p>
-                        }
-                    </div>
-                </>
+                <GameGridView
+                    platform={currentPlatformObj}
+                    games={games}
+                    isLoading={isLoading}
+                    offset={offset}
+                    totalGames={totalGames}
+                    pageSize={PAGE_SIZE}
+                    columns={columns}
+                    lastViewedGameId={lastViewedGameId.current}
+                    onSelectGame={(g) => {
+                        setSelectedGameId(g.id);
+                        lastViewedGameId.current = g.id;
+                    }}
+                    onPageChange={handlePageChange}
+                    gridRef={gridRef}
+                />
             )}
 
             <div className="input-legend">
@@ -338,6 +240,24 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
                     <span>{status}</span>
                 </div>
                 <div className="footer-right">
+                    {!selectedGameId && (
+                        <div className="legend-item">
+                            <div className="show-gamepad">
+                                <div className="icon-group">
+                                    <div className="pill-icon">LB</div>
+                                    <div className="pill-icon">RB</div>
+                                </div>
+                            </div>
+                            <div className="show-keyboard">
+                                <div className="icon-group">
+                                    <div className="key-icon" style={{ width: 'auto', padding: '0 4px' }}>PgUp</div>
+                                    <div className="key-icon" style={{ width: 'auto', padding: '0 4px' }}>PgDn</div>
+                                </div>
+                            </div>
+                            <span>Page</span>
+                        </div>
+                    )}
+
                     <div className="legend-item">
                         {/* Gamepad Icon */}
                         <div className="btn-icon show-gamepad">
@@ -377,7 +297,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
 
                     <div className="legend-item">
                         <div className="show-gamepad">
-                            <div style={{ display: 'flex', gap: '4px' }}>
+                            <div className="icon-group">
                                 <div className="pill-icon">SELECT</div>
                                 <div className="pill-icon">START</div>
                             </div>
