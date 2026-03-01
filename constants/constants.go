@@ -40,4 +40,5 @@ const (
 const (
 	CoreRetro8 = "retro8_libretro"
 	CoreCitra  = "citra_libretro"
+	CoreCemu   = "cemu_libretro"
 )

@@ -337,6 +337,8 @@ func TestIdentifyPlatform(t *testing.T) {
 		{"Neo Geo Pocket Color", "ngp"},
 		{"Lynx", "lynx"},
 		{"Virtual Boy", "vb"},
+		{"Wii U", "wiiu"},
+		{"WiiU", "wiiu"},
 		{"roms", ""},
 		{"unknown", ""},
 	}

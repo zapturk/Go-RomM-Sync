@@ -64,6 +64,12 @@ var ExtCoreMap = map[string][]string{
 	".wbfs": {"dolphin_libretro"},
 	".wia":  {"dolphin_libretro"},
 
+	// Nintendo – Wii U
+	".wud": {constants.CoreCemu},
+	".wux": {constants.CoreCemu},
+	".rpx": {constants.CoreCemu},
+	".wua": {constants.CoreCemu},
+
 	// Nintendo – 3DS
 	".3ds":  {constants.CoreCitra},
 	".3dsx": {constants.CoreCitra},
@@ -147,6 +153,7 @@ var PlatformCoreMap = map[string][]string{
 	"gamecube":     {"dolphin_libretro"},
 	"gcn":          {"dolphin_libretro"},
 	"wii":          {"dolphin_libretro"},
+	"wiiu":         {constants.CoreCemu},
 	"3ds":          {constants.CoreCitra},
 	"p8":           {"retro8_libretro"},
 	"pico8":        {"retro8_libretro"},
@@ -192,6 +199,7 @@ var platformSearchPatterns = []struct {
 	{"dsi", []string{"dsi"}, false},
 	{"nds", []string{"ds", "nds"}, false},
 	{"gamecube", []string{"gamecube", "gcn"}, false},
+	{"wiiu", []string{"wii u", "wiiu"}, false},
 	{"wii", []string{"wii"}, false},
 	{"genesis", []string{"genesis", "mega drive", "megadrive"}, false},
 	{"wsc", []string{"wonderswan", "wsc"}, false},
@@ -629,6 +637,13 @@ func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 	}
 
 	urlStr := fmt.Sprintf("https://buildbot.libretro.com/nightly/%s/%s/latest/%s.zip", osName, archName, coreFile)
+	// Custom download logic for cores not on buildbot
+	if coreFile == constants.CoreCemu+getCoreExt() {
+		// Currently only Windows x86_64 version is available at this URL
+		if runtime.GOOS == constants.OSWindows && arch == constants.ArchAmd64 {
+			urlStr = "https://github.com/danprice142/Cemu-Libretro/releases/download/v1.0.1-alpha/cemu_libretro.zip"
+		}
+	}
 
 	resp, err := http.Get(urlStr) //nolint:bodyclose // body is closed via fileio.Close wrapper below
 	if err != nil {
