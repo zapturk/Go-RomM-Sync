@@ -32,6 +32,7 @@ Go-RomM-Sync uses RetroArch (Libretro) cores to launch games. Below is a compreh
 | **PlayStation 1** | `pcsx_rearmed` | .iso, .cue, .chd, .bin | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **PlayStation 2** | `pcsx2_libretro` | .iso, .chd | ✅ | ✅ | ✅ | ✅ | ❌ |
 | **PlayStation Port.**| `ppsspp_libretro` | .iso, .cso | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Pokémon Mini** | `pokemini_libretro` | .min | ✅ | ✅ | ✅ | ✅ | ❌ |
 | **Sega 32X** | `picodrive_libretro`| .32x | ✅ | ✅ | ✅ | ✅ | ❌ |
 | **Sega Genesis** | `genesis_plus_gx` | .md, .smd, .gen | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Sega Master Sys** | `genesis_plus_gx` | .sms, .gg | ✅ | ✅ | ✅ | ✅ | ❌ |

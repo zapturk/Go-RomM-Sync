@@ -131,6 +131,9 @@ var ExtCoreMap = map[string][]string{
 	".ngp": {"mednafen_ngp_libretro"},
 	".ngc": {"mednafen_ngp_libretro"},
 
+	// Pokemon Mini
+	".min": {"pokemini_libretro"},
+
 	// Pico-8
 	".p8":  {"retro8_libretro"},
 	".png": {constants.CoreRetro8},
@@ -182,6 +185,13 @@ var PlatformCoreMap = map[string][]string{
 	"ps2":          {"pcsx2_libretro"},
 	"sg1000":       {"smsplus_libretro"},
 	"neogeo":       {"fbneo_libretro"},
+	"a26":          {"stella_libretro"},
+	"a52":          {"a5200_libretro"},
+	"c64":          {"vice_x64sc_libretro"},
+	"32x":          {"picodrive_libretro"},
+	"saturn":       {"mednafen_saturn_libretro"},
+	"wiiu":         {"cemu_libretro"},
+	"pokemini":     {"pokemini_libretro"},
 }
 
 // GetCoresForPlatform returns the ordered list of known-working libretro core
@@ -209,34 +219,56 @@ var platformSearchPatterns = []struct {
 	patterns []string
 	all      bool
 }{
+	// Handhelds - variants first
 	{"gba", []string{"advance", "gba"}, false},
-	{"3ds", []string{"3ds"}, false},
-	{"gb", []string{"game boy", "gb"}, false},
 	{"dsi", []string{"dsi"}, false},
-	{"nds", []string{"ds", "nds"}, false},
-	{"gamecube", []string{"gamecube", "gcn"}, false},
-	{"wii", []string{"wii"}, false},
-	{"genesis", []string{"genesis", "mega drive", "megadrive"}, false},
+	{"3ds", []string{"3ds"}, false},
+	{"nds", []string{"nds", "ds", "dual screen"}, false},
+	{"psp", []string{"psp", "playstation portable"}, false},
 	{"wsc", []string{"wonderswan", "wsc"}, false},
 	{"ngp", []string{"neo", "pocket"}, true},
-	{"snes", []string{"snes"}, false},
-	{"nes", []string{"nes"}, false},
-	{"n64", []string{"n64"}, false},
-	{"ps1", []string{"ps1", "psx"}, false},
-	{"psp", []string{"psp"}, false},
-	{"dreamcast", []string{"dreamcast"}, false},
-	{"lynx", []string{"lynx"}, false},
 	{"vb", []string{"virtual", "boy"}, true},
-	{"a78", []string{"7800"}, false},
+	{"lynx", []string{"lynx"}, false},
+	{"gamegear", []string{"game gear", "gamegear"}, false},
+	{"gbc", []string{"color", "gbc"}, false},
+	{"gb", []string{"game boy", "gb"}, false},
+
+	// Consoles - Specific/Modern first to avoid broad matches
+	{"ps2", []string{"ps2", "playstation 2"}, false},
+	{"ps1", []string{"playstation", "ps1", "psx"}, false},
+	{"wiiu", []string{"wii u", "wiiu"}, false},
+	{"wii", []string{"wii"}, false},
+	{"gamecube", []string{"gamecube", "gcn"}, false},
+	{"n64", []string{"n64", "nintendo 64"}, false},
+	{"dreamcast", []string{"dreamcast"}, false},
+	{"saturn", []string{"saturn"}, false},
+	{"genesis", []string{"genesis", "mega drive", "megadrive"}, false},
+	{"snes", []string{"snes", "super nintendo", "super entertainment system"}, false},
+	{"nes", []string{"nes", "entertainment system"}, false},
+	{"mastersystem", []string{"master system", "mastersystem"}, false},
+	{"pce", []string{"pce", "pc engine", "turbo", "grafx"}, false},
 	{"3do", []string{"3do"}, false},
+
+	// 8-bit / Classic
+	{"a78", []string{"7800"}, false},
+	{"a52", []string{"5200"}, false},
+	{"a26", []string{"2600"}, false},
+	{"32x", []string{"32x"}, false},
+	{"sg1000", []string{"sg1000", "sg-1000"}, false},
+	{"coleco", []string{"coleco"}, false},
+
+	// Computers
+	{"c64", []string{"c64", "commodore"}, false},
+	{"msx", []string{"msx"}, false},
 	{"amstrad", []string{"amstrad", "cpc"}, false},
 	{"apple2", []string{"apple", "ii"}, true},
+
+	// Others
 	{"arcade", []string{"arcade", "mame", "fbneo"}, false},
-	{"coleco", []string{"coleco"}, false},
-	{"msx", []string{"msx"}, false},
-	{"ps2", []string{"ps2", "playstation 2"}, false},
-	{"sg1000", []string{"sg-1000", "sg1000"}, false},
 	{"neogeo", []string{"neo geo", "neogeo"}, false},
+	{"pico8", []string{"pico-8", "pico8", "p8"}, false},
+	{"pokemini", []string{"pokemini", "pokemon mini", "pokémon mini", "pokemonmini", "pokémonmini"}, false},
+	{"a26", []string{"2600"}, false},
 }
 
 // IdentifyPlatform attempts to resolve a canonical platform slug from a string,

@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"go-romm-sync/constants"
+	"go-romm-sync/retroarch"
 	"go-romm-sync/romm"
 	"go-romm-sync/types"
 	"os"
@@ -64,9 +65,38 @@ func (s *Service) GetLibrary(limit, offset, platformID int) ([]types.Game, int, 
 	return s.client.GetLibrary(limit, offset, platformID)
 }
 
-// GetPlatforms fetches a page of platforms from RomM.
+// GetPlatforms fetches a page of supported platforms from RomM.
+// It filters out platforms that aren't recognized by RetroArch mappings.
 func (s *Service) GetPlatforms(limit, offset int) ([]types.Platform, int, error) {
-	return s.client.GetPlatforms(limit, offset)
+	// Fetch a large number of platforms to ensure we can filter and paginate correctly.
+	allPlatforms, _, err := s.client.GetPlatforms(1000, 0)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var supported []types.Platform
+	for _, p := range allPlatforms {
+		if retroarch.IdentifyPlatform(p.Name) != "" || retroarch.IdentifyPlatform(p.Slug) != "" {
+			supported = append(supported, p)
+		}
+	}
+
+	totalCount := len(supported)
+
+	// Manual pagination
+	start := offset
+	if start > totalCount {
+		start = totalCount
+	}
+	end := offset + limit
+	if end > totalCount {
+		end = totalCount
+	}
+
+	if start < end {
+		return supported[start:end], totalCount, nil
+	}
+	return []types.Platform{}, totalCount, nil
 }
 
 // GetRom fetches a single ROM from RomM.

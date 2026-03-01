@@ -88,7 +88,7 @@ func TestGetLibrary(t *testing.T) {
 func TestGetPlatforms(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[{"id": 1, "name": "Platform 1", "rom_count": 1}]`))
+		w.Write([]byte(`[{"id": 1, "name": "NES", "rom_count": 1}]`))
 	}))
 	defer server.Close()
 
