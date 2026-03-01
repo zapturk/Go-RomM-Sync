@@ -164,7 +164,7 @@ func (l *Launcher) findRomPath(game *types.Game, romDir string) string {
 	// Strategy 1: Look for exact base filename match from FullPath
 	baseName := filepath.Base(game.FullPath)
 	directPath := filepath.Join(romDir, baseName)
-	if _, err := os.Stat(directPath); err == nil {
+	if info, err := os.Stat(directPath); err == nil && !info.IsDir() {
 		return directPath
 	}
 

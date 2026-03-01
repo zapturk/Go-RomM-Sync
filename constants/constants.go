@@ -39,4 +39,5 @@ const (
 // Known Cores
 const (
 	CoreRetro8 = "retro8_libretro"
+	CoreCitra  = "citra_libretro"
 )

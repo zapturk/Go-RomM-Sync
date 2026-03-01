@@ -98,6 +98,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         // Clear games when platform changes to prevent flicker
         setGames([]);
         setOffset(0);
+        setTotalGames(0);
         refreshLibrary(0);
     }, [selectedPlatform]);
 

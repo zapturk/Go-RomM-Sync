@@ -323,6 +323,8 @@ func TestIdentifyPlatform(t *testing.T) {
 		{"Game Boy Color", "gb"},
 		{"GBA", "gba"},
 		{"Nintendo - Game Boy Advance", "gba"},
+		{"3DS", "3ds"},
+		{"Nintendo 3DS", "3ds"},
 		{"DSi", "dsi"},
 		{"Nintendo - DS", "nds"},
 		{"GameCube", "gamecube"},

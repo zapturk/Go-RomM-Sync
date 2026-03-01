@@ -64,6 +64,15 @@ var ExtCoreMap = map[string][]string{
 	".wbfs": {"dolphin_libretro"},
 	".wia":  {"dolphin_libretro"},
 
+	// Nintendo – 3DS
+	".3ds":  {constants.CoreCitra},
+	".3dsx": {constants.CoreCitra},
+	".elf":  {constants.CoreCitra},
+	".axf":  {constants.CoreCitra},
+	".cci":  {constants.CoreCitra},
+	".cxi":  {constants.CoreCitra},
+	".app":  {constants.CoreCitra},
+
 	// Sega – Mega Drive / Genesis
 	".md":  {"genesis_plus_gx_libretro", "picodrive_libretro", "blastem_libretro"},
 	".smd": {"genesis_plus_gx_libretro", "picodrive_libretro"},
@@ -138,6 +147,7 @@ var PlatformCoreMap = map[string][]string{
 	"gamecube":     {"dolphin_libretro"},
 	"gcn":          {"dolphin_libretro"},
 	"wii":          {"dolphin_libretro"},
+	"3ds":          {constants.CoreCitra},
 	"p8":           {"retro8_libretro"},
 	"pico8":        {"retro8_libretro"},
 	"wonderswan":   {"mednafen_wswan_libretro"},
@@ -177,6 +187,7 @@ var platformSearchPatterns = []struct {
 	all      bool
 }{
 	{"gba", []string{"advance", "gba"}, false},
+	{"3ds", []string{"3ds"}, false},
 	{"gb", []string{"game boy", "gb"}, false},
 	{"dsi", []string{"dsi"}, false},
 	{"nds", []string{"ds", "nds"}, false},
@@ -372,80 +383,81 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 	if ext == ".zip" {
 		r, err := zip.OpenReader(romPath)
 		if err != nil {
-			return fmt.Errorf("failed to open .zip rom archive: %v", err)
-		}
-		defer fileio.Close(r, nil, "Launch: Failed to close zip reader")
+			ui.LogErrorf("Launch: Failed to open .zip archive as PKZIP: %v. Passing original path to RetroArch.", err)
+		} else {
+			defer fileio.Close(r, nil, "Launch: Failed to close zip reader")
 
-		foundExt := ""
-		// If we have a platform, check if there's a preferred core/ext set for it
-		platformCores := GetCoresForPlatform(platform)
+			foundExt := ""
+			// If we have a platform, check if there's a preferred core/ext set for it
+			platformCores := GetCoresForPlatform(platform)
 
-		for _, f := range r.File {
-			if f.FileInfo().IsDir() {
-				continue
-			}
-			innerExt := strings.ToLower(filepath.Ext(f.Name))
+			for _, f := range r.File {
+				if f.FileInfo().IsDir() {
+					continue
+				}
+				innerExt := strings.ToLower(filepath.Ext(f.Name))
 
-			// Check if this extension is recognizable
-			innerCores := GetCoresForExt(innerExt)
-			if len(innerCores) == 0 {
-				continue
-			}
+				// Check if this extension is recognizable
+				innerCores := GetCoresForExt(innerExt)
+				if len(innerCores) == 0 {
+					continue
+				}
 
-			// If we have platform-specific cores, prioritize finding one that matches
-			match := true
-			if len(platformCores) > 0 {
-				match = false
-				for _, pc := range platformCores {
-					for _, ic := range innerCores {
-						if pc == ic {
-							match = true
+				// If we have platform-specific cores, prioritize finding one that matches
+				match := true
+				if len(platformCores) > 0 {
+					match = false
+					for _, pc := range platformCores {
+						for _, ic := range innerCores {
+							if pc == ic {
+								match = true
+								break
+							}
+						}
+						if match {
 							break
 						}
 					}
-					if match {
-						break
-					}
 				}
-			}
 
-			if match {
-				foundExt = innerExt
-				// Special case: Pico-8 .png carts inside ZIPs need manual extraction to a .p8 extension
-				// to prevent RetroArch from defaulting to its internal image-viewer core.
-				if innerExt == ".png" && innerCores[0] == constants.CoreRetro8 {
-					tmpFile, err := os.CreateTemp("", "pico8_*.p8")
-					if err != nil {
-						return fmt.Errorf("failed to create temporary file for pico-8 extraction: %v", err)
-					}
-					rc, err := f.Open()
-					if err != nil {
+				if match {
+					foundExt = innerExt
+					// Special case: Pico-8 .png carts inside ZIPs need manual extraction to a .p8 extension
+					// to prevent RetroArch from defaulting to its internal image-viewer core.
+					if innerExt == ".png" && innerCores[0] == constants.CoreRetro8 {
+						tmpFile, err := os.CreateTemp("", "pico8_*.p8")
+						if err != nil {
+							return fmt.Errorf("failed to create temporary file for pico-8 extraction: %v", err)
+						}
+						rc, err := f.Open()
+						if err != nil {
+							fileio.Close(tmpFile, ui.LogErrorf, "Launch: Failed to close temporary file")
+							fileio.Remove(tmpFile.Name(), ui.LogErrorf)
+							return fmt.Errorf("failed to open zip member for extraction: %v", err)
+						}
+						_, err = io.Copy(tmpFile, rc)
+						fileio.Close(rc, nil, "Launch: Failed to close zip member")
 						fileio.Close(tmpFile, ui.LogErrorf, "Launch: Failed to close temporary file")
-						fileio.Remove(tmpFile.Name(), ui.LogErrorf)
-						return fmt.Errorf("failed to open zip member for extraction: %v", err)
+						if err != nil {
+							fileio.Remove(tmpFile.Name(), ui.LogErrorf)
+							return fmt.Errorf("failed to extract pico-8 cart from zip: %v", err)
+						}
+						romPath = tmpFile.Name()
+						tempRomPath = romPath
+						ui.LogInfof("Launch: Manually extracted Pico-8 .png cart from ZIP to %s", romPath)
+					} else {
+						// RetroArch requires the path to be formatted as: path/to/rom.zip#internal_rom.abc
+						romPath = fmt.Sprintf("%s#%s", romPath, f.Name)
 					}
-					_, err = io.Copy(tmpFile, rc)
-					fileio.Close(rc, nil, "Launch: Failed to close zip member")
-					fileio.Close(tmpFile, ui.LogErrorf, "Launch: Failed to close temporary file")
-					if err != nil {
-						fileio.Remove(tmpFile.Name(), ui.LogErrorf)
-						return fmt.Errorf("failed to extract pico-8 cart from zip: %v", err)
-					}
-					romPath = tmpFile.Name()
-					tempRomPath = romPath
-					ui.LogInfof("Launch: Manually extracted Pico-8 .png cart from ZIP to %s", romPath)
-				} else {
-					// RetroArch requires the path to be formatted as: path/to/rom.zip#internal_rom.abc
-					romPath = fmt.Sprintf("%s#%s", romPath, f.Name)
+					break
 				}
-				break
+			}
+			if foundExt == "" {
+				ui.LogErrorf("Launch: Could not find a recognizable ROM file inside the .zip archive. Passing original path to RetroArch.")
+			} else {
+				ext = foundExt
 			}
 		}
-
-		if foundExt == "" {
-			return fmt.Errorf("could not find a recognizable ROM file inside the .zip archive")
-		}
-		ext = foundExt
 	}
 
 	// Resolve the core: use an explicit override if provided, otherwise look up CoreMap or PlatformCoreMap.
