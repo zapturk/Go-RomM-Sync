@@ -151,31 +151,23 @@ var PlatformCoreMap = map[string][]string{
 	"nds":          {"melonds_libretro", "desmume_libretro"},
 	"dsi":          {"melonds_libretro", "desmume_libretro"},
 	"genesis":      {"genesis_plus_gx_libretro", "picodrive_libretro", "blastem_libretro"},
-	"megadrive":    {"genesis_plus_gx_libretro", "picodrive_libretro", "blastem_libretro"},
 	"mastersystem": {"genesis_plus_gx_libretro", "picodrive_libretro"},
 	"gamegear":     {"genesis_plus_gx_libretro"},
-	"psx":          {"pcsx_rearmed_libretro", "beetle_psx_libretro"},
 	"ps1":          {"pcsx_rearmed_libretro", "beetle_psx_libretro"},
 	"psp":          {"ppsspp_libretro"},
 	"dreamcast":    {"flycast_libretro"},
 	"pce":          {"mednafen_pce_fast_libretro", "mednafen_pce_libretro"},
 	"gamecube":     {"dolphin_libretro"},
-	"gcn":          {"dolphin_libretro"},
 	"wii":          {"dolphin_libretro"},
 	"3ds":          {constants.CoreCitra},
-	"p8":           {"retro8_libretro"},
 	"pico8":        {"retro8_libretro"},
-	"wonderswan":   {"mednafen_wswan_libretro"},
 	"wsc":          {"mednafen_wswan_libretro"},
 	"ngp":          {"mednafen_ngp_libretro"},
-	"ngpc":         {"mednafen_ngp_libretro"},
 	"vb":           {"beetle_vb_libretro"},
-	"virtualboy":   {"beetle_vb_libretro"},
 	"lynx":         {"handy_libretro"},
 	"pce_fast":     {"mednafen_pce_fast_libretro"},
 	"supergrafx":   {"mednafen_pce_fast_libretro"},
 	"a78":          {"prosystem_libretro"},
-	"atari7800":    {"prosystem_libretro"},
 	"3do":          {"opera_libretro"},
 	"amstrad":      {"caprice32_libretro"},
 	"apple2":       {"apple2enh_libretro"},
@@ -229,6 +221,7 @@ var platformSearchPatterns = []struct {
 	{"ngp", []string{"neo", "pocket"}, true},
 	{"vb", []string{"virtual", "boy"}, true},
 	{"lynx", []string{"lynx"}, false},
+	{"pico8", []string{"pico-8", "pico8", "pico 8", "p8"}, false},
 	{"gamegear", []string{"game gear", "gamegear"}, false},
 	{"gbc", []string{"color", "gbc"}, false},
 	{"gb", []string{"game boy", "gb"}, false},
@@ -266,9 +259,7 @@ var platformSearchPatterns = []struct {
 	// Others
 	{"arcade", []string{"arcade", "mame", "fbneo"}, false},
 	{"neogeo", []string{"neo geo", "neogeo"}, false},
-	{"pico8", []string{"pico-8", "pico8", "p8"}, false},
 	{"pokemini", []string{"pokemini", "pokemon mini", "pokémon mini", "pokemonmini", "pokémonmini"}, false},
-	{"a26", []string{"2600"}, false},
 }
 
 // IdentifyPlatform attempts to resolve a canonical platform slug from a string,
@@ -279,6 +270,14 @@ func IdentifyPlatform(input string) string {
 		return ""
 	}
 
+	// 1. Direct check for exact slug matches (Primary)
+	// This ensures that if the input IS already a canonical slug (e.g., from RomM metadata),
+	// we don't accidentally fuzzy-match it to something else.
+	if _, ok := PlatformCoreMap[lower]; ok {
+		return lower
+	}
+
+	// 2. Fuzzy matching based on search patterns
 	for _, entry := range platformSearchPatterns {
 		matches := false
 		if entry.all {
@@ -301,11 +300,6 @@ func IdentifyPlatform(input string) string {
 		if matches {
 			return entry.slug
 		}
-	}
-
-	// Direct check as fallback
-	if _, ok := PlatformCoreMap[lower]; ok {
-		return lower
 	}
 
 	return ""

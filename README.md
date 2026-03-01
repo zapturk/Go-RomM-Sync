@@ -13,7 +13,7 @@
 >
 > **Supported RomM Version:** [4.6.1](https://github.com/rommapp/romm/releases/tag/4.6.1)
 >
-> 📖 **[Project Wiki](wiki/Home.md)**: Check out our wiki for setup guides, platform compatibility, and more!
+> 📖 **[Project Wiki](https://github.com/zapturk/Go-RomM-Sync/wiki/Home.md)**: Check out our wiki for setup guides, platform compatibility, and more!
 
 Go-RomM-Sync is a desktop application built with Wails and React that synchronizes your RomM library with a local RetroArch installation. It provides a gaming-console-like experience with full controller navigation support, making it perfect for use with gamepads on a home theater setup.
 
@@ -114,13 +114,13 @@ Alternatively, you can download the latest release for your platform from the [R
 
 ## Setup and Usage
 
-Please refer to the **[Setup and Usage Guide](wiki/Setup.md)** in the project wiki for detailed instructions on:
+Please refer to the **[Setup and Usage Guide](https://github.com/zapturk/Go-RomM-Sync/wiki/Setup.md)** in the project wiki for detailed instructions on:
 - First-time authentication and configuration.
 - Selecting your RetroArch executable.
 - Downloading and playing games from your RomM library.
 - Synchronizing saves and states.
 
-For a list of all supported emulators and platforms, see the **[Supported Platforms & Cores](wiki/Platforms.md)** page.
+For a list of all supported emulators and platforms, see the **[Supported Platforms & Cores](https://github.com/zapturk/Go-RomM-Sync/wiki/Platforms.md)** page.
 
 ## Roadmap
 

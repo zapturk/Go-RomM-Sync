@@ -1,8 +1,0 @@
-=== RUN   TestIdentifyPlatform
-    manager_test.go:351: IdentifyPlatform("Sega - Genesis") = "nes", expected "genesis"
-    manager_test.go:351: IdentifyPlatform("WonderSwan Color") = "gbc", expected "wsc"
-    manager_test.go:351: IdentifyPlatform("Neo Geo Pocket Color") = "gbc", expected "ngp"
---- FAIL: TestIdentifyPlatform (0.00s)
-FAIL
-FAIL	go-romm-sync/retroarch	0.494s
-FAIL

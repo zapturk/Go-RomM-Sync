@@ -68,35 +68,69 @@ func (s *Service) GetLibrary(limit, offset, platformID int) ([]types.Game, int, 
 // GetPlatforms fetches a page of supported platforms from RomM.
 // It filters out platforms that aren't recognized by RetroArch mappings.
 func (s *Service) GetPlatforms(limit, offset int) ([]types.Platform, int, error) {
-	// Fetch a large number of platforms to ensure we can filter and paginate correctly.
-	allPlatforms, _, err := s.client.GetPlatforms(1000, 0)
-	if err != nil {
-		return nil, 0, err
-	}
-
+	const batchSize = 100
 	var supported []types.Platform
-	for _, p := range allPlatforms {
-		if retroarch.IdentifyPlatform(p.Name) != "" || retroarch.IdentifyPlatform(p.Slug) != "" {
-			supported = append(supported, p)
+
+	// We scan until we find enough platforms for the requested page.
+	// We also need the total count if we want an accurate pagination.
+	// However, if there are thousands of platforms, scanning everything on every request is slow.
+	// For now, we'll scan up to a reasonable limit (e.g., 2000 total platforms)
+	// or until we reach the end of the server's list.
+
+	currentOffset := 0
+	foundCount := 0
+
+	for {
+		batch, totalOnServer, err := s.client.GetPlatforms(batchSize, currentOffset)
+		if err != nil {
+			return nil, 0, err
+		}
+		if len(batch) == 0 {
+			break
+		}
+
+		for _, p := range batch {
+			// Check if supported by RetroArch and has games
+			if p.RomCount > 0 && (retroarch.IdentifyPlatform(p.Name) != "" || retroarch.IdentifyPlatform(p.Slug) != "") {
+				if foundCount >= offset && len(supported) < limit {
+					supported = append(supported, p)
+				}
+				foundCount++
+			}
+		}
+
+		currentOffset += len(batch)
+
+		// Optimization: if we've filled our page AND reached the end of the server list, or a high limit
+		if (len(supported) >= limit && currentOffset >= totalOnServer) || currentOffset >= 2000 {
+			// If we haven't scanned everything, totalCount is estimated or partial
+			if currentOffset < totalOnServer {
+				// We can continue scanning to get a perfect totalCount if performance allows,
+				// or just return what we found so far.
+				// Let's continue scanning to get an accurate totalCount for now,
+				// but without collecting platforms beyond our limit.
+				for currentOffset < totalOnServer && currentOffset < 2000 {
+					batch, totalOnServer, err = s.client.GetPlatforms(batchSize, currentOffset)
+					if err != nil || len(batch) == 0 {
+						break
+					}
+					for _, p := range batch {
+						if p.RomCount > 0 && (retroarch.IdentifyPlatform(p.Name) != "" || retroarch.IdentifyPlatform(p.Slug) != "") {
+							foundCount++
+						}
+					}
+					currentOffset += len(batch)
+				}
+			}
+			break
+		}
+
+		if currentOffset >= totalOnServer {
+			break
 		}
 	}
 
-	totalCount := len(supported)
-
-	// Manual pagination
-	start := offset
-	if start > totalCount {
-		start = totalCount
-	}
-	end := offset + limit
-	if end > totalCount {
-		end = totalCount
-	}
-
-	if start < end {
-		return supported[start:end], totalCount, nil
-	}
-	return []types.Platform{}, totalCount, nil
+	return supported, foundCount, nil
 }
 
 // GetRom fetches a single ROM from RomM.
