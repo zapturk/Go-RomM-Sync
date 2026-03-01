@@ -12,6 +12,8 @@
 > **Note:** This project is not affiliated with, endorsed by, or in any way officially connected with the [RomM project](https://github.com/rommapp/romm).
 >
 > **Supported RomM Version:** [4.6.1](https://github.com/rommapp/romm/releases/tag/4.6.1)
+>
+> 📖 **[Project Wiki](https://github.com/zapturk/Go-RomM-Sync/wiki/Home.md)**: Check out our wiki for setup guides, platform compatibility, and more!
 
 Go-RomM-Sync is a desktop application built with Wails and React that synchronizes your RomM library with a local RetroArch installation. It provides a gaming-console-like experience with full controller navigation support, making it perfect for use with gamepads on a home theater setup.
 
@@ -112,24 +114,17 @@ Alternatively, you can download the latest release for your platform from the [R
 
 ## Setup and Usage
 
-### First-Time Configuration
+Please refer to the **[Setup and Usage Guide](https://github.com/zapturk/Go-RomM-Sync/wiki/Setup.md)** in the project wiki for detailed instructions on:
+- First-time authentication and configuration.
+- Selecting your RetroArch executable.
+- Downloading and playing games from your RomM library.
+- Synchronizing saves and states.
 
-1. **Launch**: Open the application.
-2. **Authentication**: Enter your RomM host URL (e.g., `https://romm.example.com`) and your login credentials.
-3. **Library Path**: Go to **Settings** and ensure your local library path is set correctly. This is where your games will be stored.
-4. **RetroArch Setup**: In **Settings**, click on "Select RetroArch Executable" and navigate to your `RetroArch.app` (macOS), `retroarch.exe` (Windows), or `retroarch` binary (Linux).
-5. **RetroAchievements (Optional)**: If you use RetroAchievements, enter your username and password in the Settings page to enable tracking.
-
-### Playing Games
-
-1. **Browse**: Use your gamepad or keyboard (arrow keys) to navigate platforms and games.
-2. **Download**: On a game's page, select **Download to Library**. The ROM will be downloaded and organized into your local library automatically.
-3. **Launch**: Once downloaded, the "Download" button will change to **Play**. Press it to launch the game directly via RetroArch!
-4. **Sync**: Press **Sync** (or 'R' on keyboard) on the main screen anytime to refresh your library and catch new additions from your RomM server.
+For a list of all supported emulators and platforms, see the **[Supported Platforms & Cores](https://github.com/zapturk/Go-RomM-Sync/wiki/Platforms.md)** page.
 
 ## Roadmap
 
 - [x] **Save Syncing Management**: Bidirectional synchronization of saves and states between local storage and RomM.
-- [ ] **Add Pico-8 Support**: Add support for Pico-8 games.
+- [x] **Add Pico-8 Support**: Add support for Pico-8 games.
 - [ ] **Detailed Achievements**: View RetroAchievements progress and badges directly on the game page.
 - [ ] **Advanced Filtering**: Filter games by genre, platform, or download status.

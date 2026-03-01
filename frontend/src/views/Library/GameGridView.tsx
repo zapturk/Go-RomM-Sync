@@ -3,6 +3,7 @@ import { types } from "../../../wailsjs/go/models";
 import { GameCard } from "../../GameCard";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from '../../inputMode';
+import { FocusableButton } from '../../components/FocusableButton';
 
 interface GameGridViewProps {
     platform: types.Platform;
@@ -32,22 +33,8 @@ export function GameGridView({
     gridRef
 }: GameGridViewProps) {
 
-    const { ref, focusKey } = useFocusable({
+    const { ref } = useFocusable({
         trackChildren: true
-    });
-
-    const { ref: prevRef, focused: prevFocused, focusSelf: focusPrev } = useFocusable({
-        focusKey: 'prev-page',
-        onEnterPress: () => {
-            if (offset > 0) onPageChange(offset - pageSize);
-        }
-    });
-
-    const { ref: nextRef, focused: nextFocused, focusSelf: focusNext } = useFocusable({
-        focusKey: 'next-page',
-        onEnterPress: () => {
-            if (offset + pageSize < totalGames) onPageChange(offset + pageSize);
-        }
     });
 
     useEffect(() => {
@@ -96,30 +83,32 @@ export function GameGridView({
             {!isLoading && (offset > 0 || (offset + pageSize < totalGames)) && (
                 <div className="pagination-controls" style={{ display: 'flex', justifyContent: 'center', gap: '20px', padding: '20px', paddingBottom: '80px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                     {offset > 0 && (
-                        <button
-                            ref={prevRef}
-                            className={`btn ${prevFocused ? 'focused' : ''}`}
+                        <FocusableButton
+                            focusKey="prev-page"
+                            className="btn"
+                            onEnterPress={() => onPageChange(offset - pageSize)}
                             onClick={() => onPageChange(offset - pageSize)}
                             onMouseEnter={() => {
-                                if (getMouseActive()) focusPrev();
+                                if (getMouseActive()) setFocus('prev-page');
                             }}
                             style={{ padding: '8px 20px', minWidth: '120px' }}
                         >
                             Previous
-                        </button>
+                        </FocusableButton>
                     )}
                     {offset + pageSize < totalGames && (
-                        <button
-                            ref={nextRef}
-                            className={`btn ${nextFocused ? 'focused' : ''}`}
+                        <FocusableButton
+                            focusKey="next-page"
+                            className="btn"
+                            onEnterPress={() => onPageChange(offset + pageSize)}
                             onClick={() => onPageChange(offset + pageSize)}
                             onMouseEnter={() => {
-                                if (getMouseActive()) focusNext();
+                                if (getMouseActive()) setFocus('next-page');
                             }}
                             style={{ padding: '8px 20px', minWidth: '120px' }}
                         >
                             Next
-                        </button>
+                        </FocusableButton>
                     )}
                 </div>
             )}

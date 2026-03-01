@@ -21,9 +21,6 @@ const (
 	MaxMetadataSize = 10 * 1024 * 1024
 	// MaxAssetSize is the maximum size (50MB) for assets like cover images read into memory.
 	MaxAssetSize = 50 * 1024 * 1024
-	// maxPlatformsToFetch is the maximum number of platforms to fetch in a single request (1000).
-	// Used as a workaround because RomM doesn't have a native "has games" filter for platforms.
-	maxPlatformsToFetch = 1000
 )
 
 // Client handles communication with the RomM API
@@ -212,10 +209,17 @@ func (c *Client) GetPlatforms(limit, offset int) ([]types.Platform, int, error) 
 		return nil, 0, fmt.Errorf("not authenticated")
 	}
 
-	// Fetch all platforms (up to maxPlatformsToFetch) to perform filtering and correct pagination
-	// RomM doesn't seem to have a native "has games" filter for platforms
-	urlStr := fmt.Sprintf("%s/api/platforms?limit=%d&offset=0", c.BaseURL, maxPlatformsToFetch)
-	req, err := http.NewRequest("GET", urlStr, http.NoBody)
+	// Construct URL with pagination parameters
+	u, err := url.Parse(c.BaseURL + "/api/platforms")
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to parse base URL: %w", err)
+	}
+	q := u.Query()
+	q.Set("limit", fmt.Sprintf("%d", limit))
+	q.Set("offset", fmt.Sprintf("%d", offset))
+	u.RawQuery = q.Encode()
+
+	req, err := http.NewRequest("GET", u.String(), http.NoBody)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to create platforms request: %w", err)
 	}
@@ -238,48 +242,40 @@ func (c *Client) GetPlatforms(limit, offset int) ([]types.Platform, int, error) 
 		return nil, 0, fmt.Errorf("failed to decode platforms response: %w", err)
 	}
 
-	var allPlatforms []types.Platform
-	if err := json.Unmarshal(raw, &allPlatforms); err == nil {
-		// Successfully parsed as array
-	} else {
-		var paginated struct {
-			Items []types.Platform `json:"items"`
-		}
-		if err := json.Unmarshal(raw, &paginated); err == nil && paginated.Items != nil {
-			allPlatforms = paginated.Items
-		} else {
-			return nil, 0, fmt.Errorf("failed to parse platforms response: unknown format")
-		}
-	}
-
-	// Filter platforms with games
-	var filtered []types.Platform
-	for _, p := range allPlatforms {
-		if p.RomCount > 0 {
-			filtered = append(filtered, p)
-		}
-	}
-
-	totalCount := len(filtered)
-
-	// Apply pagination to the filtered list
-	start := offset
-	if start > totalCount {
-		start = totalCount
-	}
-	end := offset + limit
-	if end > totalCount {
-		end = totalCount
-	}
-
 	var pageItems []types.Platform
-	if start < end {
-		pageItems = filtered[start:end]
-	} else {
-		pageItems = []types.Platform{}
+	totalCount := 0
+
+	// Try parsing as array (legacy or non-paginated)
+	if err := json.Unmarshal(raw, &pageItems); err == nil {
+		return pageItems, len(pageItems), nil
 	}
 
-	return pageItems, totalCount, nil
+	// Try parsing as paginated object
+	var paginated struct {
+		Items []types.Platform `json:"items"`
+		Total int              `json:"total_count"`
+		Alt   int              `json:"total"`
+		Cnt   int              `json:"count"`
+		Res   int              `json:"total_results"`
+	}
+	if err := json.Unmarshal(raw, &paginated); err == nil && paginated.Items != nil {
+		pageItems = paginated.Items
+		switch {
+		case paginated.Total != 0:
+			totalCount = paginated.Total
+		case paginated.Alt != 0:
+			totalCount = paginated.Alt
+		case paginated.Cnt != 0:
+			totalCount = paginated.Cnt
+		case paginated.Res != 0:
+			totalCount = paginated.Res
+		default:
+			totalCount = len(pageItems)
+		}
+		return pageItems, totalCount, nil
+	}
+
+	return nil, 0, fmt.Errorf("unknown platforms response format: %s", string(raw))
 }
 
 // GetRom fetches a single ROM by its ID

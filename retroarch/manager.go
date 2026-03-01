@@ -85,14 +85,14 @@ var ExtCoreMap = map[string][]string{
 	// Sega – 32X
 	".32x": {"picodrive_libretro"},
 
-	// Sega – CD / Saturn / shared CUE
+	// Sega – CD / Saturn / shared CUE / Dreamcast
 	".msu": {"genesis_plus_gx_libretro"},
-	".cue": {"genesis_plus_gx_libretro", "pcsx_rearmed_libretro", "mednafen_saturn_libretro"},
+	".cue": {"genesis_plus_gx_libretro", "pcsx_rearmed_libretro", "mednafen_saturn_libretro", "flycast_libretro"},
+	".gdi": {"flycast_libretro"},
+	".cdi": {"flycast_libretro"},
 
 	// Sony – PS1
-	".iso": {"pcsx_rearmed_libretro", "beetle_psx_libretro"},
 	".bin": {"pcsx_rearmed_libretro", "beetle_psx_libretro"},
-	".chd": {"pcsx_rearmed_libretro", "beetle_psx_libretro"},
 
 	// Sony – PSP
 	".cso": {"ppsspp_libretro"},
@@ -110,14 +110,29 @@ var ExtCoreMap = map[string][]string{
 	".t64": {"vice_x64sc_libretro"},
 	".adf": {"puae_libretro"},
 	".uae": {"puae_libretro"},
+	".dsk": {"caprice32_libretro", "apple2enh_libretro"},
+	".sna": {"caprice32_libretro"},
+	".do":  {"apple2enh_libretro"},
 
 	// Others
+	".iso": {"pcsx_rearmed_libretro", "beetle_psx_libretro", "pcsx2_libretro", "opera_libretro"},
+	".chd": {"pcsx_rearmed_libretro", "beetle_psx_libretro", "pcsx2_libretro", "opera_libretro", "flycast_libretro"},
+	".sg":  {"smsplus_libretro"},
+	".col": {"gearcoleco_libretro"},
+	".mx1": {"bluemsx_libretro"},
+	".mx2": {"bluemsx_libretro"},
+	".rom": {"bluemsx_libretro", "gearcoleco_libretro"},
+	".zip": {"fbneo_libretro", "mame2003_plus_libretro"},
+	".7z":  {"fbneo_libretro", "mame2003_plus_libretro"},
 	".pce": {"mednafen_pce_fast_libretro", "mednafen_pce_libretro"},
 	".sgx": {"mednafen_pce_fast_libretro"},
 	".ws":  {"mednafen_wswan_libretro"},
 	".wsc": {"mednafen_wswan_libretro"},
 	".ngp": {"mednafen_ngp_libretro"},
 	".ngc": {"mednafen_ngp_libretro"},
+
+	// Pokemon Mini
+	".min": {"pokemini_libretro"},
 
 	// Pico-8
 	".p8":  {"retro8_libretro"},
@@ -136,29 +151,39 @@ var PlatformCoreMap = map[string][]string{
 	"nds":          {"melonds_libretro", "desmume_libretro"},
 	"dsi":          {"melonds_libretro", "desmume_libretro"},
 	"genesis":      {"genesis_plus_gx_libretro", "picodrive_libretro", "blastem_libretro"},
-	"megadrive":    {"genesis_plus_gx_libretro", "picodrive_libretro", "blastem_libretro"},
 	"mastersystem": {"genesis_plus_gx_libretro", "picodrive_libretro"},
 	"gamegear":     {"genesis_plus_gx_libretro"},
-	"psx":          {"pcsx_rearmed_libretro", "beetle_psx_libretro"},
 	"ps1":          {"pcsx_rearmed_libretro", "beetle_psx_libretro"},
 	"psp":          {"ppsspp_libretro"},
 	"dreamcast":    {"flycast_libretro"},
 	"pce":          {"mednafen_pce_fast_libretro", "mednafen_pce_libretro"},
 	"gamecube":     {"dolphin_libretro"},
-	"gcn":          {"dolphin_libretro"},
 	"wii":          {"dolphin_libretro"},
 	"3ds":          {constants.CoreCitra},
-	"p8":           {"retro8_libretro"},
 	"pico8":        {"retro8_libretro"},
-	"wonderswan":   {"mednafen_wswan_libretro"},
 	"wsc":          {"mednafen_wswan_libretro"},
 	"ngp":          {"mednafen_ngp_libretro"},
-	"ngpc":         {"mednafen_ngp_libretro"},
 	"vb":           {"beetle_vb_libretro"},
-	"virtualboy":   {"beetle_vb_libretro"},
 	"lynx":         {"handy_libretro"},
 	"pce_fast":     {"mednafen_pce_fast_libretro"},
 	"supergrafx":   {"mednafen_pce_fast_libretro"},
+	"a78":          {"prosystem_libretro"},
+	"3do":          {"opera_libretro"},
+	"amstrad":      {"caprice32_libretro"},
+	"apple2":       {"apple2enh_libretro"},
+	"arcade":       {"fbneo_libretro", "mame2003_plus_libretro"},
+	"coleco":       {"gearcoleco_libretro"},
+	"msx":          {"bluemsx_libretro"},
+	"ps2":          {"pcsx2_libretro"},
+	"sg1000":       {"smsplus_libretro"},
+	"neogeo":       {"fbneo_libretro"},
+	"a26":          {"stella_libretro"},
+	"a52":          {"a5200_libretro"},
+	"c64":          {"vice_x64sc_libretro"},
+	"32x":          {"picodrive_libretro"},
+	"saturn":       {"mednafen_saturn_libretro"},
+	"wiiu":         {"cemu_libretro"},
+	"pokemini":     {"pokemini_libretro"},
 }
 
 // GetCoresForPlatform returns the ordered list of known-working libretro core
@@ -186,24 +211,55 @@ var platformSearchPatterns = []struct {
 	patterns []string
 	all      bool
 }{
+	// Handhelds - variants first
 	{"gba", []string{"advance", "gba"}, false},
-	{"3ds", []string{"3ds"}, false},
-	{"gb", []string{"game boy", "gb"}, false},
 	{"dsi", []string{"dsi"}, false},
-	{"nds", []string{"ds", "nds"}, false},
-	{"gamecube", []string{"gamecube", "gcn"}, false},
-	{"wii", []string{"wii"}, false},
-	{"genesis", []string{"genesis", "mega drive", "megadrive"}, false},
+	{"3ds", []string{"3ds"}, false},
+	{"nds", []string{"nds", "ds", "dual screen"}, false},
+	{"psp", []string{"psp", "playstation portable"}, false},
 	{"wsc", []string{"wonderswan", "wsc"}, false},
 	{"ngp", []string{"neo", "pocket"}, true},
-	{"snes", []string{"snes"}, false},
-	{"nes", []string{"nes"}, false},
-	{"n64", []string{"n64"}, false},
-	{"ps1", []string{"ps1", "psx"}, false},
-	{"psp", []string{"psp"}, false},
-	{"dreamcast", []string{"dreamcast"}, false},
-	{"lynx", []string{"lynx"}, false},
 	{"vb", []string{"virtual", "boy"}, true},
+	{"lynx", []string{"lynx"}, false},
+	{"pico8", []string{"pico-8", "pico8", "pico 8", "p8"}, false},
+	{"gamegear", []string{"game gear", "gamegear"}, false},
+	{"gbc", []string{"color", "gbc"}, false},
+	{"gb", []string{"game boy", "gb"}, false},
+
+	// Consoles - Specific/Modern first to avoid broad matches
+	{"ps2", []string{"ps2", "playstation 2"}, false},
+	{"ps1", []string{"playstation", "ps1", "psx"}, false},
+	{"wiiu", []string{"wii u", "wiiu"}, false},
+	{"wii", []string{"wii"}, false},
+	{"gamecube", []string{"gamecube", "gcn"}, false},
+	{"n64", []string{"n64", "nintendo 64"}, false},
+	{"dreamcast", []string{"dreamcast"}, false},
+	{"saturn", []string{"saturn"}, false},
+	{"genesis", []string{"genesis", "mega drive", "megadrive"}, false},
+	{"snes", []string{"snes", "super nintendo", "super entertainment system"}, false},
+	{"nes", []string{"nes", "entertainment system"}, false},
+	{"mastersystem", []string{"master system", "mastersystem"}, false},
+	{"pce", []string{"pce", "pc engine", "turbo", "grafx"}, false},
+	{"3do", []string{"3do"}, false},
+
+	// 8-bit / Classic
+	{"a78", []string{"7800"}, false},
+	{"a52", []string{"5200"}, false},
+	{"a26", []string{"2600"}, false},
+	{"32x", []string{"32x"}, false},
+	{"sg1000", []string{"sg1000", "sg-1000"}, false},
+	{"coleco", []string{"coleco"}, false},
+
+	// Computers
+	{"c64", []string{"c64", "commodore"}, false},
+	{"msx", []string{"msx"}, false},
+	{"amstrad", []string{"amstrad", "cpc"}, false},
+	{"apple2", []string{"apple", "ii"}, true},
+
+	// Others
+	{"arcade", []string{"arcade", "mame", "fbneo"}, false},
+	{"neogeo", []string{"neo geo", "neogeo"}, false},
+	{"pokemini", []string{"pokemini", "pokemon mini", "pokémon mini", "pokemonmini", "pokémonmini"}, false},
 }
 
 // IdentifyPlatform attempts to resolve a canonical platform slug from a string,
@@ -214,6 +270,14 @@ func IdentifyPlatform(input string) string {
 		return ""
 	}
 
+	// 1. Direct check for exact slug matches (Primary)
+	// This ensures that if the input IS already a canonical slug (e.g., from RomM metadata),
+	// we don't accidentally fuzzy-match it to something else.
+	if _, ok := PlatformCoreMap[lower]; ok {
+		return lower
+	}
+
+	// 2. Fuzzy matching based on search patterns
 	for _, entry := range platformSearchPatterns {
 		matches := false
 		if entry.all {
@@ -236,11 +300,6 @@ func IdentifyPlatform(input string) string {
 		if matches {
 			return entry.slug
 		}
-	}
-
-	// Direct check as fallback
-	if _, ok := PlatformCoreMap[lower]; ok {
-		return lower
 	}
 
 	return ""

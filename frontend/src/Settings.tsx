@@ -20,10 +20,6 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [cheevosUser, setCheevosUser] = useState('');
     const [cheevosPass, setCheevosPass] = useState('');
 
-    const { ref, focusKey, focusSelf } = useFocusable({
-        trackChildren: true
-    });
-
     useEffect(() => {
         GetConfig().then((cfg) => {
             console.log("Settings loaded config:", cfg);
@@ -141,6 +137,82 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
         }
     };
 
+    if (!config) return <div className="loading-screen"><h2>Loading settings...</h2></div>;
+
+    return (
+        <SettingsForm
+            config={config}
+            isActive={isActive}
+            onLogout={onLogout}
+            raPath={raPath}
+            setRaPath={setRaPath}
+            libPath={libPath}
+            setLibPath={setLibPath}
+            cheevosUser={cheevosUser}
+            setCheevosUser={setCheevosUser}
+            cheevosPass={cheevosPass}
+            setCheevosPass={setCheevosPass}
+            status={status}
+            setStatus={setStatus}
+            isSaving={isSaving}
+            handleBrowseRA={handleBrowseRA}
+            handleBrowseLib={handleBrowseLib}
+            handleSetDefaultLib={handleSetDefaultLib}
+            handleSave={handleSave}
+            handleLogout={handleLogout}
+            handleClearCache={handleClearCache}
+        />
+    );
+}
+
+interface SettingsFormProps {
+    config: types.AppConfig;
+    isActive: boolean;
+    onLogout?: () => void;
+    raPath: string;
+    setRaPath: (v: string) => void;
+    libPath: string;
+    setLibPath: (v: string) => void;
+    cheevosUser: string;
+    setCheevosUser: (v: string) => void;
+    cheevosPass: string;
+    setCheevosPass: (v: string) => void;
+    status: string;
+    setStatus: (v: string) => void;
+    isSaving: boolean;
+    handleBrowseRA: () => void;
+    handleBrowseLib: () => void;
+    handleSetDefaultLib: () => void;
+    handleSave: () => void;
+    handleLogout: () => void;
+    handleClearCache: () => void;
+}
+
+function SettingsForm({
+    isActive,
+    onLogout,
+    raPath,
+    setRaPath,
+    libPath,
+    setLibPath,
+    cheevosUser,
+    setCheevosUser,
+    cheevosPass,
+    setCheevosPass,
+    status,
+    setStatus,
+    isSaving,
+    handleBrowseRA,
+    handleBrowseLib,
+    handleSetDefaultLib,
+    handleSave,
+    handleLogout,
+    handleClearCache
+}: SettingsFormProps) {
+    const { ref } = useFocusable({
+        trackChildren: true
+    });
+
     // Auto-focus save button on load or when view becomes active
     useEffect(() => {
         if (isActive) {
@@ -180,7 +252,11 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
         onEnterPress: handleSave
     });
 
-    if (!config) return <div className="loading-screen"><h2>Loading settings...</h2></div>;
+    const handleInputKeyDown = (e: React.KeyboardEvent) => {
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+            e.stopPropagation();
+        }
+    };
 
     return (
         <div id="settings-page" ref={ref} style={{ padding: '2rem 4rem', textAlign: 'left', maxWidth: '900px', margin: '0 auto' }}>

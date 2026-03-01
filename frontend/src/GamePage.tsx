@@ -130,80 +130,70 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         },
     });
 
-    const { ref: coreRef, focused: coreFocused, focusSelf: focusCore } = useFocusable({
-        focusKey: 'core-selector',
-        onArrowPress: (direction: string) => direction === 'down' || direction === 'right',
-        onEnterPress: () => {
-            setIsPickerOpen(true);
-        },
-    });
+    useEffect(() => {
+        if (gameId) {
+            GetCoresForGame(gameId).then((cores: string[]) => {
+                setAvailableCores(cores || []);
+                if (cores && cores.length > 0) setSelectedCore(cores[0]);
+            }).catch((err: any) => {
+                console.warn('GetCoresForGame failed:', err);
+            });
+        }
+    }, [gameId]);
 
     const closePicker = useCallback(() => {
         setIsPickerOpen(false);
-        setTimeout(() => focusCore(), 100);
-    }, [focusCore]);
+        setTimeout(() => setFocus('core-selector'), 100);
+    }, []);
 
-    const { ref: downloadRef, focused: downloadFocused, focusSelf: focusDownload } = useFocusable({
-        focusKey: 'download-button',
-        onArrowPress: (direction: string) => direction === 'down' || direction === 'right', // Allow moving down to Saves/States or right to Delete
-        onEnterPress: () => {
-            if (game && !downloading && !isDownloaded) {
-                setDownloading(true);
-                setDownloadStatus("Starting download...");
-                DownloadRomToLibrary(game.id)
-                    .then(() => {
-                        setSuccessStatus("Download complete!");
-                        setDownloadProgress(100);
-                        setIsDownloaded(true);
-                        setTimeout(() => {
-                            setFocus('play-button');
-                        }, 100);
-                    })
-                    .catch((err: string) => {
-                        setDownloadStatus(`Error: ${err}`);
-                    })
-                    .finally(() => {
-                        setDownloading(false);
-                    });
-            }
-        },
-    });
-
-    const { ref: playRef, focused: playFocused, focusSelf: focusPlay } = useFocusable({
-        focusKey: 'play-button',
-        onArrowPress: (direction: string) => direction === 'right' || direction === 'down' || direction === 'up', // Allow moving to Delete, down to Saves/States, or up to Core
-        onEnterPress: () => {
-            if (game) {
-                setDownloadStatus("Starting RetroArch...");
-                PlayRomWithCore(game.id, selectedCore).then(() => {
-                    setSuccessStatus("Game launched successfully!");
-                }).catch((err: string) => {
-                    // Check if it's the RetroArch cancelled error
-                    if (err.includes("launch cancelled")) {
-                        setDownloadStatus("");
-                    } else {
-                        setDownloadStatus(`Play error: ${err}`);
-                    }
-                });
-            }
-        },
-    });
-
-    const { ref: deleteRef, focused: deleteFocused, focusSelf: focusDelete } = useFocusable({
-        focusKey: 'delete-button',
-        onArrowPress: (direction: string) => direction === 'left' || direction === 'down' || direction === 'right' || direction === 'up', // Allow moving back to Play, down to Saves/States, up to Core, or right to Saves/States
-        onEnterPress: () => {
-            if (!game) return;
-
-            DeleteRom(game.id).then(() => {
-                setIsDownloaded(false);
-                setSuccessStatus("ROM deleted from library.");
-                setTimeout(() => focusDownload(), 100);
-            }).catch((err: string) => {
-                setDownloadStatus(`Delete error: ${err}`);
+    // Download Handler
+    const handleDownload = useCallback(() => {
+        if (!game || downloading || isDownloaded) return;
+        setDownloading(true);
+        setDownloadStatus("Starting download...");
+        DownloadRomToLibrary(game.id)
+            .then(() => {
+                setSuccessStatus("Download complete!");
+                setDownloadProgress(100);
+                setIsDownloaded(true);
+                setTimeout(() => {
+                    setFocus('play-button');
+                }, 100);
+            })
+            .catch((err: string) => {
+                setDownloadStatus(`Error: ${err}`);
+            })
+            .finally(() => {
+                setDownloading(false);
             });
-        },
-    });
+    }, [game, downloading, isDownloaded]);
+
+    // Play Handler
+    const handlePlay = useCallback(() => {
+        if (!game || isPlaying) return;
+        setDownloadStatus("Starting RetroArch...");
+        PlayRomWithCore(game.id, selectedCore).then(() => {
+            setSuccessStatus("Game launched successfully!");
+        }).catch((err: string) => {
+            if (err.includes("launch cancelled")) {
+                setDownloadStatus("");
+            } else {
+                setDownloadStatus(`Play error: ${err}`);
+            }
+        });
+    }, [game, isPlaying, selectedCore]);
+
+    // Delete Handler
+    const handleDelete = useCallback(() => {
+        if (!game || isPlaying) return;
+        DeleteRom(game.id).then(() => {
+            setIsDownloaded(false);
+            setSuccessStatus("ROM deleted from library.");
+            setTimeout(() => setFocus('download-button'), 100);
+        }).catch((err: string) => {
+            setDownloadStatus(`Delete error: ${err}`);
+        });
+    }, [game, isPlaying]);
 
     useEffect(() => {
         GetRom(gameId)
@@ -230,14 +220,6 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                     setStatusChecked(true); // Still mark as checked even on error
                 });
 
-                // Fetch available cores for this game
-                GetCoresForGame(gameId).then((cores: string[]) => {
-                    setAvailableCores(cores || []);
-                    if (cores && cores.length > 0) setSelectedCore(cores[0]);
-                }).catch((err: any) => {
-                    console.warn('GetCoresForGame failed:', err);
-                    // Core selector just won't appear — not a fatal error
-                });
 
                 // Fetch saves and states
                 fetchAppData();
@@ -516,115 +498,35 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                     Not Supported on macOS
                                 </button>
                             ) : (
-                                <button
-                                    ref={downloadRef}
-                                    className={`btn download-btn ${downloadFocused ? 'focused' : ''} ${downloading || isPlaying ? 'disabled' : ''}`}
-                                    disabled={downloading || isPlaying}
-                                    onMouseEnter={() => {
-                                        if (getMouseActive() && !downloading && !isPlaying) {
-                                            focusDownload();
-                                        }
-                                    }}
-                                    onClick={() => {
-                                        if (!downloading && !isPlaying) {
-                                            setDownloading(true);
-                                            setDownloadStatus("Starting download...");
-                                            DownloadRomToLibrary(game.id)
-                                                .then(() => {
-                                                    setSuccessStatus("Download complete!");
-                                                    setIsDownloaded(true);
-                                                    setTimeout(() => {
-                                                        setFocus('play-button');
-                                                    }, 100);
-                                                })
-                                                .catch((err: string) => {
-                                                    setDownloadStatus(`Error: ${err}`);
-                                                })
-                                                .finally(() => {
-                                                    setDownloading(false);
-                                                });
-                                        }
-                                    }}
-                                >
-                                    {downloading ? "Downloading..." : "Download to Library"}
-                                </button>
+                                <InnerDownloadButton
+                                    isDisabled={downloading || isPlaying}
+                                    isDownloading={downloading}
+                                    onDownload={handleDownload}
+                                />
                             )
                         ) : (
                             <>
                                 {availableCores.length > 0 && (
                                     <div className="core-selector-row">
                                         <label className="core-selector-label" htmlFor="core-select">Core</label>
-                                        <div
-                                            id="core-select"
-                                            ref={coreRef}
-                                            className={`core-selector-button ${coreFocused ? 'focused' : ''}`}
-                                            onMouseEnter={() => {
-                                                if (getMouseActive() && !isPlaying) {
-                                                    focusCore();
-                                                }
-                                            }}
-                                            onClick={() => {
-                                                if (!isPlaying) setIsPickerOpen(true);
-                                            }}
-                                        >
-                                            <span className="current-core">
-                                                {selectedCore.replace('_libretro', '').replace(/_/g, ' ')}
-                                            </span>
-                                            <div className="dropdown-arrow"></div>
-                                        </div>
+                                        <InnerCoreSelector
+                                            currentCore={selectedCore}
+                                            isDisabled={isPlaying}
+                                            onClick={() => setIsPickerOpen(true)}
+                                            onFocusRequest={() => setFocus('core-selector')}
+                                        />
                                     </div>
                                 )}
                                 <div className="game-actions-horizontal">
-                                    <button
-                                        ref={playRef}
-                                        className={`btn play-btn ${playFocused ? 'focused' : ''} ${isPlaying ? 'disabled' : ''}`}
-                                        disabled={isPlaying}
-                                        onMouseEnter={() => {
-                                            if (getMouseActive() && !isPlaying) {
-                                                focusPlay();
-                                            }
-                                        }}
-                                        onClick={() => {
-                                            if (game && !isPlaying) {
-                                                setDownloadStatus("Starting RetroArch...");
-                                                PlayRomWithCore(game.id, selectedCore).then(() => {
-                                                    setSuccessStatus("Game launched successfully!");
-                                                }).catch((err: string) => {
-                                                    if (err.includes("launch cancelled")) {
-                                                        setDownloadStatus("");
-                                                    } else {
-                                                        setDownloadStatus(`Play error: ${err}`);
-                                                    }
-                                                });
-                                            }
-                                        }}
-                                    >
-                                        Play
-                                    </button>
-                                    <button
-                                        ref={deleteRef}
-                                        className={`btn delete-btn ${deleteFocused ? 'focused' : ''} ${isPlaying ? 'disabled' : ''}`}
-                                        disabled={isPlaying}
-                                        title="Delete ROM"
-                                        onMouseEnter={() => {
-                                            if (getMouseActive() && !isPlaying) {
-                                                focusDelete();
-                                            }
-                                        }}
-                                        onClick={() => {
-                                            if (!game || isPlaying) return;
-
-                                            DeleteRom(game.id).then(() => {
-                                                setIsDownloaded(false);
-                                                setSuccessStatus("ROM deleted from library.");
-                                                setTimeout(() => focusDownload(), 100);
-                                            }).catch((err: any) => {
-                                                setDownloadStatus(`Delete error: ${err}`);
-                                            });
-                                        }}
-                                    >
-                                        <TrashIcon />
-                                    </button>
+                                    <InnerPlayButton
+                                        isDisabled={isPlaying}
+                                        onPlay={handlePlay}
+                                    />
+                                    <InnerDeleteButton
+                                        isDisabled={isPlaying}
+                                        onDelete={handleDelete}
+                                        onFocusDownload={() => setFocus('download-button')}
+                                    />
                                 </div>
                             </>
                         )
@@ -765,6 +667,106 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     );
 }
 
+function InnerDownloadButton({ isDisabled, isDownloading, onDownload }: { isDisabled: boolean; isDownloading: boolean; onDownload: () => void }) {
+    const { ref, focused } = useFocusable({
+        focusKey: 'download-button',
+        onArrowPress: (direction: string) => direction === 'down' || direction === 'right',
+        onEnterPress: onDownload
+    });
+
+    return (
+        <button
+            ref={ref}
+            className={`btn download-btn ${focused ? 'focused' : ''} ${isDisabled ? 'disabled' : ''}`}
+            disabled={isDisabled}
+            onMouseEnter={() => {
+                if (getMouseActive() && !isDisabled) {
+                    setFocus('download-button');
+                }
+            }}
+            onClick={onDownload}
+        >
+            {isDownloading ? "Downloading..." : "Download to Library"}
+        </button>
+    );
+}
+
+function InnerCoreSelector({ currentCore, isDisabled, onClick, onFocusRequest }: { currentCore: string; isDisabled: boolean; onClick: () => void; onFocusRequest: () => void }) {
+    const { ref, focused } = useFocusable({
+        focusKey: 'core-selector',
+        onArrowPress: (direction: string) => direction === 'down' || direction === 'right',
+        onEnterPress: onClick
+    });
+
+    return (
+        <div
+            id="core-select"
+            ref={ref}
+            className={`core-selector-button ${focused ? 'focused' : ''} ${isDisabled ? 'disabled' : ''}`}
+            onMouseEnter={() => {
+                if (getMouseActive() && !isDisabled) {
+                    onFocusRequest();
+                }
+            }}
+            onClick={onClick}
+        >
+            <span className="current-core">
+                {currentCore.replace('_libretro', '').replace(/_/g, ' ')}
+            </span>
+            <div className="dropdown-arrow"></div>
+        </div>
+    );
+}
+
+function InnerPlayButton({ isDisabled, onPlay }: { isDisabled: boolean; onPlay: () => void }) {
+    const { ref, focused } = useFocusable({
+        focusKey: 'play-button',
+        onArrowPress: (direction: string) => direction === 'right' || direction === 'down' || direction === 'up',
+        onEnterPress: onPlay
+    });
+
+    return (
+        <button
+            ref={ref}
+            className={`btn play-btn ${focused ? 'focused' : ''} ${isDisabled ? 'disabled' : ''}`}
+            disabled={isDisabled}
+            onMouseEnter={() => {
+                if (getMouseActive() && !isDisabled) {
+                    setFocus('play-button');
+                }
+            }}
+            onClick={onPlay}
+        >
+            Play
+        </button>
+    );
+}
+
+function InnerDeleteButton({ isDisabled, onDelete, onFocusDownload }: { isDisabled: boolean; onDelete: () => void; onFocusDownload: () => void }) {
+    const { ref, focused } = useFocusable({
+        focusKey: 'delete-button',
+        onArrowPress: (direction: string) => direction === 'left' || direction === 'down' || direction === 'right' || direction === 'up',
+        onEnterPress: onDelete
+    });
+
+    return (
+        <button
+            ref={ref}
+            className={`btn delete-btn ${focused ? 'focused' : ''} ${isDisabled ? 'disabled' : ''}`}
+            disabled={isDisabled}
+            title="Delete ROM"
+            onMouseEnter={() => {
+                if (getMouseActive() && !isDisabled) {
+                    setFocus('delete-button');
+                }
+            }}
+            onClick={onDelete}
+        >
+            <TrashIcon />
+        </button>
+    );
+}
+
 function CoreOption({ core, isSelected, onSelect, focusKey, isFirst }: { core: string; isSelected: boolean; onSelect: () => void; focusKey: string; isFirst: boolean }) {
     const { ref, focused } = useFocusable({
         focusKey,
@@ -782,7 +784,7 @@ function CoreOption({ core, isSelected, onSelect, focusKey, isFirst }: { core: s
         if (isSelected) {
             setFocus(focusKey);
         }
-    }, []);
+    }, [isSelected, focusKey]);
 
     return (
         <div

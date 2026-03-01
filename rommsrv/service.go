@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"go-romm-sync/constants"
+	"go-romm-sync/retroarch"
 	"go-romm-sync/romm"
 	"go-romm-sync/types"
 	"os"
@@ -64,9 +65,76 @@ func (s *Service) GetLibrary(limit, offset, platformID int) ([]types.Game, int, 
 	return s.client.GetLibrary(limit, offset, platformID)
 }
 
-// GetPlatforms fetches a page of platforms from RomM.
+// GetPlatforms fetches a page of supported platforms from RomM.
+// It filters out platforms that aren't recognized by RetroArch mappings.
 func (s *Service) GetPlatforms(limit, offset int) ([]types.Platform, int, error) {
-	return s.client.GetPlatforms(limit, offset)
+	const batchSize = 100
+	const maxScan = 2000
+	var supported []types.Platform
+
+	currentOffset := 0
+	foundCount := 0
+
+	for {
+		batch, totalOnServer, err := s.client.GetPlatforms(batchSize, currentOffset)
+		if err != nil {
+			return nil, 0, err
+		}
+		if len(batch) == 0 {
+			break
+		}
+
+		// 1. Collect platforms for the current page
+		for _, p := range batch {
+			if isPlatformSupported(p) {
+				if foundCount >= offset && len(supported) < limit {
+					supported = append(supported, p)
+				}
+				foundCount++
+			}
+		}
+
+		currentOffset += len(batch)
+
+		// 2. Optimization: if we've filled our page OR reached an upper scan limit
+		if (len(supported) >= limit && currentOffset >= totalOnServer) || currentOffset >= maxScan {
+			// Scan remaining server platforms only to get an accurate total count
+			if currentOffset < totalOnServer && currentOffset < maxScan {
+				foundCount += s.countRemainingSupported(totalOnServer, currentOffset, batchSize, maxScan)
+			}
+			break
+		}
+
+		if currentOffset >= totalOnServer {
+			break
+		}
+	}
+
+	return supported, foundCount, nil
+}
+
+// countRemainingSupported continues scanning platforms from the server just to update the supported count.
+func (s *Service) countRemainingSupported(totalOnServer, startOffset, batchSize, maxScan int) int {
+	additionalCount := 0
+	currentOffset := startOffset
+	for currentOffset < totalOnServer && currentOffset < maxScan {
+		batch, _, err := s.client.GetPlatforms(batchSize, currentOffset)
+		if err != nil || len(batch) == 0 {
+			break
+		}
+		for _, p := range batch {
+			if isPlatformSupported(p) {
+				additionalCount++
+			}
+		}
+		currentOffset += len(batch)
+	}
+	return additionalCount
+}
+
+func isPlatformSupported(p types.Platform) bool {
+	// Check if supported by RetroArch and has games
+	return p.RomCount > 0 && (retroarch.IdentifyPlatform(p.Name) != "" || retroarch.IdentifyPlatform(p.Slug) != "")
 }
 
 // GetRom fetches a single ROM from RomM.
