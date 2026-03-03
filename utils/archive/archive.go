@@ -94,6 +94,28 @@ func tryExtract(format, src, destDir string) (bool, error) {
 	return false, nil
 }
 
+type archiveEntry interface {
+	Name() string
+	IsDir() bool
+	Open() (io.ReadCloser, error)
+}
+
+type zipEntry struct {
+	*zip.File
+}
+
+func (e zipEntry) Name() string                 { return e.File.Name }
+func (e zipEntry) IsDir() bool                  { return e.File.FileInfo().IsDir() }
+func (e zipEntry) Open() (io.ReadCloser, error) { return e.File.Open() }
+
+type sevenZipEntry struct {
+	*sevenzip.File
+}
+
+func (e sevenZipEntry) Name() string                 { return e.File.Name }
+func (e sevenZipEntry) IsDir() bool                  { return e.File.FileInfo().IsDir() }
+func (e sevenZipEntry) Open() (io.ReadCloser, error) { return e.File.Open() }
+
 func extractZip(src string, destDir string) (bool, error) {
 	r, err := zip.OpenReader(src)
 	if err != nil {
@@ -101,33 +123,12 @@ func extractZip(src string, destDir string) (bool, error) {
 	}
 	defer r.Close()
 
-	hasCue := false
-	hasBin := false
-	for _, f := range r.File {
-		innerExt := strings.ToLower(filepath.Ext(f.Name))
-		if innerExt == ".cue" {
-			hasCue = true
-		} else if innerExt == ".bin" {
-			hasBin = true
-		}
+	entries := make([]archiveEntry, len(r.File))
+	for i, f := range r.File {
+		entries[i] = zipEntry{f}
 	}
 
-	if !hasCue || !hasBin {
-		return false, nil
-	}
-
-	for _, f := range r.File {
-		if f.FileInfo().IsDir() {
-			continue
-		}
-		if err := extractFile(f.Name, destDir, func() (io.ReadCloser, error) {
-			return f.Open()
-		}); err != nil {
-			return true, err
-		}
-	}
-
-	return true, nil
+	return processArchiveEntries(entries, destDir)
 }
 
 func extract7z(src string, destDir string) (bool, error) {
@@ -137,10 +138,19 @@ func extract7z(src string, destDir string) (bool, error) {
 	}
 	defer r.Close()
 
+	entries := make([]archiveEntry, len(r.File))
+	for i, f := range r.File {
+		entries[i] = sevenZipEntry{f}
+	}
+
+	return processArchiveEntries(entries, destDir)
+}
+
+func processArchiveEntries(entries []archiveEntry, destDir string) (bool, error) {
 	hasCue := false
 	hasBin := false
-	for _, f := range r.File {
-		innerExt := strings.ToLower(filepath.Ext(f.Name))
+	for _, e := range entries {
+		innerExt := strings.ToLower(filepath.Ext(e.Name()))
 		if innerExt == ".cue" {
 			hasCue = true
 		} else if innerExt == ".bin" {
@@ -152,13 +162,11 @@ func extract7z(src string, destDir string) (bool, error) {
 		return false, nil
 	}
 
-	for _, f := range r.File {
-		if f.FileInfo().IsDir() {
+	for _, e := range entries {
+		if e.IsDir() {
 			continue
 		}
-		if err := extractFile(f.Name, destDir, func() (io.ReadCloser, error) {
-			return f.Open()
-		}); err != nil {
+		if err := extractFile(e.Name(), destDir, e.Open); err != nil {
 			return true, err
 		}
 	}
@@ -237,6 +245,13 @@ func extractRar(src string, destDir string) (bool, error) {
 
 func extractFile(name string, destDir string, opner func() (io.ReadCloser, error)) error {
 	fpath := filepath.Join(destDir, name)
+
+	// Path traversal protection: ensure the resolved path is within destDir
+	destDirClean := filepath.Clean(destDir) + string(os.PathSeparator)
+	if !strings.HasPrefix(filepath.Clean(fpath), destDirClean) {
+		return fmt.Errorf("illegal file path in archive: %s (traversal attempt)", name)
+	}
+
 	if err := os.MkdirAll(filepath.Dir(fpath), 0o755); err != nil {
 		return err
 	}
@@ -245,19 +260,7 @@ func extractFile(name string, destDir string, opner func() (io.ReadCloser, error
 	if err != nil {
 		return err
 	}
-	// We don't want to close common readers like rardecode.Reader which we wrap in NopCloser
-	// but zip/7z Open returns a ReadCloser that MUST be closed.
-	// So we close it if it's not the wrapped NopCloser from RAR.
-	defer func() {
-		if _, ok := rc.(interface{ Close() error }); ok {
-			// Actually NopCloser also has a Close, so we need a better check if possible
-			// or just trust the caller. In zip/7z case it's a file reader.
-			// In RAR case it's a NopCloser wrapping the main reader.
-			// Actually rardecode.Reader doesn't implement Close, but NopCloser does.
-			// Let's just close it.
-			_ = rc.Close()
-		}
-	}()
+	defer rc.Close()
 
 	out, err := os.Create(fpath)
 	if err != nil {

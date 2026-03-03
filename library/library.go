@@ -127,7 +127,9 @@ func (s *Service) DownloadRomToLibrary(id uint) error {
 	} else if extracted {
 		s.ui.LogInfof("DownloadRomToLibrary: Extracted .cue/.bin files from archive: %s", destPath)
 		// Optionally delete the original archive to keep the folder clean
-		_ = os.Remove(destPath)
+		if err := os.Remove(destPath); err != nil {
+			s.ui.LogErrorf("DownloadRomToLibrary: Failed to remove original archive %s: %v", destPath, err)
+		}
 	}
 
 	return nil
