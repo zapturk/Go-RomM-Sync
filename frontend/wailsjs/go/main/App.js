@@ -90,6 +90,10 @@ export function GetPlatforms(arg1, arg2) {
   return window['go']['main']['App']['GetPlatforms'](arg1, arg2);
 }
 
+export function GetResolvedPlatformSlug(arg1) {
+  return window['go']['main']['App']['GetResolvedPlatformSlug'](arg1);
+}
+
 export function GetRetroArchPath() {
   return window['go']['main']['App']['GetRetroArchPath']();
 }
@@ -196,6 +200,10 @@ export function SaveConfig(arg1) {
 
 export function SaveDefaultLibraryPath(arg1) {
   return window['go']['main']['App']['SaveDefaultLibraryPath'](arg1);
+}
+
+export function SaveLastUsedCore(arg1, arg2) {
+  return window['go']['main']['App']['SaveLastUsedCore'](arg1, arg2);
 }
 
 export function SelectLibraryPath() {

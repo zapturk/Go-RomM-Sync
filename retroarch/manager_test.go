@@ -195,26 +195,57 @@ func TestLaunch_Pico8(t *testing.T) {
 	}
 }
 
-func TestDownloadCore(t *testing.T) {
+func TestDownloadCore_NotFound(t *testing.T) {
 	ui := &MockUI{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Mock a ZIP response
-		buf := new(bytes.Buffer)
-		zw := zip.NewWriter(buf)
-		f, _ := zw.Create("test_core.so")
-		f.Write([]byte("core data"))
-		zw.Close()
-		w.Write(buf.Bytes())
+		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer server.Close()
 
-	// Since DownloadCore constructs its own URL, we can't easily point it to the test server
-	// without changing the code. However, we can test unzipCore directly (already done)
-	// and we can test DownloadCore's error handling for unsupported OS/Arch.
+	oldURL := buildbotBaseURL
+	buildbotBaseURL = server.URL
+	defer func() { buildbotBaseURL = oldURL }()
 
-	err := DownloadCore(ui, "core.so", "/tmp", "invalid-arch")
+	err := DownloadCore(ui, "missing_core.so", "/tmp", "amd64")
 	if err == nil {
-		t.Error("Expected error for invalid arch")
+		t.Fatal("Expected error for 404 core")
+	}
+	if !strings.Contains(err.Error(), "status 404") {
+		t.Errorf("Expected 404 error message, got: %v", err)
+	}
+}
+
+func TestLaunch_CoreNotSupported(t *testing.T) {
+	ui := &MockUI{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	oldURL := buildbotBaseURL
+	buildbotBaseURL = server.URL
+	defer func() { buildbotBaseURL = oldURL }()
+
+	tempDir, _ := os.MkdirTemp("", "launch_unsupported")
+	defer os.RemoveAll(tempDir)
+	exePath := filepath.Join(tempDir, "retroarch")
+	os.WriteFile(exePath, []byte("fake"), 0o755)
+
+	overrideCoresDir = filepath.Join(tempDir, "cores")
+	defer func() { overrideCoresDir = "" }()
+
+	// This should trigger DownloadCore, which will return 404,
+	// and Launch should catch it and emit "Core Not Supported".
+	err := Launch(ui, exePath, "game.sfc", "", "", "", "")
+	if err == nil {
+		t.Fatal("Expected error from Launch")
+	}
+	if !strings.Contains(err.Error(), "core not supported") {
+		t.Errorf("Expected 'core not supported' error, got: %v", err)
+	}
+
+	if ui.GetEventCount(constants.EventPlayStatus) == 0 {
+		t.Error("Expected EventPlayStatus to be emitted")
 	}
 }
 
@@ -288,8 +319,8 @@ func TestLaunch_CoreOverride(t *testing.T) {
 
 	// Should fail at core download/find, not at the override logic
 	err := Launch(ui, exePath, romPath, "", "", "my_custom_core_libretro", "")
-	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
-		t.Errorf("Expected core-not-found error with override, got: %v", err)
+	if err != nil && !strings.Contains(err.Error(), "core not supported") && !strings.Contains(err.Error(), "emulator core not found") {
+		t.Errorf("Expected core-not-found or not-supported error with override, got: %v", err)
 	}
 }
 
@@ -416,8 +447,8 @@ func TestLaunch_PathTraversal(t *testing.T) {
 	// and fail because it's not in the cores directory, rather than attempting to load
 	// a library from a completely different path.
 	err := Launch(ui, exePath, romPath, "", "", "../../evil", "")
-	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
-		t.Errorf("Expected core-not-found error for sanitized path, got: %v", err)
+	if err != nil && !strings.Contains(err.Error(), "core not supported") && !strings.Contains(err.Error(), "emulator core not found") {
+		t.Errorf("Expected core-not-found or not-supported error for sanitized path, got: %v", err)
 	}
 }
 

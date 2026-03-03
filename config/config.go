@@ -60,6 +60,9 @@ func (cm *ConfigManager) Load() error {
 	if err := json.Unmarshal(data, cm.Config); err != nil {
 		return fmt.Errorf("failed to parse config json: %w", err)
 	}
+	if cm.Config.LastUsedCores == nil {
+		cm.Config.LastUsedCores = make(map[string]string)
+	}
 
 	return nil
 }
@@ -80,7 +83,7 @@ func (cm *ConfigManager) Save(newConfig *types.AppConfig) error {
 
 	// Ensure directory exists
 	dir := filepath.Dir(cm.ConfigPath)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -101,7 +104,7 @@ func (cm *ConfigManager) Update(fn func(*types.AppConfig)) error {
 
 	// Ensure directory exists
 	dir := filepath.Dir(cm.ConfigPath)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -136,12 +139,13 @@ func (cm *ConfigManager) createDefault() error {
 		LibraryPath:         defaultLibraryPath,
 		RetroArchPath:       "",
 		RetroArchExecutable: "",
+		LastUsedCores:       make(map[string]string),
 	}
 	cm.Config = &defaultConfig
 
 	// Create the directory if it doesn't exist
 	dir := filepath.Dir(cm.ConfigPath)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -150,5 +154,5 @@ func (cm *ConfigManager) createDefault() error {
 		return err
 	}
 
-	return os.WriteFile(cm.ConfigPath, data, 0o644)
+	return os.WriteFile(cm.ConfigPath, data, 0o600)
 }

@@ -43,7 +43,7 @@ func NewApp(cm *config.ConfigManager) *App {
 	app.rommSrv = rommsrv.New(app)
 	app.librarySrv = library.New(app, app, app)
 	app.syncSrv = sync.New(app, app, app)
-	app.launcher = launcher.New(app, app, app)
+	app.launcher = launcher.New(app, app, app, app)
 	return app
 }
 
@@ -304,33 +304,93 @@ func (a *App) PlayRomWithCore(id uint, coreName string) error {
 	return a.launcher.PlayRomWithCore(id, coreName)
 }
 
-// GetCoresForGame returns the list of libretro core base names that can handle
-// the given game's platform or file extension. Intended for the core-selector UI on the game page.
 func (a *App) GetCoresForGame(id uint) ([]string, error) {
 	game, err := a.rommSrv.GetRom(id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ROM info: %w", err)
 	}
 
+	// Resolve the platform slug robustly
+	platformSlug := a.GetResolvedPlatformSlug(&game)
+
+	// Strategy 0: User Preference (Last Used Core for this platform).
+	cfg := a.configManager.GetConfig()
+	lastUsed := ""
+	if platformSlug != "" {
+		lastUsed = cfg.LastUsedCores[platformSlug]
+	}
+
+	var allCores []string
+
 	// Strategy 1 & 2: Platform-based lookup.
 	if cores := a.getCoresByPlatform(&game); len(cores) > 0 {
-		return cores, nil
+		allCores = append(allCores, cores...)
 	}
 
 	// Strategy 3: Derive extension from the server-side filename (Fallback).
-	ext := strings.ToLower(filepath.Ext(filepath.Base(game.FullPath)))
-	if ext != ".zip" {
-		if cores := retroarch.GetCoresForExt(ext); len(cores) > 0 {
-			return cores, nil
+	if len(allCores) == 0 {
+		ext := strings.ToLower(filepath.Ext(filepath.Base(game.FullPath)))
+		if ext != ".zip" {
+			if cores := retroarch.GetCoresForExt(ext); len(cores) > 0 {
+				allCores = append(allCores, cores...)
+			}
 		}
 	}
 
 	// Strategy 4: Local file scan for the real extension (Fallback for zips).
-	if cores := a.getCoresByLocalScan(&game); len(cores) > 0 {
-		return cores, nil
+	if len(allCores) == 0 {
+		if cores := a.getCoresByLocalScan(&game); len(cores) > 0 {
+			allCores = append(allCores, cores...)
+		}
 	}
 
-	return nil, fmt.Errorf("no known cores for game %d (platform/ext not found)", id)
+	if len(allCores) == 0 {
+		return nil, fmt.Errorf("no known cores for game %d (platform/ext not found)", id)
+	}
+
+	return a.prioritizeLastUsedCore(allCores, lastUsed), nil
+}
+
+func (a *App) prioritizeLastUsedCore(allCores []string, lastUsed string) []string {
+	if lastUsed == "" {
+		return allCores
+	}
+	finalCores := []string{lastUsed}
+	for _, c := range allCores {
+		if c != lastUsed {
+			finalCores = append(finalCores, c)
+		}
+	}
+	return finalCores
+}
+
+// GetResolvedPlatformSlug returns a canonical platform slug, falling back to folder name if needed.
+func (a *App) GetResolvedPlatformSlug(game *types.Game) string {
+	if game.Platform.Slug != "" {
+		return game.Platform.Slug
+	}
+	// Fallback to directory name identification
+	relDir := filepath.Dir(game.FullPath)
+	parts := strings.Split(filepath.ToSlash(relDir), "/")
+	for i := len(parts) - 1; i >= 0; i-- {
+		if slug := retroarch.IdentifyPlatform(parts[i]); slug != "" {
+			return slug
+		}
+	}
+	return ""
+}
+
+// SaveLastUsedCore saves the core choice for a platform.
+func (a *App) SaveLastUsedCore(platformSlug, coreName string) error {
+	if platformSlug == "" || coreName == "" {
+		return nil
+	}
+	return a.configManager.Update(func(cfg *types.AppConfig) {
+		if cfg.LastUsedCores == nil {
+			cfg.LastUsedCores = make(map[string]string)
+		}
+		cfg.LastUsedCores[platformSlug] = coreName
+	})
 }
 
 func (a *App) getCoresByPlatform(game *types.Game) []string {

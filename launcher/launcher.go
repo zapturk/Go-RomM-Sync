@@ -23,6 +23,12 @@ type RomMProvider interface {
 	GetRom(id uint) (types.Game, error)
 }
 
+// PreferenceProvider defines the interface for saving user preferences.
+type PreferenceProvider interface {
+	SaveLastUsedCore(platformSlug, coreName string) error
+	GetResolvedPlatformSlug(game *types.Game) string
+}
+
 // UIProvider defines the UI interactions needed for launching games.
 type UIProvider interface {
 	SelectRetroArchExecutable() (string, error)
@@ -39,15 +45,17 @@ type UIProvider interface {
 type Launcher struct {
 	config ConfigProvider
 	romm   RomMProvider
+	prefs  PreferenceProvider
 	ui     UIProvider
 	ctx    context.Context
 }
 
 // New creates a new Launcher.
-func New(cfg ConfigProvider, romm RomMProvider, ui UIProvider) *Launcher {
+func New(cfg ConfigProvider, romm RomMProvider, prefs PreferenceProvider, ui UIProvider) *Launcher {
 	return &Launcher{
 		config: cfg,
 		romm:   romm,
+		prefs:  prefs,
 		ui:     ui,
 	}
 }
@@ -64,19 +72,14 @@ func (l *Launcher) PlayRom(id uint) error {
 		return fmt.Errorf("library path is not configured")
 	}
 
-	l.ui.LogInfof("PlayRom: Fetching game info for ID %d", id)
 	game, err := l.romm.GetRom(id)
 	if err != nil {
 		return fmt.Errorf("failed to get ROM info: %w", err)
 	}
-	l.ui.LogInfof("PlayRom: Game info fetched. Name: %s, ID in struct: %d, FullPath: %s", game.Title, game.ID, game.FullPath)
-
 	// 2. Find local ROM path
 	relDir := utils.SanitizePath(filepath.Dir(game.FullPath))
 	romDir := filepath.Join(libPath, relDir, fmt.Sprintf("%d", game.ID))
-	l.ui.LogInfof("PlayRom: Calculated romDir: %s", romDir)
 	romPath := l.findRomPath(&game, romDir)
-	l.ui.LogInfof("PlayRom: Found romPath: %s", romPath)
 	if romPath == "" {
 		return fmt.Errorf("no valid ROM file found in %s, please download it first", romDir)
 	}
@@ -102,8 +105,15 @@ func (l *Launcher) PlayRom(id uint) error {
 	// 4. Launch the game
 	cheevosUser, cheevosPass := l.config.GetCheevosCredentials()
 
+	// Resolve and save core preference before launching
+	platformSlug := l.prefs.GetResolvedPlatformSlug(&game)
+	cores := retroarch.GetCoresForPlatform(platformSlug)
+	if len(cores) > 0 && platformSlug != "" {
+		_ = l.prefs.SaveLastUsedCore(platformSlug, cores[0])
+	}
+
 	// Delegate UI lifecycle to launch helper inside retroarch/manager.go (which handles hiding window, etc.)
-	err = retroarch.Launch(l.ui, exePath, romPath, cheevosUser, cheevosPass, "", game.Platform.Slug)
+	err = retroarch.Launch(l.ui, exePath, romPath, cheevosUser, cheevosPass, "", platformSlug)
 	if err != nil {
 		return fmt.Errorf("failed to launch game: %w", err)
 	}
@@ -146,11 +156,25 @@ func (l *Launcher) PlayRomWithCore(id uint, coreOverride string) error {
 		}
 	}
 
+	// Save preference before launching
+	platformSlug := l.prefs.GetResolvedPlatformSlug(&game)
+	coreToSave := coreOverride
+	if coreToSave == "" {
+		cores := retroarch.GetCoresForPlatform(platformSlug)
+		if len(cores) > 0 {
+			coreToSave = cores[0]
+		}
+	}
+	if coreToSave != "" && platformSlug != "" {
+		_ = l.prefs.SaveLastUsedCore(platformSlug, coreToSave)
+	}
+
 	cheevosUser, cheevosPass := l.config.GetCheevosCredentials()
-	err = retroarch.Launch(l.ui, exePath, romPath, cheevosUser, cheevosPass, coreOverride, game.Platform.Slug)
+	err = retroarch.Launch(l.ui, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platformSlug)
 	if err != nil {
 		return fmt.Errorf("failed to launch game: %w", err)
 	}
+
 	return nil
 }
 
@@ -179,7 +203,6 @@ func (l *Launcher) findRomPath(game *types.Game, romDir string) string {
 func (l *Launcher) findCueFile(romDir string, files []os.DirEntry) string {
 	for _, file := range files {
 		if !file.IsDir() && strings.ToLower(filepath.Ext(file.Name())) == ".cue" {
-			l.ui.LogInfof("findRomPath: Prioritizing .cue file: %s", file.Name())
 			return filepath.Join(romDir, file.Name())
 		}
 	}

@@ -46,6 +46,17 @@ type MockUIProvider struct {
 func (m *MockUIProvider) SelectRetroArchExecutable() (string, error) {
 	return m.SelectedExe, m.Error
 }
+
+type MockPreferenceProvider struct{}
+
+func (m *MockPreferenceProvider) SaveLastUsedCore(platformSlug, coreName string) error {
+	return nil
+}
+
+func (m *MockPreferenceProvider) GetResolvedPlatformSlug(game *types.Game) string {
+	return game.Platform.Slug
+}
+
 func (m *MockUIProvider) LogInfof(format string, args ...interface{})      {}
 func (m *MockUIProvider) LogErrorf(format string, args ...interface{})     {}
 func (m *MockUIProvider) EventsEmit(eventName string, args ...interface{}) {}
@@ -55,14 +66,14 @@ func (m *MockUIProvider) WindowUnminimise()                                {}
 func (m *MockUIProvider) WindowSetAlwaysOnTop(b bool)                      {}
 
 func TestNew(t *testing.T) {
-	l := New(&MockConfigProvider{}, &MockRomMProvider{}, &MockUIProvider{})
+	l := New(&MockConfigProvider{}, &MockRomMProvider{}, &MockPreferenceProvider{}, &MockUIProvider{})
 	if l.config == nil || l.romm == nil || l.ui == nil {
 		t.Errorf("Launcher not initialized correctly")
 	}
 }
 
 func TestSetContext(t *testing.T) {
-	l := New(nil, nil, nil)
+	l := New(nil, nil, nil, nil)
 	ctx := context.Background()
 	l.SetContext(ctx)
 	if l.ctx != ctx {
@@ -83,7 +94,7 @@ func TestFindRomPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	l := New(nil, nil, nil)
+	l := New(nil, nil, nil, nil)
 	game := &types.Game{FullPath: "test.sfc"}
 	found := l.findRomPath(game, tempDir)
 	if found != romPath {
@@ -102,7 +113,7 @@ func TestFindRomPath(t *testing.T) {
 }
 
 func TestPlayRom_NoLibraryPath(t *testing.T) {
-	l := New(&MockConfigProvider{LibraryPath: ""}, nil, nil)
+	l := New(&MockConfigProvider{LibraryPath: ""}, nil, nil, nil)
 	err := l.PlayRom(1)
 	if err == nil || err.Error() != "library path is not configured" {
 		t.Errorf("Expected library path error, got %v", err)
@@ -117,7 +128,7 @@ func TestPlayRom_RomNotFound(t *testing.T) {
 	romm := &MockRomMProvider{
 		Game: types.Game{ID: 1, FullPath: "SNES/Game.sfc"},
 	}
-	l := New(cfg, romm, &MockUIProvider{})
+	l := New(cfg, romm, &MockPreferenceProvider{}, &MockUIProvider{})
 
 	err := l.PlayRom(1)
 	if err == nil || !contains(err.Error(), "no valid ROM file found") {
@@ -144,7 +155,7 @@ func TestPlayRom_RetroArchNotConfigured(t *testing.T) {
 		Game: types.Game{ID: 1, FullPath: "SNES/Game.sfc"},
 	}
 	ui := &MockUIProvider{SelectedExe: ""} // User cancelled
-	l := New(cfg, romm, ui)
+	l := New(cfg, romm, &MockPreferenceProvider{}, ui)
 
 	err := l.PlayRom(1)
 	if err == nil || !strings.Contains(err.Error(), "launch cancelled") {
