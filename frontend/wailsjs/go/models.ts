@@ -9,6 +9,7 @@ export namespace types {
 	    retroarch_executable: string;
 	    cheevos_username: string;
 	    cheevos_password: string;
+	    last_used_cores: Record<string, string>;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppConfig(source);
@@ -24,6 +25,7 @@ export namespace types {
 	        this.retroarch_executable = source["retroarch_executable"];
 	        this.cheevos_username = source["cheevos_username"];
 	        this.cheevos_password = source["cheevos_password"];
+	        this.last_used_cores = source["last_used_cores"];
 	    }
 	}
 	export class FileItem {

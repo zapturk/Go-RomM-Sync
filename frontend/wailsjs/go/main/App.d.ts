@@ -47,6 +47,8 @@ export function GetPlatformCover(arg1:number,arg2:string):Promise<string>;
 
 export function GetPlatforms(arg1:number,arg2:number):Promise<types.LibraryResult_go_romm_sync_types_Platform_>;
 
+export function GetResolvedPlatformSlug(arg1:types.Game):Promise<string>;
+
 export function GetRetroArchPath():Promise<string>;
 
 export function GetRom(arg1:number):Promise<types.Game>;
@@ -100,6 +102,8 @@ export function RomMUploadState(arg1:number,arg2:string,arg3:string,arg4:Array<n
 export function SaveConfig(arg1:types.AppConfig):Promise<string>;
 
 export function SaveDefaultLibraryPath(arg1:string):Promise<void>;
+
+export function SaveLastUsedCore(arg1:string,arg2:string):Promise<void>;
 
 export function SelectLibraryPath():Promise<string>;
 

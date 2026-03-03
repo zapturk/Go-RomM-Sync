@@ -60,6 +60,9 @@ func (cm *ConfigManager) Load() error {
 	if err := json.Unmarshal(data, cm.Config); err != nil {
 		return fmt.Errorf("failed to parse config json: %w", err)
 	}
+	if cm.Config.LastUsedCores == nil {
+		cm.Config.LastUsedCores = make(map[string]string)
+	}
 
 	return nil
 }
@@ -136,6 +139,7 @@ func (cm *ConfigManager) createDefault() error {
 		LibraryPath:         defaultLibraryPath,
 		RetroArchPath:       "",
 		RetroArchExecutable: "",
+		LastUsedCores:       make(map[string]string),
 	}
 	cm.Config = &defaultConfig
 

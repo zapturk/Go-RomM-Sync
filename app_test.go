@@ -392,3 +392,37 @@ func TestOpenGameFolder(t *testing.T) {
 		t.Errorf("Did not expect 'folder does not exist' error after creating it, got: %v", err)
 	}
 }
+func TestPrioritizeLastUsedCore(t *testing.T) {
+	app := &App{}
+	allCores := []string{"core1", "core2", "core3"}
+
+	// 1. No last used
+	res := app.prioritizeLastUsedCore(allCores, "")
+	if len(res) != 3 || res[0] != "core1" {
+		t.Errorf("Expected unchanged list, got %v", res)
+	}
+
+	// 2. With last used
+	res = app.prioritizeLastUsedCore(allCores, "core2")
+	if len(res) != 3 || res[0] != "core2" || res[1] != "core1" || res[2] != "core3" {
+		t.Errorf("Expected core2 to be first, got %v", res)
+	}
+
+	// 3. Last used not in list (should still be first, or handled depending on desired behavior)
+	// Currently our implementation just adds it. This is probably fine as a "force" or "suggest".
+	res = app.prioritizeLastUsedCore(allCores, "coreX")
+	if len(res) != 4 || res[0] != "coreX" {
+		t.Errorf("Expected coreX to be added first, got %v", res)
+	}
+}
+
+type MockAppForTest struct {
+	game types.Game
+}
+
+func (m *MockAppForTest) GetRom(id uint) (types.Game, error) {
+	return m.game, nil
+}
+func (m *MockAppForTest) GetRomMHost() string { return "" }
+func (m *MockAppForTest) GetUsername() string { return "" }
+func (m *MockAppForTest) GetPassword() string { return "" }
