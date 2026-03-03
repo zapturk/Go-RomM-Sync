@@ -13,6 +13,7 @@ import (
 	"go-romm-sync/types"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -220,6 +221,39 @@ func (a *App) GetRomDownloadStatus(id uint) (bool, error) {
 
 func (a *App) DeleteRom(id uint) error {
 	return a.librarySrv.DeleteRom(id)
+}
+
+func (a *App) OpenGameFolder(game *types.Game) error {
+	romDir := a.librarySrv.GetRomDir(game)
+	if _, err := os.Stat(romDir); os.IsNotExist(err) {
+		return fmt.Errorf("folder does not exist: %s", romDir)
+	}
+
+	absPath, err := filepath.Abs(romDir)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path: %w", err)
+	}
+
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		a.LogInfof("Opening folder on Windows: %s", absPath)
+		cmd = exec.Command("explorer", absPath)
+	case "darwin":
+		a.LogInfof("Opening folder on macOS: %s", absPath)
+		cmd = exec.Command("open", absPath)
+	case "linux":
+		a.LogInfof("Opening folder on Linux: %s", absPath)
+		cmd = exec.Command("xdg-open", absPath)
+	default:
+		// Fallback to cross-platform Wails helper for other OSs
+		a.LogInfof("Opening folder via BrowserOpenURL: %s", absPath)
+		fileURL := "file://" + absPath
+		wailsRuntime.BrowserOpenURL(a.ctx, fileURL)
+		return nil
+	}
+
+	return cmd.Start()
 }
 
 // Sync
