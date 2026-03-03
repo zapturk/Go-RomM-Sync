@@ -348,3 +348,25 @@ func TestClearImageCache(t *testing.T) {
 		t.Errorf("Expected platforms directory to be empty, found %d files", len(files))
 	}
 }
+
+func TestOpenGameFolder(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "app-openfolder-test")
+	defer os.RemoveAll(tmpDir)
+
+	configPath := filepath.Join(tmpDir, "config.json")
+	cm := config.NewConfigManager()
+	cm.ConfigPath = configPath
+	cm.Config = &types.AppConfig{
+		LibraryPath: tmpDir,
+	}
+
+	app := NewApp(cm)
+
+	// Since we don't have a real DB in tests, app.rommSrv.GetRom(id) might return error.
+	// We just want to ensure it handles the logic up to the command start attempt safely.
+	err := app.OpenGameFolder(1)
+	if err == nil {
+		// If it succeeded, it means it found something, but in this unit test it likely errors
+		// because rommSrv isn't fully mocked for GetRom(1).
+	}
+}

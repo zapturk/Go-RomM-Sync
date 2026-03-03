@@ -258,11 +258,16 @@ body.mouse-mode .game-card:hover,
     color: #4CAF50;
 }
 
-.game-actions-horizontal {
+.game-actions-vertical {
     display: flex;
-    gap: 10px;
+    flex-direction: column;
+    gap: 12px;
     margin-top: 20px;
     width: 100%;
+}
+
+.open-folder-btn {
+    background-color: #555 !important;
 }
 
 .download-btn,

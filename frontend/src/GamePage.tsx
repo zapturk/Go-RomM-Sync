@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRomWithCore, GetCoresForGame, GetSaves, GetStates, DeleteSave, DeleteState, UploadSave, UploadState, GetServerSaves, GetServerStates, DownloadServerSave, DownloadServerState } from "../wailsjs/go/main/App";
+import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRomWithCore, GetCoresForGame, GetSaves, GetStates, DeleteSave, DeleteState, UploadSave, UploadState, GetServerSaves, GetServerStates, DownloadServerSave, DownloadServerState, OpenGameFolder } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { GameCover } from "./GameCover";
-import { TrashIcon } from "./components/Icons";
+import { TrashIcon, FolderIcon } from "./components/Icons";
 import { FileItemRow } from "./FileItemRow";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
@@ -182,6 +182,14 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
             }
         });
     }, [game, isPlaying, selectedCore]);
+
+    // Open Folder Handler
+    const handleOpenFolder = useCallback(() => {
+        if (!game) return;
+        OpenGameFolder(game.id).catch((err: string) => {
+            setDownloadStatus(`Open folder error: ${err}`);
+        });
+    }, [game]);
 
     // Delete Handler
     const handleDelete = useCallback(() => {
@@ -517,10 +525,13 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                         />
                                     </div>
                                 )}
-                                <div className="game-actions-horizontal">
+                                <div className="game-actions-vertical">
                                     <InnerPlayButton
                                         isDisabled={isPlaying}
                                         onPlay={handlePlay}
+                                    />
+                                    <InnerOpenFolderButton
+                                        onOpenFolder={handleOpenFolder}
                                     />
                                     <InnerDeleteButton
                                         isDisabled={isPlaying}
@@ -721,7 +732,13 @@ function InnerCoreSelector({ currentCore, isDisabled, onClick, onFocusRequest }:
 function InnerPlayButton({ isDisabled, onPlay }: { isDisabled: boolean; onPlay: () => void }) {
     const { ref, focused } = useFocusable({
         focusKey: 'play-button',
-        onArrowPress: (direction: string) => direction === 'right' || direction === 'down' || direction === 'up',
+        onArrowPress: (direction: string) => {
+            if (direction === 'down') {
+                setFocus('open-folder-button');
+                return false;
+            }
+            return true;
+        },
         onEnterPress: onPlay
     });
 
@@ -742,10 +759,50 @@ function InnerPlayButton({ isDisabled, onPlay }: { isDisabled: boolean; onPlay: 
     );
 }
 
+function InnerOpenFolderButton({ onOpenFolder }: { onOpenFolder: () => void }) {
+    const { ref, focused } = useFocusable({
+        focusKey: 'open-folder-button',
+        onArrowPress: (direction: string) => {
+            if (direction === 'up') {
+                setFocus('play-button');
+                return false;
+            }
+            if (direction === 'down') {
+                setFocus('delete-button');
+                return false;
+            }
+            return true;
+        },
+        onEnterPress: onOpenFolder
+    });
+
+    return (
+        <button
+            ref={ref}
+            className={`btn open-folder-btn ${focused ? 'focused' : ''}`}
+            onMouseEnter={() => {
+                if (getMouseActive()) {
+                    setFocus('open-folder-button');
+                }
+            }}
+            onClick={onOpenFolder}
+        >
+            <FolderIcon size={20} />
+            <span style={{ marginLeft: '10px' }}>Open Folder</span>
+        </button>
+    );
+}
+
 function InnerDeleteButton({ isDisabled, onDelete, onFocusDownload }: { isDisabled: boolean; onDelete: () => void; onFocusDownload: () => void }) {
     const { ref, focused } = useFocusable({
         focusKey: 'delete-button',
-        onArrowPress: (direction: string) => direction === 'left' || direction === 'down' || direction === 'right' || direction === 'up',
+        onArrowPress: (direction: string) => {
+            if (direction === 'up') {
+                setFocus('open-folder-button');
+                return false;
+            }
+            return true;
+        },
         onEnterPress: onDelete
     });
 
@@ -762,7 +819,10 @@ function InnerDeleteButton({ isDisabled, onDelete, onFocusDownload }: { isDisabl
             }}
             onClick={onDelete}
         >
-            <TrashIcon />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <TrashIcon />
+                <span>Delete</span>
+            </div>
         </button>
     );
 }
