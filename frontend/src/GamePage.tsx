@@ -3,7 +3,7 @@ import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRomW
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { GameCover } from "./GameCover";
-import { TrashIcon, FolderIcon } from "./components/Icons";
+import { TrashIcon, FolderIcon, PlayIcon, DownloadIcon } from "./components/Icons";
 import { FileItemRow } from "./FileItemRow";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
@@ -697,7 +697,10 @@ function InnerDownloadButton({ isDisabled, isDownloading, onDownload }: { isDisa
             }}
             onClick={onDownload}
         >
-            {isDownloading ? "Downloading..." : "Download to Library"}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <DownloadIcon />
+                <span>{isDownloading ? "Downloading..." : "Download to Library"}</span>
+            </div>
         </button>
     );
 }
@@ -754,7 +757,10 @@ function InnerPlayButton({ isDisabled, onPlay }: { isDisabled: boolean; onPlay: 
             }}
             onClick={onPlay}
         >
-            Play
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <PlayIcon />
+                <span>Play</span>
+            </div>
         </button>
     );
 }

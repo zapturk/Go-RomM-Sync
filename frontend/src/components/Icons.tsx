@@ -116,3 +116,18 @@ export const FolderIcon = ({ size = 24 }: { size?: number }) => (
         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
     </svg>
 );
+
+export const PlayIcon = ({ size = 24 }: { size?: number }) => (
+    <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+    >
+        <polygon points="5 3 19 12 5 21 5 3" />
+    </svg>
+);
