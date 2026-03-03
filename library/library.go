@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"go-romm-sync/utils/archive"
 	"go-romm-sync/utils/fileio"
 )
 
@@ -117,6 +118,16 @@ func (s *Service) DownloadRomToLibrary(id uint) error {
 
 	if _, err := io.Copy(io.MultiWriter(out, pw), reader); err != nil {
 		return fmt.Errorf("failed to save file: %w", err)
+	}
+
+	// Archive check: Extract .cue/.bin if present
+	s.ui.EventsEmit("library-status", map[string]interface{}{"game_id": id, "status": "extracting"})
+	if extracted, err := archive.ExtractCueBin(destPath, destDir); err != nil {
+		s.ui.LogErrorf("DownloadRomToLibrary: Extraction failed for %s: %v", destPath, err)
+	} else if extracted {
+		s.ui.LogInfof("DownloadRomToLibrary: Extracted .cue/.bin files from archive: %s", destPath)
+		// Optionally delete the original archive to keep the folder clean
+		_ = os.Remove(destPath)
 	}
 
 	return nil

@@ -161,6 +161,14 @@ func (l *Launcher) findRomPath(game *types.Game, romDir string) string {
 		return ""
 	}
 
+	// Strategy 0: Prioritize .cue files (for multi-bin games)
+	for _, file := range files {
+		if !file.IsDir() && strings.ToLower(filepath.Ext(file.Name())) == ".cue" {
+			l.ui.LogInfof("findRomPath: Prioritizing .cue file: %s", file.Name())
+			return filepath.Join(romDir, file.Name())
+		}
+	}
+
 	// Strategy 1: Look for exact base filename match from FullPath
 	baseName := filepath.Base(game.FullPath)
 	directPath := filepath.Join(romDir, baseName)
