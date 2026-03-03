@@ -161,14 +161,41 @@ func (l *Launcher) findRomPath(game *types.Game, romDir string) string {
 		return ""
 	}
 
-	// Strategy 1: Look for exact base filename match from FullPath
+	if p := l.findCueFile(romDir, files); p != "" {
+		return p
+	}
+
+	if p := l.findExactMatch(game, romDir); p != "" {
+		return p
+	}
+
+	if p := l.findPlatformPreferredRom(game, romDir, files); p != "" {
+		return p
+	}
+
+	return l.findAnyRom(romDir, files)
+}
+
+func (l *Launcher) findCueFile(romDir string, files []os.DirEntry) string {
+	for _, file := range files {
+		if !file.IsDir() && strings.ToLower(filepath.Ext(file.Name())) == ".cue" {
+			l.ui.LogInfof("findRomPath: Prioritizing .cue file: %s", file.Name())
+			return filepath.Join(romDir, file.Name())
+		}
+	}
+	return ""
+}
+
+func (l *Launcher) findExactMatch(game *types.Game, romDir string) string {
 	baseName := filepath.Base(game.FullPath)
 	directPath := filepath.Join(romDir, baseName)
 	if info, err := os.Stat(directPath); err == nil && !info.IsDir() {
 		return directPath
 	}
+	return ""
+}
 
-	// Strategy 2: Look for files matching the platform's preferred cores/extensions
+func (l *Launcher) findPlatformPreferredRom(game *types.Game, romDir string, files []os.DirEntry) string {
 	platformCores := retroarch.GetCoresForPlatform(game.Platform.Slug)
 	for _, file := range files {
 		if file.IsDir() || strings.HasPrefix(file.Name(), ".") {
@@ -176,7 +203,6 @@ func (l *Launcher) findRomPath(game *types.Game, romDir string) string {
 		}
 		ext := strings.ToLower(filepath.Ext(file.Name()))
 
-		// Check if this extension belongs to any of the platform's preferred cores
 		coreName, ok := retroarch.CoreMap[ext]
 		if !ok {
 			continue
@@ -188,8 +214,10 @@ func (l *Launcher) findRomPath(game *types.Game, romDir string) string {
 			}
 		}
 	}
+	return ""
+}
 
-	// Strategy 3: Fallback to any recognizable ROM extension
+func (l *Launcher) findAnyRom(romDir string, files []os.DirEntry) string {
 	for _, file := range files {
 		if file.IsDir() || strings.HasPrefix(file.Name(), ".") {
 			continue

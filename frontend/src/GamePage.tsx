@@ -65,6 +65,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const [downloadProgress, setDownloadProgress] = useState<number>(0);
     const [statusFading, setStatusFading] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [isExtracting, setIsExtracting] = useState(false);
     const [availableCores, setAvailableCores] = useState<string[]>([]);
     const [selectedCore, setSelectedCore] = useState<string>('');
     const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -113,11 +114,19 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
             }
         });
 
+        const unlistenStatus = EventsOn("library-status", (data: { game_id: number; status: string }) => {
+            if (data.game_id === gameId && data.status === "extracting") {
+                setIsExtracting(true);
+                setDownloadStatus("Extracting files...");
+            }
+        });
+
         const unlistenStarted = EventsOn(APP_EVENTS.GAME_STARTED, () => setIsPlaying(true));
         const unlistenExited = EventsOn(APP_EVENTS.GAME_EXITED, () => setIsPlaying(false));
 
         return () => {
             unlisten();
+            unlistenStatus();
             unlistenStarted();
             unlistenExited();
         };
@@ -165,6 +174,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
             })
             .finally(() => {
                 setDownloading(false);
+                setIsExtracting(false);
             });
     }, [game, downloading, isDownloaded]);
 
@@ -509,6 +519,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                 <InnerDownloadButton
                                     isDisabled={downloading || isPlaying}
                                     isDownloading={downloading}
+                                    isExtracting={isExtracting}
                                     onDownload={handleDownload}
                                 />
                             )
@@ -678,7 +689,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     );
 }
 
-function InnerDownloadButton({ isDisabled, isDownloading, onDownload }: { isDisabled: boolean; isDownloading: boolean; onDownload: () => void }) {
+function InnerDownloadButton({ isDisabled, isDownloading, isExtracting, onDownload }: { isDisabled: boolean; isDownloading: boolean; isExtracting: boolean; onDownload: () => void }) {
     const { ref, focused } = useFocusable({
         focusKey: 'download-button',
         onArrowPress: (direction: string) => direction === 'down' || direction === 'right',
@@ -699,7 +710,9 @@ function InnerDownloadButton({ isDisabled, isDownloading, onDownload }: { isDisa
         >
             <div className="btn-content">
                 <DownloadIcon />
-                <span>{isDownloading ? "Downloading..." : "Download to Library"}</span>
+                <span>
+                    {isExtracting ? "Extracting..." : isDownloading ? "Downloading..." : "Download to Library"}
+                </span>
             </div>
         </button>
     );
