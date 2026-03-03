@@ -7,6 +7,7 @@ import (
 	"go-romm-sync/types"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -361,12 +362,33 @@ func TestOpenGameFolder(t *testing.T) {
 	}
 
 	app := NewApp(cm)
+	game := types.Game{ID: 1, FullPath: "snes/game.zip"}
 
-	// Since we don't have a real DB in tests, app.rommSrv.GetRom(id) might return error.
-	// We just want to ensure it handles the logic up to the command start attempt safely.
-	err := app.OpenGameFolder(types.Game{ID: 1, FullPath: "snes/game.zip"})
+	// 1. Failure Path: Folder does not exist
+	err := app.OpenGameFolder(&game)
 	if err == nil {
-		// If it succeeded, it means it found something, but in this unit test it likely errors
-		// because rommSrv isn't fully mocked for GetRom(1).
+		t.Error("Expected error when folder does not exist, got nil")
+	} else if !strings.Contains(err.Error(), "folder does not exist") {
+		t.Errorf("Expected 'folder does not exist' error, got: %v", err)
+	}
+
+	// 2. Success Path (Logic up to command execution)
+	// Create the expected folder
+	romDir := app.librarySrv.GetRomDir(&game)
+	if err := os.MkdirAll(romDir, 0755); err != nil {
+		t.Fatalf("Failed to create rom directory: %v", err)
+	}
+
+	// This will attempt to start a command. In CI/headless environments,
+	// this might fail, but it should at least pass the os.Stat check.
+	// We expect NO error from our own logic now. If cmd.Start() fails due to
+	// OS environment (no explorer/open), we still see it reached that point.
+	err = app.OpenGameFolder(&game)
+
+	// On many test systems, 'open' or 'xdg-open' might not exist,
+	// resulting in "exec: \"open\": executable file not found in $PATH".
+	// That's acceptable for this test as long as it's not OUR "folder does not exist" error.
+	if err != nil && strings.Contains(err.Error(), "folder does not exist") {
+		t.Errorf("Did not expect 'folder does not exist' error after creating it, got: %v", err)
 	}
 }

@@ -697,7 +697,7 @@ function InnerDownloadButton({ isDisabled, isDownloading, onDownload }: { isDisa
             }}
             onClick={onDownload}
         >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="btn-content">
                 <DownloadIcon />
                 <span>{isDownloading ? "Downloading..." : "Download to Library"}</span>
             </div>
@@ -757,7 +757,7 @@ function InnerPlayButton({ isDisabled, onPlay }: { isDisabled: boolean; onPlay: 
             }}
             onClick={onPlay}
         >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="btn-content">
                 <PlayIcon />
                 <span>Play</span>
             </div>
@@ -793,8 +793,10 @@ function InnerOpenFolderButton({ onOpenFolder }: { onOpenFolder: () => void }) {
             }}
             onClick={onOpenFolder}
         >
-            <FolderIcon size={20} />
-            <span style={{ marginLeft: '10px' }}>Open Folder</span>
+            <div className="btn-content">
+                <FolderIcon size={20} />
+                <span>Open Folder</span>
+            </div>
         </button>
     );
 }
@@ -825,7 +827,7 @@ function InnerDeleteButton({ isDisabled, onDelete, onFocusDownload }: { isDisabl
             }}
             onClick={onDelete}
         >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="btn-content">
                 <TrashIcon />
                 <span>Delete</span>
             </div>
