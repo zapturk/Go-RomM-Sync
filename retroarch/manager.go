@@ -95,7 +95,7 @@ var ExtCoreMap = map[string][]string{
 	".bin": {"pcsx_rearmed_libretro", "beetle_psx_libretro"},
 
 	// Sony – PSP
-	".cso": {"ppsspp_libretro"},
+	".cso": {"ppsspp_libretro", "pcsx2_libretro", "play_libretro", "lrps2_libretro"},
 
 	// Atari
 	".a26": {"stella_libretro"},
@@ -115,8 +115,8 @@ var ExtCoreMap = map[string][]string{
 	".do":  {"apple2enh_libretro"},
 
 	// Others
-	".iso": {"pcsx_rearmed_libretro", "beetle_psx_libretro", "pcsx2_libretro", "opera_libretro"},
-	".chd": {"pcsx_rearmed_libretro", "beetle_psx_libretro", "pcsx2_libretro", "opera_libretro", "flycast_libretro"},
+	".iso": {"pcsx2_libretro", "play_libretro", "lrps2_libretro", "pcsx_rearmed_libretro", "beetle_psx_libretro", "opera_libretro"},
+	".chd": {"pcsx2_libretro", "play_libretro", "lrps2_libretro", "pcsx_rearmed_libretro", "beetle_psx_libretro", "opera_libretro", "flycast_libretro"},
 	".sg":  {"smsplus_libretro"},
 	".col": {"gearcoleco_libretro"},
 	".mx1": {"bluemsx_libretro"},
@@ -137,6 +137,21 @@ var ExtCoreMap = map[string][]string{
 	// Pico-8
 	".p8":  {"retro8_libretro"},
 	".png": {constants.CoreRetro8},
+}
+
+var buildbotBaseURL = "https://buildbot.libretro.com/nightly"
+
+var overrideCoresDir string
+
+func getCoresDir(baseDir string) string {
+	if overrideCoresDir != "" {
+		return overrideCoresDir
+	}
+	if runtime.GOOS == constants.OSDarwin {
+		homeDir, _ := os.UserHomeDir()
+		return filepath.Join(homeDir, "Library", "Application Support", "RetroArch", "cores")
+	}
+	return filepath.Join(baseDir, "cores")
 }
 
 // PlatformCoreMap maps common platform names or slugs to an ordered list
@@ -174,7 +189,7 @@ var PlatformCoreMap = map[string][]string{
 	"arcade":       {"fbneo_libretro", "mame2003_plus_libretro"},
 	"coleco":       {"gearcoleco_libretro"},
 	"msx":          {"bluemsx_libretro"},
-	"ps2":          {"pcsx2_libretro"},
+	"ps2":          {"pcsx2_libretro", "play_libretro", "lrps2_libretro"},
 	"sg1000":       {"smsplus_libretro"},
 	"neogeo":       {"fbneo_libretro"},
 	"a26":          {"stella_libretro"},
@@ -422,7 +437,7 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 			baseDir = filepath.Dir(filepath.Dir(filepath.Dir(exePath)))
 		}
 	}
-	coresDir := filepath.Join(baseDir, "cores")
+	coresDir := getCoresDir(baseDir)
 
 	// Store original ROM base directory for saves/states early, before we potentially move romPath to a temp file
 	romBaseDir := filepath.Dir(romPath)
@@ -544,11 +559,7 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 
 	coreFile := coreBaseName + getCoreExt()
 
-	// macOS core directory standard
-	if runtime.GOOS == constants.OSDarwin {
-		homeDir, _ := os.UserHomeDir()
-		coresDir = filepath.Join(homeDir, "Library", "Application Support", "RetroArch", "cores")
-	}
+	// coresDir is already set
 	corePath := filepath.Join(coresDir, coreFile)
 
 	// Detect the required arch once — used for both downloading and arch-mismatch checking.
@@ -573,6 +584,11 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 	if !coreExists {
 		ui.EventsEmit("play-status", fmt.Sprintf("Emulator core %s not found locally. Attempting to download...", coreFile))
 		if err := DownloadCore(ui, coreFile, coresDir, arch); err != nil {
+			if strings.Contains(err.Error(), "status 404") {
+				ui.EventsEmit(constants.EventPlayStatus, "Core Not Supported")
+				ui.LogErrorf("Launch: Core %s not found on buildbot for %s/%s", coreFile, runtime.GOOS, arch)
+				return fmt.Errorf("core not supported: %s", coreFile)
+			}
 			return fmt.Errorf("emulator core not found at %s and auto-download failed: %w", corePath, err)
 		}
 	}
@@ -687,7 +703,7 @@ func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 		return fmt.Errorf("unsupported arch for core downloads: %s", arch)
 	}
 
-	urlStr := fmt.Sprintf("https://buildbot.libretro.com/nightly/%s/%s/latest/%s.zip", osName, archName, coreFile)
+	urlStr := fmt.Sprintf("%s/%s/%s/latest/%s.zip", buildbotBaseURL, osName, archName, coreFile)
 
 	resp, err := http.Get(urlStr) //nolint:bodyclose // body is closed via fileio.Close wrapper below
 	if err != nil {
@@ -695,6 +711,9 @@ func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 	}
 	defer fileio.Close(resp.Body, nil, "DownloadCore: Failed to close response body")
 
+	if resp.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("core download failed with status 404 from %s", urlStr)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("core download failed with status %d from %s", resp.StatusCode, urlStr)
 	}
