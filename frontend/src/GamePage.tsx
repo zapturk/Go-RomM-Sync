@@ -186,7 +186,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     // Open Folder Handler
     const handleOpenFolder = useCallback(() => {
         if (!game) return;
-        OpenGameFolder(game.id).catch((err: string) => {
+        OpenGameFolder(game).catch((err: string) => {
             setDownloadStatus(`Open folder error: ${err}`);
         });
     }, [game]);

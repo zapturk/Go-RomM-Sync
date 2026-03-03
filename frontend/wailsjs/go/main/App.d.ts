@@ -81,7 +81,7 @@ export function OpenDirectoryDialog(arg1:string):Promise<string>;
 
 export function OpenFileDialog(arg1:string,arg2:Array<string>):Promise<string>;
 
-export function OpenGameFolder(arg1:number):Promise<void>;
+export function OpenGameFolder(arg1:types.Game):Promise<void>;
 
 export function PlayRom(arg1:number):Promise<void>;
 

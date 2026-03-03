@@ -364,7 +364,7 @@ func TestOpenGameFolder(t *testing.T) {
 
 	// Since we don't have a real DB in tests, app.rommSrv.GetRom(id) might return error.
 	// We just want to ensure it handles the logic up to the command start attempt safely.
-	err := app.OpenGameFolder(1)
+	err := app.OpenGameFolder(types.Game{ID: 1, FullPath: "snes/game.zip"})
 	if err == nil {
 		// If it succeeded, it means it found something, but in this unit test it likely errors
 		// because rommSrv isn't fully mocked for GetRom(1).

@@ -223,12 +223,7 @@ func (a *App) DeleteRom(id uint) error {
 	return a.librarySrv.DeleteRom(id)
 }
 
-func (a *App) OpenGameFolder(id uint) error {
-	game, err := a.rommSrv.GetRom(id)
-	if err != nil {
-		return fmt.Errorf("failed to get ROM info: %w", err)
-	}
-
+func (a *App) OpenGameFolder(game types.Game) error {
 	romDir := a.librarySrv.GetRomDir(&game)
 	if _, err := os.Stat(romDir); os.IsNotExist(err) {
 		return fmt.Errorf("folder does not exist: %s", romDir)
