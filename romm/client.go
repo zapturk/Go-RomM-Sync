@@ -92,23 +92,12 @@ func (c *Client) GetLibrary(limit, offset, platformID int, search string) ([]typ
 		return nil, 0, fmt.Errorf("not authenticated")
 	}
 
-	// Construct URL with pagination and filtering parameters
-	u, err := url.Parse(c.BaseURL + "/api/roms")
+	u, err := c.buildLibraryURL(limit, offset, platformID, search)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to parse base URL: %w", err)
+		return nil, 0, err
 	}
-	q := u.Query()
-	q.Set("limit", fmt.Sprintf("%d", limit))
-	q.Set("offset", fmt.Sprintf("%d", offset))
-	if platformID > 0 {
-		q.Set("platform_ids", fmt.Sprintf("%d", platformID))
-	}
-	if search != "" {
-		q.Set("search_term", search)
-	}
-	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest("GET", u.String(), http.NoBody)
+	req, err := http.NewRequest("GET", u, http.NoBody)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to create library request: %w", err)
 	}
@@ -166,6 +155,24 @@ func (c *Client) GetLibrary(limit, offset, platformID int, search string) ([]typ
 	}
 
 	return nil, 0, fmt.Errorf("unknown library response format: %s", string(raw))
+}
+
+func (c *Client) buildLibraryURL(limit, offset, platformID int, search string) (string, error) {
+	u, err := url.Parse(c.BaseURL + "/api/roms")
+	if err != nil {
+		return "", fmt.Errorf("failed to parse base URL: %w", err)
+	}
+	q := u.Query()
+	q.Set("limit", fmt.Sprintf("%d", limit))
+	q.Set("offset", fmt.Sprintf("%d", offset))
+	if platformID > 0 {
+		q.Set("platform_ids", fmt.Sprintf("%d", platformID))
+	}
+	if search != "" {
+		q.Set("search_term", search)
+	}
+	u.RawQuery = q.Encode()
+	return u.String(), nil
 }
 
 // DownloadCover fetches the cover image from the provided URL
