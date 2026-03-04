@@ -37,7 +37,7 @@ export function GetCover(arg1:number,arg2:string):Promise<string>;
 
 export function GetDefaultLibraryPath():Promise<string>;
 
-export function GetLibrary(arg1:number,arg2:number,arg3:number):Promise<types.LibraryResult_go_romm_sync_types_Game_>;
+export function GetLibrary(arg1:number,arg2:number,arg3:number,arg4:string):Promise<types.LibraryResult_go_romm_sync_types_Game_>;
 
 export function GetLibraryPath():Promise<string>;
 

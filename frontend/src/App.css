@@ -109,6 +109,20 @@ body.mouse-mode .game-card:hover,
     z-index: 10;
 }
 
+.search-input {
+    transition: all 0.2s ease;
+}
+
+.search-input:focus {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-color: #5d3fd3 !important;
+    box-shadow: 0 0 10px rgba(93, 63, 211, 0.3);
+}
+
+.search-input::placeholder {
+    color: rgba(255, 255, 255, 0.3) !important;
+}
+
 .game-cover {
     width: 100%;
     aspect-ratio: 3/4;

@@ -60,9 +60,9 @@ func (s *Service) GetClient() *romm.Client {
 	return s.client
 }
 
-// GetLibrary fetches a page of the game library from RomM, optionally filtered by platform.
-func (s *Service) GetLibrary(limit, offset, platformID int) ([]types.Game, int, error) {
-	return s.client.GetLibrary(limit, offset, platformID)
+// GetLibrary fetches a page of the game library from RomM, optionally filtered by platform and search query.
+func (s *Service) GetLibrary(limit, offset, platformID int, search string) ([]types.Game, int, error) {
+	return s.client.GetLibrary(limit, offset, platformID, search)
 }
 
 // GetPlatforms fetches a page of supported platforms from RomM.

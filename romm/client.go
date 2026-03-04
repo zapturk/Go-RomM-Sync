@@ -87,7 +87,7 @@ func (c *Client) Login(username, password string) (string, error) {
 // types with different JSON decode strategies; a generic refactor would add complexity without benefit.
 //
 //nolint:dupl // GetLibrary/GetPlatforms have similar pagination structures but operate on different
-func (c *Client) GetLibrary(limit, offset, platformID int) ([]types.Game, int, error) {
+func (c *Client) GetLibrary(limit, offset, platformID int, search string) ([]types.Game, int, error) {
 	if c.Token == "" {
 		return nil, 0, fmt.Errorf("not authenticated")
 	}
@@ -102,6 +102,9 @@ func (c *Client) GetLibrary(limit, offset, platformID int) ([]types.Game, int, e
 	q.Set("offset", fmt.Sprintf("%d", offset))
 	if platformID > 0 {
 		q.Set("platform_ids", fmt.Sprintf("%d", platformID))
+	}
+	if search != "" {
+		q.Set("search_term", search)
 	}
 	u.RawQuery = q.Encode()
 
