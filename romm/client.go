@@ -49,7 +49,7 @@ func (c *Client) Login(username, password string) (string, error) {
 	data := url.Values{}
 	data.Set("username", username)
 	data.Set("password", password)
-	data.Set("scope", "roms.read platforms.read assets.read assets.write")
+	data.Set("scope", "roms.read platforms.read assets.read assets.write firmware.read firmware.write")
 
 	req, err := http.NewRequest("POST", c.BaseURL+"/api/token", strings.NewReader(data.Encode()))
 	if err != nil {
@@ -286,6 +286,12 @@ func (c *Client) GetPlatforms(limit, offset int) ([]types.Platform, int, error) 
 	}
 
 	return nil, 0, fmt.Errorf("unknown platforms response format: %s", string(raw))
+}
+
+// GetFirmware fetches the list of firmware for a given platform
+func (c *Client) GetFirmware(platformID uint) ([]types.Firmware, error) {
+	urlStr := fmt.Sprintf("%s/api/firmware?platform_id=%d", c.BaseURL, platformID)
+	return fetchAssets[types.Firmware](c, urlStr, "firmware")
 }
 
 // GetRom fetches a single ROM by its ID
@@ -537,8 +543,6 @@ func (c *Client) shouldSendToken(targetURL string) bool {
 	return target.Scheme == base.Scheme && target.Host == base.Host
 }
 
-// readAllWithLimit reads from r until EOF or limit is reached.
-// It returns the data read and an error if the limit is exceeded.
 func (c *Client) readAllWithLimit(r io.Reader, limit int64) ([]byte, error) {
 	lr := io.LimitReader(r, limit+1)
 	data, err := io.ReadAll(lr)
@@ -549,4 +553,33 @@ func (c *Client) readAllWithLimit(r io.Reader, limit int64) ([]byte, error) {
 		return data[:limit], fmt.Errorf("response exceeded limit of %d bytes", limit)
 	}
 	return data, nil
+}
+
+// DownloadFirmwareContent fetches a firmware file from RomM
+func (c *Client) DownloadFirmwareContent(id uint, fileName string) (reader io.ReadCloser, filename string, err error) {
+	if c.Token == "" {
+		return nil, "", fmt.Errorf("not authenticated")
+	}
+
+	urlPath := fmt.Sprintf("%s/api/firmware/%d/content/%s", c.BaseURL, id, url.PathEscape(fileName))
+	req, err := http.NewRequest("GET", urlPath, http.NoBody)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to create firmware download request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	resp, err := c.FileClient.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to perform firmware download request: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
+		fileio.Close(resp.Body, nil, "DownloadFirmwareContent: Failed to close response body")
+		return nil, "", fmt.Errorf("firmware download failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	filename = fileName
+	return resp.Body, filename, nil
 }

@@ -16,6 +16,7 @@ type ConfigProvider interface {
 	GetLibraryPath() string
 	GetRetroArchPath() string
 	GetCheevosCredentials() (string, string)
+	GetBiosDir() string
 }
 
 // RomMProvider defines the RomM API interactions needed for launching games.
@@ -113,7 +114,7 @@ func (l *Launcher) PlayRom(id uint) error {
 	}
 
 	// Delegate UI lifecycle to launch helper inside retroarch/manager.go (which handles hiding window, etc.)
-	err = retroarch.Launch(l.ui, exePath, romPath, cheevosUser, cheevosPass, "", platformSlug)
+	err = retroarch.Launch(l.ui, exePath, romPath, cheevosUser, cheevosPass, "", platformSlug, l.config.GetBiosDir())
 	if err != nil {
 		return fmt.Errorf("failed to launch game: %w", err)
 	}
@@ -170,7 +171,7 @@ func (l *Launcher) PlayRomWithCore(id uint, coreOverride string) error {
 	}
 
 	cheevosUser, cheevosPass := l.config.GetCheevosCredentials()
-	err = retroarch.Launch(l.ui, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platformSlug)
+	err = retroarch.Launch(l.ui, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platformSlug, l.config.GetBiosDir())
 	if err != nil {
 		return fmt.Errorf("failed to launch game: %w", err)
 	}

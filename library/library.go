@@ -2,6 +2,7 @@ package library
 
 import (
 	"fmt"
+	"go-romm-sync/constants"
 	"go-romm-sync/retroarch"
 	"go-romm-sync/types"
 	"go-romm-sync/utils"
@@ -24,6 +25,8 @@ type ConfigProvider interface {
 type RomMProvider interface {
 	DownloadFile(game *types.Game) (io.ReadCloser, string, error)
 	GetRom(id uint) (types.Game, error)
+	GetFirmware(platformID uint) ([]types.Firmware, error)
+	DownloadFirmwareContent(id uint, fileName string) (io.ReadCloser, string, error)
 }
 
 // UIProvider defines logging and event emission.
@@ -74,6 +77,11 @@ func (s *Service) GetRomDir(game *types.Game) string {
 	libPath := s.config.GetLibraryPath()
 	relPath := utils.SanitizePath(filepath.Dir(game.FullPath))
 	return filepath.Join(libPath, relPath, fmt.Sprintf("%d", game.ID))
+}
+
+// GetBiosDir returns the local directory where BIOS files are stored globally in the library.
+func (s *Service) GetBiosDir() string {
+	return filepath.Join(s.config.GetLibraryPath(), constants.DirBios)
 }
 
 // DownloadRomToLibrary downloads a ROM directly to the configured library path.
@@ -205,4 +213,27 @@ func (s *Service) DeleteRom(id uint) error {
 // FindRomPath is a public wrapper for finding a ROM path.
 func (s *Service) FindRomPath(romDir string) string {
 	return s.findRomPath(romDir)
+}
+
+// DownloadFirmware downloads a firmware file to the library's bios directory.
+func (s *Service) DownloadFirmware(fw *types.Firmware) error {
+	biosDir := s.GetBiosDir()
+	if err := os.MkdirAll(biosDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create bios directory: %w", err)
+	}
+
+	reader, filename, err := s.romm.DownloadFirmwareContent(fw.ID, fw.FileName)
+	if err != nil {
+		return err
+	}
+	defer fileio.Close(reader, nil, "DownloadFirmware: Failed to close reader")
+
+	// Apply BIOS naming convention based on MD5 hash
+	if mappedName := retroarch.GetBiosFilename(fw.MD5Hash); mappedName != "" {
+		s.ui.LogInfof("DownloadFirmware: Mapping known BIOS MD5 %s to canonical name %s (orig: %s)", fw.MD5Hash, mappedName, filename)
+		filename = mappedName
+	}
+
+	destPath := filepath.Join(biosDir, filename)
+	return fileio.WriteFileFromReader(destPath, reader, 0o644)
 }

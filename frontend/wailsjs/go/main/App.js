@@ -30,6 +30,10 @@ export function DownloadFile(arg1) {
   return window['go']['main']['App']['DownloadFile'](arg1);
 }
 
+export function DownloadFirmwareContent(arg1, arg2) {
+  return window['go']['main']['App']['DownloadFirmwareContent'](arg1, arg2);
+}
+
 export function DownloadRom(arg1) {
   return window['go']['main']['App']['DownloadRom'](arg1);
 }
@@ -50,6 +54,10 @@ export function EventsEmit(arg1, arg2) {
   return window['go']['main']['App']['EventsEmit'](arg1, arg2);
 }
 
+export function GetBiosDir() {
+  return window['go']['main']['App']['GetBiosDir']();
+}
+
 export function GetCheevosCredentials() {
   return window['go']['main']['App']['GetCheevosCredentials']();
 }
@@ -68,6 +76,10 @@ export function GetCover(arg1, arg2) {
 
 export function GetDefaultLibraryPath() {
   return window['go']['main']['App']['GetDefaultLibraryPath']();
+}
+
+export function GetFirmware(arg1) {
+  return window['go']['main']['App']['GetFirmware'](arg1);
 }
 
 export function GetLibrary(arg1, arg2, arg3, arg4) {
@@ -212,6 +224,10 @@ export function SelectLibraryPath() {
 
 export function SelectRetroArchExecutable() {
   return window['go']['main']['App']['SelectRetroArchExecutable']();
+}
+
+export function SetPlatformFirmware(arg1, arg2) {
+  return window['go']['main']['App']['SetPlatformFirmware'](arg1, arg2);
 }
 
 export function UploadSave(arg1, arg2, arg3) {

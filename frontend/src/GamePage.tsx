@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRomWithCore, GetCoresForGame, GetSaves, GetStates, DeleteSave, DeleteState, UploadSave, UploadState, GetServerSaves, GetServerStates, DownloadServerSave, DownloadServerState, OpenGameFolder } from "../wailsjs/go/main/App";
+import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRomWithCore, GetCoresForGame, GetSaves, GetStates, DeleteSave, DeleteState, UploadSave, UploadState, GetServerSaves, GetServerStates, DownloadServerSave, DownloadServerState, OpenGameFolder, GetFirmware, SetPlatformFirmware, GetConfig } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { GameCover } from "./GameCover";
@@ -69,6 +69,10 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const [availableCores, setAvailableCores] = useState<string[]>([]);
     const [selectedCore, setSelectedCore] = useState<string>('');
     const [isPickerOpen, setIsPickerOpen] = useState(false);
+    const [firmwares, setFirmwares] = useState<types.Firmware[]>([]);
+    const [selectedFirmwareId, setSelectedFirmwareId] = useState<number>(0);
+    const [firmwareDownloading, setFirmwareDownloading] = useState(false);
+    const [firmwareStatus, setFirmwareStatus] = useState<string>('');
     const fadeTimeoutRef = useRef<any>(null);
     const clearStatusTimeoutRef = useRef<any>(null);
     const statusSequenceRef = useRef(0);
@@ -217,6 +221,22 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         GetRom(gameId)
             .then((res: types.Game) => {
                 setGame(res);
+
+                // Fetch firmwares for this platform
+                console.log("Fetching firmwares for platform ID:", res.platform_id);
+                GetFirmware(res.platform_id).then(list => {
+                    console.log("Firmwares received:", list);
+                    setFirmwares(list || []);
+
+                    // Get current config to see if a firmware is already selected
+                    GetConfig().then(cfg => {
+                        console.log("Current config platform_firmware:", cfg.platform_firmware);
+                        if (cfg.platform_firmware && cfg.platform_firmware[res.platform_slug]) {
+                            setSelectedFirmwareId(cfg.platform_firmware[res.platform_slug]);
+                        }
+                    });
+                }).catch(err => console.error("Failed to fetch firmwares:", err));
+
                 // Check if already downloaded
                 GetRomDownloadStatus(gameId).then((status: boolean) => {
                     setIsDownloaded(status);
@@ -350,6 +370,30 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         });
     };
 
+    const handleFirmwareChange = async (id: number) => {
+        if (!game) return;
+        setSelectedFirmwareId(id);
+
+        if (id === 0) return;
+
+        const fw = firmwares.find(f => f.id === id);
+        if (!fw) return;
+
+        setFirmwareDownloading(true);
+        setFirmwareStatus('Downloading...');
+
+        try {
+            await SetPlatformFirmware(game.platform_slug, fw);
+            setFirmwareStatus('Downloaded');
+            setTimeout(() => setFirmwareStatus(''), 3000);
+        } catch (err) {
+            console.error("Failed to set firmware:", err);
+            setFirmwareStatus('Error');
+        } finally {
+            setFirmwareDownloading(false);
+        }
+    };
+
     const handleSyncSaves = async () => {
         setDownloadStatus("Starting smart sync for saves...");
         const allNames = new Set<string>();
@@ -455,16 +499,16 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     }
 
     const isMac = navigator.userAgent.includes('Mac');
-    const is3DS = (game.platform.slug?.toLowerCase() === '3ds') ||
-        (game.platform.name?.toLowerCase().includes('3ds')) ||
+    const is3DS = (game.platform_slug?.toLowerCase() === '3ds') ||
+        (game.platform_display_name?.toLowerCase().includes('3ds')) ||
         (game.full_path?.toLowerCase().includes('/3ds/'));
     const isUnsupported = isMac && is3DS;
 
     console.log("GamePage Detection:", {
         userAgent: navigator.userAgent,
         isMac,
-        platformSlug: game.platform.slug,
-        platformName: game.platform.name,
+        platformSlug: game.platform_slug,
+        platformName: game.platform_display_name,
         fullPath: game.full_path,
         is3DS,
         isUnsupported
@@ -563,6 +607,20 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                             )}
                         </div>
                     )}
+                    <div className="game-firmware-section">
+                        <h3>Platform Firmware</h3>
+                        {firmwares.length > 0 ? (
+                            <InnerFirmwareSelector
+                                firmwares={firmwares}
+                                selectedId={selectedFirmwareId}
+                                isDownloading={firmwareDownloading}
+                                status={firmwareStatus}
+                                onChange={handleFirmwareChange}
+                            />
+                        ) : (
+                            <div className="firmware-status">No firmware available in RomM</div>
+                        )}
+                    </div>
                 </div>
                 <div className="game-main-info">
                     <h1>{game.name}</h1>
@@ -910,6 +968,50 @@ function CancelButton({ onCancel }: { onCancel: () => void }) {
         >
             Cancel
         </button>
+    );
+}
+
+function InnerFirmwareSelector({ firmwares, selectedId, isDownloading, status, onChange }: {
+    firmwares: types.Firmware[];
+    selectedId: number;
+    isDownloading: boolean;
+    status: string;
+    onChange: (id: number) => void;
+}) {
+    const { ref, focused } = useFocusable({
+        focusKey: 'firmware-selector',
+        onEnterPress: () => {
+            // Standard select handles enter
+        }
+    });
+
+    return (
+        <div className="platform-firmware-selector">
+            <select
+                ref={ref}
+                className={`firmware-dropdown ${focused ? 'focused' : ''}`}
+                value={selectedId}
+                onChange={(e) => onChange(parseInt(e.target.value))}
+                disabled={isDownloading}
+                onMouseEnter={() => {
+                    if (getMouseActive() && !isDownloading) {
+                        setFocus('firmware-selector');
+                    }
+                }}
+            >
+                <option value={0}>No Firmware</option>
+                {firmwares.map(fw => (
+                    <option key={fw.id} value={fw.id}>
+                        {fw.file_name} {fw.is_verified ? '✓' : ''}
+                    </option>
+                ))}
+            </select>
+            {status && (
+                <div className={`firmware-status ${status.toLowerCase()}`}>
+                    {status}
+                </div>
+            )}
+        </div>
     );
 }
 

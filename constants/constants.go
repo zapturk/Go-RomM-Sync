@@ -25,6 +25,7 @@ const (
 const (
 	DirSaves  = "saves"
 	DirStates = "states"
+	DirBios   = "bios"
 )
 
 // Path Components

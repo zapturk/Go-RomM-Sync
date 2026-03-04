@@ -10,6 +10,7 @@ export namespace types {
 	    cheevos_username: string;
 	    cheevos_password: string;
 	    last_used_cores: Record<string, string>;
+	    platform_firmware: Record<string, number>;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppConfig(source);
@@ -26,6 +27,7 @@ export namespace types {
 	        this.cheevos_username = source["cheevos_username"];
 	        this.cheevos_password = source["cheevos_password"];
 	        this.last_used_cores = source["last_used_cores"];
+	        this.platform_firmware = source["platform_firmware"];
 	    }
 	}
 	export class FileItem {
@@ -42,6 +44,28 @@ export namespace types {
 	        this.name = source["name"];
 	        this.core = source["core"];
 	        this.updated_at = source["updated_at"];
+	    }
+	}
+	export class Firmware {
+	    id: number;
+	    file_name: string;
+	    file_size_bytes: number;
+	    is_verified: boolean;
+	    platform_id: number;
+	    md5_hash: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Firmware(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.file_name = source["file_name"];
+	        this.file_size_bytes = source["file_size_bytes"];
+	        this.is_verified = source["is_verified"];
+	        this.platform_id = source["platform_id"];
+	        this.md5_hash = source["md5_hash"];
 	    }
 	}
 	export class Platform {
@@ -74,6 +98,9 @@ export namespace types {
 	    genres: string[];
 	    has_saves: boolean;
 	    fs_size_bytes: number;
+	    platform_id: number;
+	    platform_slug: string;
+	    platform_display_name: string;
 	    platform: Platform;
 	
 	    static createFrom(source: any = {}) {
@@ -91,6 +118,9 @@ export namespace types {
 	        this.genres = source["genres"];
 	        this.has_saves = source["has_saves"];
 	        this.fs_size_bytes = source["fs_size_bytes"];
+	        this.platform_id = source["platform_id"];
+	        this.platform_slug = source["platform_slug"];
+	        this.platform_display_name = source["platform_display_name"];
 	        this.platform = this.convertValues(source["platform"], Platform);
 	    }
 	

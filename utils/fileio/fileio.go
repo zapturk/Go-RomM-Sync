@@ -53,3 +53,17 @@ func RemoveAll(path string, logFunc LogFunc) {
 		}
 	}
 }
+
+// WriteFileFromReader reads from r and writes to the given path with the specified permissions.
+func WriteFileFromReader(path string, r io.Reader, perm os.FileMode) error {
+	out, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer Close(out, nil, "WriteFileFromReader: Failed to close file")
+
+	if _, err := io.Copy(out, r); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+	return nil
+}

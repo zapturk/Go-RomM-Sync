@@ -142,6 +142,10 @@ func (s *Service) GetRom(id uint) (types.Game, error) {
 	return s.client.GetRom(id)
 }
 
+func (s *Service) GetFirmware(platformID uint) ([]types.Firmware, error) {
+	return s.client.GetFirmware(platformID)
+}
+
 // GetCover returns the base64 encoded cover image for a game, using a local cache.
 func (s *Service) GetCover(romID uint, coverURL string) (string, error) {
 	if coverURL == "" {

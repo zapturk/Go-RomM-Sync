@@ -44,6 +44,14 @@ func (m *MockRomMProvider) GetRom(id uint) (types.Game, error) {
 	return m.Game, nil
 }
 
+func (m *MockRomMProvider) GetFirmware(platformID uint) ([]types.Firmware, error) {
+	return nil, m.Error
+}
+
+func (m *MockRomMProvider) DownloadFirmwareContent(id uint, fileName string) (io.ReadCloser, string, error) {
+	return io.NopCloser(bytes.NewReader([]byte("dummy firmware"))), fileName, m.Error
+}
+
 // MockUIProvider implements UIProvider
 type MockUIProvider struct {
 	LastEvent string
@@ -181,5 +189,34 @@ func TestGetRomDownloadStatus(t *testing.T) {
 	status, _ = s.GetRomDownloadStatus(2)
 	if status {
 		t.Errorf("Expected status false for missing game")
+	}
+}
+
+func TestDownloadFirmware(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "library_fw")
+	defer os.RemoveAll(tempDir)
+
+	cfg := &MockConfigProvider{LibraryPath: tempDir}
+	// Sega CD (U) BIOS MD5
+	md5 := "baca1df271d7c11fe50087c0358f4eb5"
+	fw := &types.Firmware{
+		ID:       1,
+		FileName: "scd_v2.21.bin",
+		MD5Hash:  md5,
+	}
+
+	romm := &MockRomMProvider{}
+	ui := &MockUIProvider{}
+	s := New(cfg, romm, ui)
+
+	err := s.DownloadFirmware(fw)
+	if err != nil {
+		t.Fatalf("DownloadFirmware failed: %v", err)
+	}
+
+	// Should be renamed to bios_CD_U.bin based on MD5
+	destPath := filepath.Join(tempDir, "bios", "bios_CD_U.bin")
+	if _, err := os.Stat(destPath); err != nil {
+		t.Errorf("Expected BIOS file to be renamed to bios_CD_U.bin, but not found at %s", destPath)
 	}
 }

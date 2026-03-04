@@ -45,18 +45,12 @@ export function PlatformCard({ platform, onClick, onEnterPress, syncTrigger = 0,
         const isSyncing = syncTrigger !== prevSyncTrigger.current;
         prevSyncTrigger.current = syncTrigger;
 
-        // Logic Verification:
-        // 1. Syncing (User pressed R/X): Always fetch fresh to check for updates.
-        // 2. Cache Miss: Always fetch.
-        // 3. Cache Hit & Not Syncing (Just navigating): Use Cache.
-
         if (!isSyncing && hasCachedImage(platform.id)) {
             setImageSrc(getCachedImage(platform.id)!);
             setLoading(false);
             return;
         }
 
-        // Fetch from backend (Scenario 1 & 2 & Cache Miss)
         setLoading(true);
         GetPlatformCover(platform.id, platform.slug)
             .then((dataURI) => {

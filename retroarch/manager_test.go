@@ -132,7 +132,7 @@ func TestLaunch_Errors(t *testing.T) {
 	ui := &MockUI{}
 
 	// Test missing exe
-	err := Launch(ui, "/non/existent/retroarch", "rom.sfc", "", "", "", "")
+	err := Launch(ui, "/non/existent/retroarch", "rom.sfc", "", "", "", "", "")
 	if err == nil {
 		t.Error("Expected error for non-existent executable")
 	}
@@ -143,7 +143,7 @@ func TestLaunch_Errors(t *testing.T) {
 	exePath := filepath.Join(tempDir, "retroarch")
 	os.WriteFile(exePath, []byte("fake"), 0o755)
 
-	err = Launch(ui, exePath, "rom.unknown", "", "", "", "")
+	err = Launch(ui, exePath, "rom.unknown", "", "", "", "", "")
 	if err == nil {
 		t.Error("Expected error for unknown extension")
 	}
@@ -171,7 +171,7 @@ func TestLaunch_Zip(t *testing.T) {
 	// Actually, we want to test that it correctly identifies the core and formats the path.
 	// Since Launch returns immediately after starting goroutine (if all pre-checks pass), we just check it doesn't return early error.
 
-	err := Launch(ui, exePath, zipPath, "", "", "", "")
+	err := Launch(ui, exePath, zipPath, "", "", "", "", "")
 	// It might error because coresDir/cores/... missing, which is fine, we just want to see it gets there.
 	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
 		t.Errorf("Unexpected error during zip launch: %v", err)
@@ -189,7 +189,7 @@ func TestLaunch_Pico8(t *testing.T) {
 	p8Path := filepath.Join(tempDir, "game.png")
 	os.WriteFile(p8Path, []byte("png data"), 0o644)
 
-	err := Launch(ui, exePath, p8Path, "", "", "", "")
+	err := Launch(ui, exePath, p8Path, "", "", "", "", "")
 	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
 		t.Errorf("Unexpected error during pico8 launch: %v", err)
 	}
@@ -236,7 +236,7 @@ func TestLaunch_CoreNotSupported(t *testing.T) {
 
 	// This should trigger DownloadCore, which will return 404,
 	// and Launch should catch it and emit "Core Not Supported".
-	err := Launch(ui, exePath, "game.sfc", "", "", "", "")
+	err := Launch(ui, exePath, "game.sfc", "", "", "", "", "")
 	if err == nil {
 		t.Fatal("Expected error from Launch")
 	}
@@ -264,7 +264,7 @@ func TestLaunch_ExeDir(t *testing.T) {
 	exePath := filepath.Join(tempDir, exeName)
 	os.WriteFile(exePath, []byte("fake"), 0o755)
 
-	err := Launch(ui, tempDir, "rom.sfc", "", "", "", "")
+	err := Launch(ui, tempDir, "rom.sfc", "", "", "", "", "")
 	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
 		t.Errorf("Unexpected error during exe dir launch: %v", err)
 	}
@@ -281,7 +281,7 @@ func TestLaunch_AppBundle(t *testing.T) {
 	appPath := filepath.Join(tempDir, "RetroArch.app")
 	os.MkdirAll(appPath, 0o755)
 
-	err := Launch(ui, appPath, "rom.sfc", "", "", "", "")
+	err := Launch(ui, appPath, "rom.sfc", "", "", "", "", "")
 	// Should at least pass the directory check and fail on core/binary lookup
 	if err != nil && strings.Contains(err.Error(), "retroarch executable not found in directory") {
 		t.Errorf("Failed to resolve .app bundle: %v", err)
@@ -318,7 +318,7 @@ func TestLaunch_CoreOverride(t *testing.T) {
 	os.WriteFile(romPath, []byte("rom data"), 0o644)
 
 	// Should fail at core download/find, not at the override logic
-	err := Launch(ui, exePath, romPath, "", "", "my_custom_core_libretro", "")
+	err := Launch(ui, exePath, romPath, "", "", "my_custom_core_libretro", "", "")
 	if err != nil && !strings.Contains(err.Error(), "core not supported") && !strings.Contains(err.Error(), "emulator core not found") {
 		t.Errorf("Expected core-not-found or not-supported error with override, got: %v", err)
 	}
@@ -354,6 +354,8 @@ func TestIdentifyPlatform(t *testing.T) {
 		{"Game Boy Color", "gbc"},
 		{"GBA", "gba"},
 		{"Nintendo - Game Boy Advance", "gba"},
+		{"Sega CD", "segacd"},
+		{"Mega-CD", "segacd"},
 		{"3DS", "3ds"},
 		{"Nintendo 3DS", "3ds"},
 		{"DSi", "dsi"},
@@ -446,7 +448,7 @@ func TestLaunch_PathTraversal(t *testing.T) {
 	// Attempt a path traversal. It should be sanitized to "evil.dll" (or .so/.dylib)
 	// and fail because it's not in the cores directory, rather than attempting to load
 	// a library from a completely different path.
-	err := Launch(ui, exePath, romPath, "", "", "../../evil", "")
+	err := Launch(ui, exePath, romPath, "", "", "../../evil", "", "")
 	if err != nil && !strings.Contains(err.Error(), "core not supported") && !strings.Contains(err.Error(), "emulator core not found") {
 		t.Errorf("Expected core-not-found or not-supported error for sanitized path, got: %v", err)
 	}
@@ -474,7 +476,7 @@ func TestLaunch_Events(t *testing.T) {
 	}
 
 	// Launch should return nil or a core-not-found error, but should trigger the start event regardless if it reaches that point.
-	err = Launch(ui, exePath, romPath, "", "", "", "")
+	err = Launch(ui, exePath, romPath, "", "", "", "", "")
 	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
 		// Only log an actual systemic error, core-not-found is expected in this mock environment
 		t.Logf("Launch returned expected core error: %v", err)
