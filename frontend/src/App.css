@@ -110,17 +110,26 @@ body.mouse-mode .game-card:hover,
 }
 
 .search-input {
+    width: 100%;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    color: white;
+    font-size: 0.9rem;
+    outline: none;
     transition: all 0.2s ease;
+    box-sizing: border-box;
 }
 
 .search-input:focus {
-    background: rgba(255, 255, 255, 0.1) !important;
-    border-color: #5d3fd3 !important;
+    background: rgba(255, 255, 255, 0.1);
+    border-color: #5d3fd3;
     box-shadow: 0 0 10px rgba(93, 63, 211, 0.3);
 }
 
 .search-input::placeholder {
-    color: rgba(255, 255, 255, 0.3) !important;
+    color: rgba(255, 255, 255, 0.3);
 }
 
 .game-cover {
@@ -281,7 +290,7 @@ body.mouse-mode .game-card:hover,
 }
 
 .open-folder-btn {
-    background-color: #555 !important;
+    background-color: #555;
 }
 
 .download-btn,
@@ -322,12 +331,12 @@ body.mouse-mode .game-card:hover,
 }
 
 .play-btn {
-    background-color: #5d3fd3 !important;
+    background-color: #5d3fd3;
 }
 
 .delete-btn,
 .config-btn {
-    padding: 0 !important;
+    padding: 0;
     min-width: 50px;
     height: 48px;
     display: flex;
@@ -336,11 +345,11 @@ body.mouse-mode .game-card:hover,
 }
 
 .delete-btn {
-    background-color: #ff5252 !important;
+    background-color: #ff5252;
 }
 
 .config-btn {
-    background-color: #555 !important;
+    background-color: #555;
 }
 
 /* Core Selector Button */
@@ -461,17 +470,17 @@ body.mouse-mode .game-card:hover,
 
 .cancel-btn {
     width: 100%;
-    background: #444 !important;
+    background: #444;
 }
 
 
 .download-btn {
-    background-color: #4CAF50 !important;
+    background-color: #4CAF50;
     color: white;
 }
 
 .download-btn.disabled {
-    background-color: #666 !important;
+    background-color: #666;
     cursor: default;
     opacity: 0.7;
 }
@@ -875,4 +884,58 @@ body.input-keyboard .show-keyboard {
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* Library View Styles */
+.nav-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60px;
+    position: relative;
+    padding: 0 40px;
+}
+
+.game-grid-view .nav-header {
+    padding-left: 200px;
+    padding-right: 200px;
+}
+
+.search-container {
+    margin-left: 40px;
+    flex: 1;
+    max-width: 400px;
+}
+
+.pagination-info {
+    position: absolute;
+    right: 40px;
+    opacity: 0.6;
+    font-size: 0.9rem;
+}
+
+.config-btn.header-btn {
+    margin: 0;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    position: absolute;
+    left: 40px;
+}
+
+.pagination-controls {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    padding: 20px;
+    padding-bottom: 80px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pagination-btn {
+    padding: 8px 20px;
+    min-width: 120px;
 }

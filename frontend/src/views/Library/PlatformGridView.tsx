@@ -69,23 +69,12 @@ export function PlatformGridView({
 
     return (
         <div className="platform-grid-view" ref={ref}>
-            <div className="nav-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: '60px' }}>
+            <div className="nav-header">
                 <button
                     ref={configRef}
-                    className={`btn config-btn ${configFocused ? 'focused' : ''} ${isLoading ? 'disabled' : ''}`}
+                    className={`btn config-btn header-btn ${configFocused ? 'focused' : ''} ${isLoading ? 'disabled' : ''}`}
                     title="Open Settings"
                     disabled={isLoading}
-                    style={{
-                        margin: 0,
-                        padding: '5px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: 'transparent',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        position: 'absolute',
-                        left: '40px'
-                    }}
                     onMouseEnter={() => {
                         if (getMouseActive() && !isLoading) {
                             focusConfig();
@@ -95,8 +84,8 @@ export function PlatformGridView({
                 >
                     <SettingsIcon size={24} />
                 </button>
-                <h1 style={{ margin: 0 }}>Platforms</h1>
-                <span style={{ position: 'absolute', right: '40px', opacity: 0.6, fontSize: '0.9rem' }}>
+                <h1>Platforms</h1>
+                <span className="pagination-info">
                     {totalPlatforms > 0 ? `${offset + 1}-${Math.min(offset + pageSize, totalPlatforms)} of ${totalPlatforms}` : '0 platforms'}
                 </span>
             </div>
@@ -114,17 +103,16 @@ export function PlatformGridView({
             </div>
 
             {!isLoading && (offset > 0 || (offset + pageSize < totalPlatforms)) && (
-                <div className="pagination-controls" style={{ display: 'flex', justifyContent: 'center', gap: '20px', padding: '20px', paddingBottom: '80px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <div className="pagination-controls">
                     {offset > 0 && (
                         <FocusableButton
                             focusKey="prev-plats-page"
-                            className="btn"
+                            className="btn pagination-btn"
                             onEnterPress={() => onPageChange(offset - pageSize)}
                             onClick={() => onPageChange(offset - pageSize)}
                             onMouseEnter={() => {
                                 if (getMouseActive()) setFocus('prev-plats-page');
                             }}
-                            style={{ padding: '8px 20px', minWidth: '120px' }}
                         >
                             Previous
                         </FocusableButton>
@@ -132,13 +120,12 @@ export function PlatformGridView({
                     {offset + pageSize < totalPlatforms && (
                         <FocusableButton
                             focusKey="next-plats-page"
-                            className="btn"
+                            className="btn pagination-btn"
                             onEnterPress={() => onPageChange(offset + pageSize)}
                             onClick={() => onPageChange(offset + pageSize)}
                             onMouseEnter={() => {
                                 if (getMouseActive()) setFocus('next-plats-page');
                             }}
-                            style={{ padding: '8px 20px', minWidth: '120px' }}
                         >
                             Next
                         </FocusableButton>
