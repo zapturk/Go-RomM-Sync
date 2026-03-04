@@ -79,7 +79,7 @@ func TestGetLibrary(t *testing.T) {
 	s := New(cfg)
 	s.client.Token = "test-token"
 
-	games, _, err := s.GetLibrary(25, 0, 1)
+	games, _, err := s.GetLibrary(25, 0, 1, "")
 	if err != nil {
 		t.Fatalf("GetLibrary failed: %v", err)
 	}

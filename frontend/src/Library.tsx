@@ -23,6 +23,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     const [syncTrigger, setSyncTrigger] = useState(0);
     const gridRef = useRef<HTMLDivElement>(null);
     const [columns, setColumns] = useState(1);
+    const [searchTerm, setSearchTerm] = useState("");
 
     // Pagination state
     const [offset, setOffset] = useState(0);
@@ -30,6 +31,12 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     const [platformOffset, setPlatformOffset] = useState(0);
     const [totalPlatforms, setTotalPlatforms] = useState(0);
     const PAGE_SIZE = 25;
+
+    useEffect(() => {
+        if (!selectedPlatform) {
+            setSearchTerm("");
+        }
+    }, [selectedPlatform]);
 
     useEffect(() => {
         const updateColumns = () => {
@@ -55,7 +62,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         trackChildren: true
     });
 
-    const refreshLibrary = (currentOffset: number = offset, currentPlatformOffset: number = platformOffset) => {
+    const refreshLibrary = (currentOffset: number = offset, currentPlatformOffset: number = platformOffset, currentSearch: string = searchTerm) => {
         setIsLoading(true);
         setStatus("Syncing...");
         setSyncTrigger(prev => prev + 1);
@@ -63,7 +70,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         const activePlatform = platforms.find(p => p.name === selectedPlatform);
         const platformId = activePlatform?.id || 0;
 
-        const gamesPromise = GetLibrary(PAGE_SIZE, currentOffset, platformId)
+        const gamesPromise = GetLibrary(PAGE_SIZE, currentOffset, platformId, currentSearch)
             .then((result) => {
                 setGames(result.items || []);
                 setTotalGames(result.total || 0);
@@ -110,40 +117,41 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         setGames([]);
         setOffset(0);
         setTotalGames(0);
-        refreshLibrary(0);
-    }, [selectedPlatform]);
+        refreshLibrary(0, platformOffset, searchTerm);
+    }, [selectedPlatform, searchTerm]);
 
     // Handle "Back" navigation (Escape/B Button) and Pagination (PageUp/PageDown / LB/RB)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (!isActive) return;
 
-            if (e.code === 'Escape' || e.key === 'Escape') {
-                e.preventDefault();
-
-                if (selectedGameId) {
-                    setSelectedGameId(null);
-                } else if (selectedPlatform) {
-                    setSelectedPlatform(null);
-                }
-            } else if (e.key === 'PageUp' || e.code === 'PageUp') {
-                e.preventDefault();
-                if (selectedGameId) return; // Don't paginate on game page
-
-                if (selectedPlatform) {
-                    if (offset > 0) handlePageChange(offset - PAGE_SIZE);
-                } else {
-                    if (platformOffset > 0) handlePlatformPageChange(platformOffset - PAGE_SIZE);
-                }
-            } else if (e.key === 'PageDown' || e.code === 'PageDown') {
-                e.preventDefault();
-                if (selectedGameId) return; // Don't paginate on game page
-
-                if (selectedPlatform) {
-                    if (offset + PAGE_SIZE < totalGames) handlePageChange(offset + PAGE_SIZE);
-                } else {
-                    if (platformOffset + PAGE_SIZE < totalPlatforms) handlePlatformPageChange(platformOffset + PAGE_SIZE);
-                }
+            switch (e.key) {
+                case 'Escape':
+                    e.preventDefault();
+                    if (selectedGameId) {
+                        setSelectedGameId(null);
+                    } else if (selectedPlatform) {
+                        setSelectedPlatform(null);
+                    }
+                    break;
+                case 'PageUp':
+                    e.preventDefault();
+                    if (selectedGameId) return;
+                    if (selectedPlatform) {
+                        if (offset > 0) handlePageChange(offset - PAGE_SIZE);
+                    } else {
+                        if (platformOffset > 0) handlePlatformPageChange(platformOffset - PAGE_SIZE);
+                    }
+                    break;
+                case 'PageDown':
+                    e.preventDefault();
+                    if (selectedGameId) return;
+                    if (selectedPlatform) {
+                        if (offset + PAGE_SIZE < totalGames) handlePageChange(offset + PAGE_SIZE);
+                    } else {
+                        if (platformOffset + PAGE_SIZE < totalPlatforms) handlePlatformPageChange(platformOffset + PAGE_SIZE);
+                    }
+                    break;
             }
         };
         window.addEventListener('keydown', handleKeyDown);
@@ -231,6 +239,8 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
                         lastViewedGameId.current = g.id;
                     }}
                     onPageChange={handlePageChange}
+                    searchTerm={searchTerm}
+                    onSearchChange={setSearchTerm}
                     gridRef={gridRef}
                 />
             )}

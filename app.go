@@ -176,8 +176,8 @@ func (a *App) ClearImageCache() error {
 	return nil
 }
 
-func (a *App) GetLibrary(limit, offset, platformID int) (types.LibraryResult[types.Game], error) {
-	items, total, err := a.rommSrv.GetLibrary(limit, offset, platformID)
+func (a *App) GetLibrary(limit, offset, platformID int, search string) (types.LibraryResult[types.Game], error) {
+	items, total, err := a.rommSrv.GetLibrary(limit, offset, platformID, search)
 	return types.LibraryResult[types.Game]{Items: items, Total: total}, err
 }
 
