@@ -1,6 +1,7 @@
 package library
 
 import (
+	"archive/zip"
 	"bytes"
 	"fmt"
 	"go-romm-sync/types"
@@ -218,5 +219,89 @@ func TestDownloadFirmware(t *testing.T) {
 	destPath := filepath.Join(tempDir, "bios", "bios_CD_U.bin")
 	if _, err := os.Stat(destPath); err != nil {
 		t.Errorf("Expected BIOS file to be renamed to bios_CD_U.bin, but not found at %s", destPath)
+	}
+}
+
+func TestDownloadFirmware_Compressed(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "library_fw_zip")
+	defer os.RemoveAll(tempDir)
+
+	cfg := &MockConfigProvider{LibraryPath: tempDir}
+
+	// Create a dummy ZIP file
+	zipBuffer := new(bytes.Buffer)
+	zw := zip.NewWriter(zipBuffer)
+
+	f, _ := zw.Create("internal_bios.bin")
+	f.Write([]byte("some bios content"))
+	zw.Close()
+
+	fw := &types.Firmware{
+		ID:       1,
+		FileName: "bios_package.zip",
+	}
+
+	// Mock RomM to return the zip content
+	romm := &MockRomMProviderWithContent{
+		Content: zipBuffer.Bytes(),
+		Name:    "bios_package.zip",
+	}
+	ui := &MockUIProvider{}
+	s := New(cfg, romm, ui)
+
+	err := s.DownloadFirmware(fw)
+	if err != nil {
+		t.Fatalf("DownloadFirmware failed: %v", err)
+	}
+
+	// Should be extracted to bios/internal_bios.bin
+	destPath := filepath.Join(tempDir, "bios", "internal_bios.bin")
+	if _, err := os.Stat(destPath); err != nil {
+		t.Errorf("Expected extracted BIOS file to be found at %s", destPath)
+	}
+}
+
+type MockRomMProviderWithContent struct {
+	MockRomMProvider
+	Content []byte
+	Name    string
+}
+
+func (m *MockRomMProviderWithContent) DownloadFirmwareContent(id uint, fileName string) (io.ReadCloser, string, error) {
+	return io.NopCloser(bytes.NewReader(m.Content)), m.Name, nil
+}
+
+func TestCleanupFirmware(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "library_cleanup")
+	defer os.RemoveAll(tempDir)
+
+	cfg := &MockConfigProvider{LibraryPath: tempDir}
+	s := New(cfg, nil, &MockUIProvider{})
+
+	biosDir := filepath.Join(tempDir, "bios")
+	os.MkdirAll(biosDir, 0o755)
+
+	// Create a dummy BIOS file for Sega CD
+	biosPath := filepath.Join(biosDir, "bios_CD_U.bin")
+	os.WriteFile(biosPath, []byte("fake bios"), 0o644)
+
+	// Create a dummy BIOS file for PS1 (should stay)
+	ps1Path := filepath.Join(biosDir, "scph5501.bin")
+	os.WriteFile(ps1Path, []byte("fake ps1 bios"), 0o644)
+
+	// Cleanup for Sega CD
+	err := s.CleanupFirmware("segacd")
+	if err != nil {
+		t.Fatalf("CleanupFirmware failed: %v", err)
+	}
+
+	// Sega CD BIOS should be gone
+	if _, err := os.Stat(biosPath); !os.IsNotExist(err) {
+		t.Errorf("Expected Sega CD BIOS to be deleted")
+	}
+
+	// PS1 BIOS should still be there
+	if _, err := os.Stat(ps1Path); err != nil {
+		t.Errorf("Expected PS1 BIOS to still exist")
 	}
 }

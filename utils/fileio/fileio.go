@@ -1,6 +1,8 @@
 package fileio
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -66,4 +68,20 @@ func WriteFileFromReader(path string, r io.Reader, perm os.FileMode) error {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 	return nil
+}
+
+// GetMD5 returns the MD5 hash of the file at the given path.
+func GetMD5(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer Close(f, nil, "GetMD5: Failed to close file")
+
+	h := md5.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
 }

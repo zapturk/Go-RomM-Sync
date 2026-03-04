@@ -374,10 +374,13 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         if (!game) return;
         setSelectedFirmwareId(id);
 
-        if (id === 0) return;
+        let fw = firmwares.find(f => f.id === id);
+        if (!fw && id !== 0) return;
 
-        const fw = firmwares.find(f => f.id === id);
-        if (!fw) return;
+        // Use a dummy object for "No firmware" (id 0)
+        if (!fw) {
+            fw = { id: 0, platform_id: 0, file_name: '', md5_hash: '', file_size_bytes: 0, is_verified: false } as unknown as types.Firmware;
+        }
 
         setFirmwareDownloading(true);
         setFirmwareStatus('Downloading...');

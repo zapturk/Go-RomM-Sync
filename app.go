@@ -213,6 +213,11 @@ func (a *App) SetPlatformFirmware(platformSlug string, firmware *types.Firmware)
 		return err
 	}
 
+	// If ID is 0, we are unsetting the firmware.
+	if firmware.ID == 0 {
+		return a.librarySrv.CleanupFirmware(platformSlug)
+	}
+
 	// Trigger download
 	return a.librarySrv.DownloadFirmware(firmware)
 }

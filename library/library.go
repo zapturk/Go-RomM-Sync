@@ -228,12 +228,80 @@ func (s *Service) DownloadFirmware(fw *types.Firmware) error {
 	}
 	defer fileio.Close(reader, nil, "DownloadFirmware: Failed to close reader")
 
-	// Apply BIOS naming convention based on MD5 hash
-	if mappedName := retroarch.GetBiosFilename(fw.MD5Hash); mappedName != "" {
-		s.ui.LogInfof("DownloadFirmware: Mapping known BIOS MD5 %s to canonical name %s (orig: %s)", fw.MD5Hash, mappedName, filename)
-		filename = mappedName
+	// Save to a temporary file first to check for archives and calculate MD5 if needed
+	tempDir, err := os.MkdirTemp("", "go-romm-sync-bios-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
+
+	tempFile := filepath.Join(tempDir, filename)
+	if err := fileio.WriteFileFromReader(tempFile, reader, 0o644); err != nil {
+		return err
 	}
 
-	destPath := filepath.Join(biosDir, filename)
-	return fileio.WriteFileFromReader(destPath, reader, 0o644)
+	// Check if it's an archive
+	extracted, err := archive.Extract(tempFile, tempDir)
+	if err != nil {
+		s.ui.LogErrorf("DownloadFirmware: Failed to extract BIOS archive: %v", err)
+	}
+
+	if extracted {
+		s.ui.LogInfof("DownloadFirmware: Extracted BIOS archive %s", filename)
+		// Process each extracted file
+		return filepath.Walk(tempDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() || path == tempFile {
+				return nil
+			}
+
+			md5, err := fileio.GetMD5(path)
+			if err != nil {
+				s.ui.LogErrorf("DownloadFirmware: Failed to calculate MD5 for %s: %v", path, err)
+				return nil
+			}
+
+			destFilename := filepath.Base(path)
+			if mappedName := retroarch.GetBiosFilename(md5); mappedName != "" {
+				s.ui.LogInfof("DownloadFirmware: Mapping extracted BIOS MD5 %s to canonical name %s (orig: %s)", md5, mappedName, destFilename)
+				destFilename = mappedName
+			}
+
+			destPath := filepath.Join(biosDir, destFilename)
+			// Move file to final destination
+			return os.Rename(path, destPath)
+		})
+	}
+
+	// Not an archive, process single file
+	md5 := fw.MD5Hash
+	if md5 == "" {
+		md5, _ = fileio.GetMD5(tempFile)
+	}
+
+	finalFilename := filename
+	if mappedName := retroarch.GetBiosFilename(md5); mappedName != "" {
+		s.ui.LogInfof("DownloadFirmware: Mapping BIOS MD5 %s to canonical name %s (orig: %s)", md5, mappedName, filename)
+		finalFilename = mappedName
+	}
+
+	destPath := filepath.Join(biosDir, finalFilename)
+	return os.Rename(tempFile, destPath)
+}
+
+// CleanupFirmware removes known canonical BIOS files from the bios directory for a specific platform.
+// This is used when unsetting firmware for a platform to ensure RetroArch doesn't find them.
+func (s *Service) CleanupFirmware(platformSlug string) error {
+	biosDir := s.GetBiosDir()
+	biosNames := retroarch.GetBiosFilenamesForPlatform(platformSlug)
+
+	for _, name := range biosNames {
+		path := filepath.Join(biosDir, name)
+		if _, err := os.Stat(path); err == nil {
+			s.ui.LogInfof("CleanupFirmware: Removing canonical BIOS file %s for platform %s", name, platformSlug)
+			fileio.Remove(path, s.ui.LogErrorf)
+		}
+	}
+	return nil
 }
