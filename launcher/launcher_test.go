@@ -27,6 +27,10 @@ func (m *MockConfigProvider) GetCheevosCredentials() (string, string) {
 	return "user", "pass"
 }
 
+func (m *MockConfigProvider) GetBiosDir() string {
+	return ""
+}
+
 // MockRomMProvider implements RomMProvider
 type MockRomMProvider struct {
 	Game  types.Game

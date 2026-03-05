@@ -22,7 +22,6 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
 
     useEffect(() => {
         GetConfig().then((cfg) => {
-            console.log("Settings loaded config:", cfg);
             setConfig(cfg);
             setRaPath(cfg.retroarch_path || '');
             setLibPath(cfg.library_path || '');
@@ -88,7 +87,6 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
         SaveConfig(updatedConfig)
             .then((res) => {
                 setStatus("Settings saved successfully!");
-                console.log(res);
             })
             .catch((err) => {
                 setStatus("Error: " + err);

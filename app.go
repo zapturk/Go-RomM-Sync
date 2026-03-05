@@ -178,12 +178,48 @@ func (a *App) ClearImageCache() error {
 
 func (a *App) GetLibrary(limit, offset, platformID int, search string) (types.LibraryResult[types.Game], error) {
 	items, total, err := a.rommSrv.GetLibrary(limit, offset, platformID, search)
-	return types.LibraryResult[types.Game]{Items: items, Total: total}, err
+	if err != nil {
+		return types.LibraryResult[types.Game]{}, err
+	}
+	return types.LibraryResult[types.Game]{
+		Items: items,
+		Total: total,
+	}, nil
 }
 
 func (a *App) GetPlatforms(limit, offset int) (types.LibraryResult[types.Platform], error) {
 	items, total, err := a.rommSrv.GetPlatforms(limit, offset)
-	return types.LibraryResult[types.Platform]{Items: items, Total: total}, err
+	if err != nil {
+		return types.LibraryResult[types.Platform]{}, err
+	}
+	return types.LibraryResult[types.Platform]{
+		Items: items,
+		Total: total,
+	}, nil
+}
+
+func (a *App) GetFirmware(platformID uint) ([]types.Firmware, error) {
+	return a.rommSrv.GetFirmware(platformID)
+}
+
+func (a *App) SetPlatformFirmware(platformSlug string, firmware *types.Firmware) error {
+	cfg := a.configManager.GetConfig()
+	if cfg.PlatformFirmware == nil {
+		cfg.PlatformFirmware = make(map[string]uint)
+	}
+	cfg.PlatformFirmware[platformSlug] = firmware.ID
+	err := a.configManager.Save(&cfg)
+	if err != nil {
+		return err
+	}
+
+	// If ID is 0, we are unsetting the firmware.
+	if firmware.ID == 0 {
+		return a.librarySrv.CleanupFirmware(platformSlug)
+	}
+
+	// Trigger download
+	return a.librarySrv.DownloadFirmware(firmware)
 }
 
 func (a *App) DownloadRom(id uint) (string, error) {
@@ -465,6 +501,10 @@ func (a *App) GetLibraryPath() string {
 	return a.configManager.GetConfig().LibraryPath
 }
 
+func (a *App) GetBiosDir() string {
+	return a.librarySrv.GetBiosDir()
+}
+
 func (a *App) SaveDefaultLibraryPath(path string) error {
 	cfg := a.configManager.GetConfig()
 	cfg.LibraryPath = path
@@ -486,6 +526,10 @@ func (a *App) GetRom(id uint) (types.Game, error) {
 
 func (a *App) DownloadFile(game *types.Game) (reader io.ReadCloser, filename string, err error) {
 	return a.rommSrv.GetClient().DownloadFile(game)
+}
+
+func (a *App) DownloadFirmwareContent(id uint, fileName string) (io.ReadCloser, string, error) {
+	return a.rommSrv.GetClient().DownloadFirmwareContent(id, fileName)
 }
 
 func (a *App) RomMUploadSave(id uint, core, filename string, content []byte) error {

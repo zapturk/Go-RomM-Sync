@@ -198,6 +198,7 @@ var PlatformCoreMap = map[string][]string{
 	"32x":          {"picodrive_libretro"},
 	"saturn":       {"mednafen_saturn_libretro"},
 	"wiiu":         {"cemu_libretro"},
+	"segacd":       {"genesis_plus_gx_libretro", "picodrive_libretro"},
 	"pokemini":     {"pokemini_libretro"},
 }
 
@@ -254,6 +255,7 @@ var platformSearchPatterns = []struct {
 	{"snes", []string{"snes", "super nintendo", "super entertainment system"}, false},
 	{"nes", []string{"nes", "entertainment system"}, false},
 	{"mastersystem", []string{"master system", "mastersystem"}, false},
+	{"segacd", []string{"sega cd", "segacd", "mega-cd", "megacd"}, false},
 	{"pce", []string{"pce", "pc engine", "turbo", "grafx"}, false},
 	{"3do", []string{"3do"}, false},
 
@@ -387,7 +389,7 @@ func GetCoresFromZip(zipPath string) []string {
 // to preserve readability and avoid scattering related logic across many small functions.
 //
 //nolint:gocognit,gocyclo // See above
-func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platform string) error {
+func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platform, biosDir string) error {
 	// If exePath is a directory, try to find the actual executable inside it
 	if info, err := os.Stat(exePath); err == nil && info.IsDir() {
 		found := false
@@ -614,6 +616,9 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 	// Ensure directories exist
 	fileio.MkdirAll(savesDir, 0o755, ui.LogErrorf)
 	fileio.MkdirAll(statesDir, 0o755, ui.LogErrorf)
+	if biosDir != "" {
+		fileio.MkdirAll(biosDir, 0o755, ui.LogErrorf)
+	}
 
 	// Prepare temporary config for RetroAchievements and Directories.
 	// We use --appendconfig to pass these settings without modifying the user's main RetroArch config permanently.
@@ -622,6 +627,9 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 	if err == nil {
 		appendConfigPath = tmpFile.Name()
 		content := fmt.Sprintf("savefile_directory = %q\nsavestate_directory = %q\n", savesDir, statesDir)
+		if biosDir != "" {
+			content += fmt.Sprintf("system_directory = %q\n", biosDir)
+		}
 		if cheevosUser != "" && cheevosPass != "" {
 			content += fmt.Sprintf("cheevos_enable = \"true\"\ncheevos_username = %q\ncheevos_password = %q\n",
 				cheevosUser, cheevosPass)
@@ -665,7 +673,13 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 		if runtime.GOOS == constants.OSDarwin {
 			ui.WindowHide()
 		}
-		_, _ = cmd.CombinedOutput()
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			ui.LogErrorf("RetroArch failed with error: %v", err)
+		}
+		if len(output) > 0 {
+			ui.LogInfof("RetroArch Output:\n%s", string(output))
+		}
 	}()
 
 	// We return nil immediately since it's running detached

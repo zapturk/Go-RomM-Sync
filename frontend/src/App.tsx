@@ -44,12 +44,11 @@ function App() {
         Login() // Calling Login with empty strings will trigger the backend to use saved config if available
             .then((token) => {
                 if (token) {
-                    console.log("Auto-login successful");
                     setIsLoggedIn(true);
                 }
             })
             .catch((err) => {
-                console.log("Auto-login failed or no config:", err);
+                // Auto-login failed or no config, expected first time
             })
             .finally(() => {
                 setIsLoading(false);

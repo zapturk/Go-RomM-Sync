@@ -2,6 +2,7 @@ package library
 
 import (
 	"fmt"
+	"go-romm-sync/constants"
 	"go-romm-sync/retroarch"
 	"go-romm-sync/types"
 	"go-romm-sync/utils"
@@ -24,6 +25,8 @@ type ConfigProvider interface {
 type RomMProvider interface {
 	DownloadFile(game *types.Game) (io.ReadCloser, string, error)
 	GetRom(id uint) (types.Game, error)
+	GetFirmware(platformID uint) ([]types.Firmware, error)
+	DownloadFirmwareContent(id uint, fileName string) (io.ReadCloser, string, error)
 }
 
 // UIProvider defines logging and event emission.
@@ -74,6 +77,11 @@ func (s *Service) GetRomDir(game *types.Game) string {
 	libPath := s.config.GetLibraryPath()
 	relPath := utils.SanitizePath(filepath.Dir(game.FullPath))
 	return filepath.Join(libPath, relPath, fmt.Sprintf("%d", game.ID))
+}
+
+// GetBiosDir returns the local directory where BIOS files are stored globally in the library.
+func (s *Service) GetBiosDir() string {
+	return filepath.Join(s.config.GetLibraryPath(), constants.DirBios)
 }
 
 // DownloadRomToLibrary downloads a ROM directly to the configured library path.
@@ -205,4 +213,99 @@ func (s *Service) DeleteRom(id uint) error {
 // FindRomPath is a public wrapper for finding a ROM path.
 func (s *Service) FindRomPath(romDir string) string {
 	return s.findRomPath(romDir)
+}
+
+// DownloadFirmware downloads a firmware file to the library's bios directory.
+func (s *Service) DownloadFirmware(fw *types.Firmware) error {
+	biosDir := s.GetBiosDir()
+	if err := os.MkdirAll(biosDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create bios directory: %w", err)
+	}
+
+	reader, filename, err := s.romm.DownloadFirmwareContent(fw.ID, fw.FileName)
+	if err != nil {
+		return err
+	}
+	defer fileio.Close(reader, nil, "DownloadFirmware: Failed to close reader")
+
+	// Save to a temporary file first to check for archives and calculate MD5 if needed
+	tempDir, err := os.MkdirTemp("", "go-romm-sync-bios-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
+
+	tempFile := filepath.Join(tempDir, filename)
+	if err := fileio.WriteFileFromReader(tempFile, reader, 0o644); err != nil {
+		return err
+	}
+
+	// Check if it's an archive
+	extracted, err := archive.Extract(tempFile, tempDir)
+	if err != nil {
+		s.ui.LogErrorf("DownloadFirmware: Failed to extract BIOS archive: %v", err)
+	}
+
+	if extracted {
+		s.ui.LogInfof("DownloadFirmware: Extracted BIOS archive %s", filename)
+		// Process each extracted file
+		return filepath.Walk(tempDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() || path == tempFile {
+				return nil
+			}
+
+			md5, err := fileio.GetMD5(path)
+			if err != nil {
+				s.ui.LogErrorf("DownloadFirmware: Failed to calculate MD5 for %s: %v", path, err)
+				return nil
+			}
+
+			destFilename := filepath.Base(path)
+			if mappedName := retroarch.GetBiosFilename(md5); mappedName != "" {
+				s.ui.LogInfof("DownloadFirmware: Mapping extracted BIOS MD5 %s to canonical name %s (orig: %s)", md5, mappedName, destFilename)
+				destFilename = mappedName
+			}
+
+			destPath := filepath.Join(biosDir, destFilename)
+			// Move file to final destination
+			return os.Rename(path, destPath)
+		})
+	}
+
+	// Not an archive, process single file
+	md5 := fw.MD5Hash
+	if md5 == "" {
+		var err error
+		md5, err = fileio.GetMD5(tempFile)
+		if err != nil {
+			s.ui.LogErrorf("DownloadFirmware: Failed to calculate MD5 for %s: %v", filename, err)
+		}
+	}
+
+	finalFilename := filename
+	if mappedName := retroarch.GetBiosFilename(md5); mappedName != "" {
+		s.ui.LogInfof("DownloadFirmware: Mapping BIOS MD5 %s to canonical name %s (orig: %s)", md5, mappedName, filename)
+		finalFilename = mappedName
+	}
+
+	destPath := filepath.Join(biosDir, finalFilename)
+	return os.Rename(tempFile, destPath)
+}
+
+// CleanupFirmware removes known canonical BIOS files from the bios directory for a specific platform.
+// This is used when unsetting firmware for a platform to ensure RetroArch doesn't find them.
+func (s *Service) CleanupFirmware(platformSlug string) error {
+	biosDir := s.GetBiosDir()
+	biosNames := retroarch.GetBiosFilenamesForPlatform(platformSlug)
+
+	for _, name := range biosNames {
+		path := filepath.Join(biosDir, name)
+		if _, err := os.Stat(path); err == nil {
+			s.ui.LogInfof("CleanupFirmware: Removing canonical BIOS file %s for platform %s", name, platformSlug)
+			fileio.Remove(path, s.ui.LogErrorf)
+		}
+	}
+	return nil
 }

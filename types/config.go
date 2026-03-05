@@ -10,5 +10,6 @@ type AppConfig struct {
 	RetroArchExecutable string            `json:"retroarch_executable"` // "retroarch.exe"
 	CheevosUsername     string            `json:"cheevos_username"`
 	CheevosPassword     string            `json:"cheevos_password"`
-	LastUsedCores       map[string]string `json:"last_used_cores"` // Platform slug -> Core base name
+	LastUsedCores       map[string]string `json:"last_used_cores"`   // Platform slug -> Core base name
+	PlatformFirmware    map[string]uint   `json:"platform_firmware"` // Platform slug -> Selected Firmware ID
 }

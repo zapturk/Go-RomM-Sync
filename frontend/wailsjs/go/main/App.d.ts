@@ -17,6 +17,8 @@ export function DeleteState(arg1:number,arg2:string,arg3:string):Promise<void>;
 
 export function DownloadFile(arg1:types.Game):Promise<io.ReadCloser>;
 
+export function DownloadFirmwareContent(arg1:number,arg2:string):Promise<io.ReadCloser>;
+
 export function DownloadRom(arg1:number):Promise<string>;
 
 export function DownloadRomToLibrary(arg1:number):Promise<void>;
@@ -27,6 +29,8 @@ export function DownloadServerState(arg1:number,arg2:string,arg3:string,arg4:str
 
 export function EventsEmit(arg1:string,arg2:Array<any>):Promise<void>;
 
+export function GetBiosDir():Promise<string>;
+
 export function GetCheevosCredentials():Promise<string|string>;
 
 export function GetConfig():Promise<types.AppConfig>;
@@ -36,6 +40,8 @@ export function GetCoresForGame(arg1:number):Promise<Array<string>>;
 export function GetCover(arg1:number,arg2:string):Promise<string>;
 
 export function GetDefaultLibraryPath():Promise<string>;
+
+export function GetFirmware(arg1:number):Promise<Array<types.Firmware>>;
 
 export function GetLibrary(arg1:number,arg2:number,arg3:number,arg4:string):Promise<types.LibraryResult_go_romm_sync_types_Game_>;
 
@@ -108,6 +114,8 @@ export function SaveLastUsedCore(arg1:string,arg2:string):Promise<void>;
 export function SelectLibraryPath():Promise<string>;
 
 export function SelectRetroArchExecutable():Promise<string>;
+
+export function SetPlatformFirmware(arg1:string,arg2:types.Firmware):Promise<void>;
 
 export function UploadSave(arg1:number,arg2:string,arg3:string):Promise<void>;
 
