@@ -10,6 +10,10 @@
     "name": "Zapturk",
     "email": "scottmckeefer@gmail.com"
   },
+  "linux": {
+    "icon": "build/appicon.png",
+    "packages": "libgtk-3-dev,libwebkit2gtk-4.0-dev,gcc,pkg-config"
+  },
   "info": {
     "companyName": "Zapturk",
     "productName": "Go RomM Sync",

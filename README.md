@@ -108,6 +108,23 @@ If you use [Scoop](https://scoop.sh/), you can install Go-RomM-Sync directly fro
 scoop install https://raw.githubusercontent.com/zapturk/Go-RomM-Sync/main/scoop/go-romm-sync.json
 ```
 
+### Linux (Native Packages)
+
+We provide native packages for major Linux distributions on our [Releases page](https://github.com/zapturk/Go-RomM-Sync/releases):
+
+- **Debian / Ubuntu / Mint**: Download and install the `.deb` package.
+  ```bash
+  sudo apt install ./go-romm-sync_<version>_amd64.deb
+  ```
+- **Fedora / RHEL / openSUSE**: Download and install the `.rpm` package.
+  ```bash
+  sudo dnf install ./go-romm-sync-<version>-1.x86_64.rpm
+  ```
+- **Arch Linux**: Download the `go-romm-sync-arch-PKGBUILD`, rename it to `PKGBUILD`, and run:
+  ```bash
+  makepkg -si
+  ```
+
 ### Manual Installation
 
 Alternatively, you can download the latest release for your platform from the [Releases page](https://github.com/zapturk/Go-RomM-Sync/releases) and move the executable to your applications/bin directory.
