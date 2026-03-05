@@ -246,7 +246,10 @@ func TestGetMimeType(t *testing.T) {
 }
 
 func TestGetCover_Cached(t *testing.T) {
-	homeDir, _ := os.UserHomeDir()
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("Failed to get home dir: %v", err)
+	}
 	cacheDir := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.CoversDir)
 	os.MkdirAll(cacheDir, 0o755)
 
@@ -276,7 +279,10 @@ func TestGetCover_Download(t *testing.T) {
 	s := New(cfg)
 	s.client.Token = "test-token" // Ensure cache is clean for this ID
 
-	homeDir, _ := os.UserHomeDir()
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("Failed to get home dir: %v", err)
+	}
 	cachePath := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.CoversDir, "1234.jpg")
 	os.Remove(cachePath)
 	defer os.Remove(cachePath)
@@ -301,7 +307,10 @@ func TestGetCover_PNG(t *testing.T) {
 	s := New(cfg)
 	s.client.Token = "test-token"
 
-	homeDir, _ := os.UserHomeDir()
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("Failed to get home dir: %v", err)
+	}
 	cachePath := filepath.Join(homeDir, ".go-romm-sync", "cache", "covers", "5678.png")
 	os.Remove(cachePath)
 	defer os.Remove(cachePath)
@@ -329,7 +338,10 @@ func TestGetPlatformCover_Download(t *testing.T) {
 	s := New(cfg)
 	s.client.Token = "test-token" // Ensure cache is clean
 
-	homeDir, _ := os.UserHomeDir()
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("Failed to get home dir: %v", err)
+	}
 	cachePath := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.PlatformsDir, "1.svg")
 	os.Remove(cachePath)
 	defer os.Remove(cachePath)
@@ -359,7 +371,10 @@ func TestToDataURI(t *testing.T) {
 }
 
 func TestTryGetPlatformCoverFromCache(t *testing.T) {
-	homeDir, _ := os.UserHomeDir()
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("Failed to get home dir: %v", err)
+	}
 	cacheDir := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, "test_platforms")
 	os.MkdirAll(cacheDir, 0o755)
 	defer os.RemoveAll(cacheDir)

@@ -41,10 +41,16 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     useEffect(() => {
         const updateColumns = () => {
             if (gridRef.current) {
-                const containerWidth = gridRef.current.offsetWidth;
-                const itemWidth = 200; // min-width from App.css
-                const gap = 20; // gap from App.css
-                const cols = Math.floor((containerWidth + gap) / (itemWidth + gap));
+                const style = window.getComputedStyle(gridRef.current);
+                const gap = parseInt(style.columnGap || style.gap) || 20;
+                // Width excluding padding
+                const containerWidth = gridRef.current.clientWidth;
+
+                // Get min-width from CSS variable
+                const itemMinWidthStr = style.getPropertyValue('--item-min-width').trim();
+                const itemMinWidth = parseInt(itemMinWidthStr) || 200;
+
+                const cols = Math.floor((containerWidth + gap) / (itemMinWidth + gap));
                 setColumns(cols || 1);
             }
         };

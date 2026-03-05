@@ -147,10 +147,25 @@ func getCoresDir(baseDir string) string {
 	if overrideCoresDir != "" {
 		return overrideCoresDir
 	}
-	if runtime.GOOS == constants.OSDarwin {
-		homeDir, _ := os.UserHomeDir()
-		return filepath.Join(homeDir, "Library", "Application Support", "RetroArch", "cores")
+
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		switch runtime.GOOS {
+		case constants.OSDarwin:
+			return filepath.Join(homeDir, "Library", "Application Support", "RetroArch", "cores")
+		case constants.OSLinux:
+			// Attempt to identify package manager based on baseDir
+			if strings.HasPrefix(baseDir, "/snap/") {
+				return filepath.Join(homeDir, "snap", "retroarch", "current", ".config", "retroarch", "cores")
+			}
+			if strings.Contains(baseDir, "flatpak") {
+				return filepath.Join(homeDir, ".var", "app", "org.libretro.RetroArch", "config", "retroarch", "cores")
+			}
+			// Native packages, AppImages, self-compiled binaries, etc.
+			return filepath.Join(homeDir, ".config", "retroarch", "cores")
+		}
 	}
+
+	// Fallback for Windows or if HomeDir fails
 	return filepath.Join(baseDir, "cores")
 }
 
@@ -623,7 +638,8 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 	// Prepare temporary config for RetroAchievements and Directories.
 	// We use --appendconfig to pass these settings without modifying the user's main RetroArch config permanently.
 	var appendConfigPath string
-	tmpFile, err := os.CreateTemp("", "retroarch_config_*.cfg")
+	tmpDir := filepath.Dir(coresDir)
+	tmpFile, err := os.CreateTemp(tmpDir, "retroarch_config_*.cfg")
 	if err == nil {
 		appendConfigPath = tmpFile.Name()
 		content := fmt.Sprintf("savefile_directory = %q\nsavestate_directory = %q\n", savesDir, statesDir)
@@ -810,13 +826,11 @@ func ClearCheevosToken(exePath string) error {
 	}
 
 	// 2. Standard OS-specific locations
-	switch runtime.GOOS {
-	case constants.OSLinux:
-		if home, err := os.UserHomeDir(); err == nil {
+	if home, err := os.UserHomeDir(); err == nil {
+		switch runtime.GOOS {
+		case constants.OSLinux:
 			configPaths = append(configPaths, filepath.Join(home, ".config", "retroarch", "retroarch.cfg"))
-		}
-	case constants.OSDarwin:
-		if home, err := os.UserHomeDir(); err == nil {
+		case constants.OSDarwin:
 			configPaths = append(configPaths, filepath.Join(home, "Library", "Application Support", "RetroArch", "config", "retroarch.cfg"))
 		}
 	}

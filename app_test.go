@@ -50,7 +50,10 @@ func TestSaveConfigMerge(t *testing.T) {
 }
 
 func TestLogout(t *testing.T) {
-	tmpDir, _ := os.MkdirTemp("", "app-logout-test")
+	tmpDir, err := os.MkdirTemp("", "app-logout-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
 	defer os.RemoveAll(tmpDir)
 
 	configPath := filepath.Join(tmpDir, "config.json")
@@ -76,7 +79,10 @@ func TestLogout(t *testing.T) {
 }
 
 func TestRommSrvLifecycle(t *testing.T) {
-	tmpDir, _ := os.MkdirTemp("", "app-lifecycle-test")
+	tmpDir, err := os.MkdirTemp("", "app-lifecycle-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
 	defer os.RemoveAll(tmpDir)
 
 	configPath := filepath.Join(tmpDir, "config.json")
@@ -139,7 +145,10 @@ func TestPathTraversalValidation(t *testing.T) {
 }
 
 func TestAppServiceWrappers(t *testing.T) {
-	tmpDir, _ := os.MkdirTemp("", "app-wrappers-test")
+	tmpDir, err := os.MkdirTemp("", "app-wrappers-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
 	defer os.RemoveAll(tmpDir)
 
 	configPath := filepath.Join(tmpDir, "config.json")
@@ -181,7 +190,10 @@ func TestAppServiceWrappers(t *testing.T) {
 }
 
 func TestAppStartup(t *testing.T) {
-	tmpDir, _ := os.MkdirTemp("", "app-startup-test")
+	tmpDir, err := os.MkdirTemp("", "app-startup-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
 	defer os.RemoveAll(tmpDir)
 	configPath := filepath.Join(tmpDir, "config.json")
 
@@ -196,7 +208,10 @@ func TestAppStartup(t *testing.T) {
 }
 
 func TestAppDelegationWrappers(t *testing.T) {
-	tmpDir, _ := os.MkdirTemp("", "app-delegation-test")
+	tmpDir, err := os.MkdirTemp("", "app-delegation-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
 	defer os.RemoveAll(tmpDir)
 
 	configPath := filepath.Join(tmpDir, "config.json")
@@ -229,7 +244,10 @@ func TestAppDelegationWrappers(t *testing.T) {
 }
 
 func TestAppComplexWrappers(t *testing.T) {
-	tmpDir, _ := os.MkdirTemp("", "app-complex-test")
+	tmpDir, err := os.MkdirTemp("", "app-complex-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
 	defer os.RemoveAll(tmpDir)
 
 	configPath := filepath.Join(tmpDir, "config.json")
@@ -260,7 +278,10 @@ func TestAppComplexWrappers(t *testing.T) {
 }
 
 func TestAppExhaustiveWrappers(t *testing.T) {
-	tmpDir, _ := os.MkdirTemp("", "app-exhaustive-test")
+	tmpDir, err := os.MkdirTemp("", "app-exhaustive-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
 	defer os.RemoveAll(tmpDir)
 	configPath := filepath.Join(tmpDir, "config.json")
 
@@ -316,7 +337,10 @@ func TestAppExhaustiveWrappers(t *testing.T) {
 }
 
 func TestClearImageCache(t *testing.T) {
-	homeDir, _ := os.UserHomeDir()
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("Failed to get home dir: %v", err)
+	}
 	coversDir := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.CoversDir)
 	platformsDir := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.PlatformsDir)
 
@@ -327,7 +351,7 @@ func TestClearImageCache(t *testing.T) {
 	os.WriteFile(filepath.Join(platformsDir, "test.svg"), []byte("data"), 0o644)
 
 	app := &App{}
-	err := app.ClearImageCache()
+	err = app.ClearImageCache()
 	if err != nil {
 		t.Fatalf("ClearImageCache failed: %v", err)
 	}
@@ -351,7 +375,10 @@ func TestClearImageCache(t *testing.T) {
 }
 
 func TestOpenGameFolder(t *testing.T) {
-	tmpDir, _ := os.MkdirTemp("", "app-openfolder-test")
+	tmpDir, err := os.MkdirTemp("", "app-openfolder-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
 	defer os.RemoveAll(tmpDir)
 
 	configPath := filepath.Join(tmpDir, "config.json")
@@ -365,7 +392,7 @@ func TestOpenGameFolder(t *testing.T) {
 	game := types.Game{ID: 1, FullPath: "snes/game.zip"}
 
 	// 1. Failure Path: Folder does not exist
-	err := app.OpenGameFolder(&game)
+	err = app.OpenGameFolder(&game)
 	if err == nil {
 		t.Error("Expected error when folder does not exist, got nil")
 	} else if !strings.Contains(err.Error(), "folder does not exist") {

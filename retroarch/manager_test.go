@@ -34,6 +34,54 @@ func TestGetCoreExt(t *testing.T) {
 	}
 }
 
+func TestGetCoresDir(t *testing.T) {
+	// Temporarily override GOOS for testing
+	origOS := runtime.GOOS
+	defer func() {
+		// Note: We can't actually change runtime.GOOS, so we have to structure our test
+		// around whatever OS we are currently running on, or test the logic indirectly.
+		// Since getCoresDir uses runtime.GOOS internally without abstraction, we can
+		// only fully test the branch for the system we are currently compiling on.
+		_ = origOS
+	}()
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("Failed to get home dir: %v", err)
+	}
+
+	switch runtime.GOOS {
+	case constants.OSDarwin:
+		expected := filepath.Join(homeDir, "Library", "Application Support", "RetroArch", "cores")
+		if dir := getCoresDir("/Applications/RetroArch.app/Contents/MacOS"); dir != expected {
+			t.Errorf("Expected macOS core dir %s, got %s", expected, dir)
+		}
+	case constants.OSLinux:
+		// Test Native
+		expectedNative := filepath.Join(homeDir, ".config", "retroarch", "cores")
+		if dir := getCoresDir("/usr/bin"); dir != expectedNative {
+			t.Errorf("Expected Linux native core dir %s, got %s", expectedNative, dir)
+		}
+
+		// Test Snap
+		expectedSnap := filepath.Join(homeDir, "snap", "retroarch", "current", ".config", "retroarch", "cores")
+		if dir := getCoresDir("/snap/retroarch/current/usr/bin"); dir != expectedSnap {
+			t.Errorf("Expected Snap core dir %s, got %s", expectedSnap, dir)
+		}
+
+		// Test Flatpak
+		expectedFlatpak := filepath.Join(homeDir, ".var", "app", "org.libretro.RetroArch", "config", "retroarch", "cores")
+		if dir := getCoresDir("/var/lib/flatpak/app/org.libretro.RetroArch/current/active/files/bin"); dir != expectedFlatpak {
+			t.Errorf("Expected Flatpak core dir %s, got %s", expectedFlatpak, dir)
+		}
+	case constants.OSWindows:
+		expectedWin := filepath.Join("C:\\RetroArch", "cores")
+		if dir := getCoresDir("C:\\RetroArch"); dir != expectedWin {
+			t.Errorf("Expected Windows core dir %s, got %s", expectedWin, dir)
+		}
+	}
+}
+
 func TestCoreMap(t *testing.T) {
 	if CoreMap[".sfc"] != "snes9x_libretro" {
 		t.Errorf("Expected snes9x_libretro for .sfc")
