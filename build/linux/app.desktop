@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Go RomM Sync
+Comment=A seamless bridge between RomM and RetroArch
+Exec=go-romm-sync
+Icon=go-romm-sync
+Terminal=false
+Type=Application
+Categories=Game;Utility;

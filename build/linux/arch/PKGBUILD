@@ -1,0 +1,26 @@
+# Maintainer: Zapturk <scottmckeefer@gmail.com>
+pkgname=go-romm-sync
+pkgver=${VERSION}
+pkgrel=1
+pkgdesc="A seamless bridge between RomM and RetroArch for a console-like gaming experience."
+arch=('x86_64')
+url="https://github.com/zapturk/Go-RomM-Sync"
+license=('GPL3')
+depends=('gtk3' 'webkit2gtk')
+makedepends=('go' 'npm')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/zapturk/Go-RomM-Sync/archive/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cd "$srcdir/Go-RomM-Sync-$pkgver"
+  go install github.com/wailsapp/wails/v2/cmd/wails@latest
+  export PATH=$PATH:$(go env GOPATH)/bin
+  wails build -platform linux/amd64
+}
+
+package() {
+  cd "$srcdir/Go-RomM-Sync-$pkgver"
+  install -Dm755 build/bin/go-romm-sync "$pkgdir/usr/bin/go-romm-sync"
+  install -Dm644 build/linux/app.desktop "$pkgdir/usr/share/applications/go-romm-sync.desktop"
+  install -Dm644 build/appicon.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/go-romm-sync.png"
+}

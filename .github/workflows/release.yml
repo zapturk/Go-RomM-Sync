@@ -72,8 +72,27 @@ jobs:
       - name: Package (Linux)
         if: runner.os == 'Linux'
         run: |
-          # The binary name might vary if tags are used, check build/bin
-          mv build/bin/go-romm-sync go-romm-sync-linux
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+          export PATH=$PATH:$(go env GOPATH)/bin
+          
+          # Prepare binary for nfpm (needs to be in same dir as nfpm.yaml)
+          mv build/bin/go-romm-sync build/linux/go-romm-sync
+          
+          TAG=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG#v}
+          
+          cd build/linux
+          VERSION=$VERSION nfpm pkg --packager deb --target ../../
+          VERSION=$VERSION nfpm pkg --packager rpm --target ../../
+          
+          # Arch Linux PKGBUILD
+          cd arch
+          sed -i "s/pkgver=.*/pkgver=$VERSION/" PKGBUILD
+          cp PKGBUILD ../../../go-romm-sync-arch-PKGBUILD
+          
+          # Maintain original tar.gz
+          cd ../../../
+          mv build/linux/go-romm-sync go-romm-sync-linux
           tar -czvf go-romm-sync-linux-amd64.tar.gz go-romm-sync-linux
 
       - name: Package (Windows)
@@ -94,5 +113,8 @@ jobs:
           files: |
             *.tar.gz
             *.zip
+            *.deb
+            *.rpm
+            go-romm-sync-arch-PKGBUILD
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
