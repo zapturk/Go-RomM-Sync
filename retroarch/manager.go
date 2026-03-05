@@ -147,11 +147,25 @@ func getCoresDir(baseDir string) string {
 	if overrideCoresDir != "" {
 		return overrideCoresDir
 	}
-	if runtime.GOOS == constants.OSDarwin {
-		homeDir, _ := os.UserHomeDir()
+	homeDir, _ := os.UserHomeDir()
+	switch runtime.GOOS {
+	case constants.OSDarwin:
 		return filepath.Join(homeDir, "Library", "Application Support", "RetroArch", "cores")
+	case constants.OSLinux:
+		// Attempt to identify package manager based on baseDir
+		// Example: /snap/retroarch/current/usr/bin
+		if strings.HasPrefix(baseDir, "/snap/") {
+			return filepath.Join(homeDir, "snap", "retroarch", "current", ".config", "retroarch", "cores")
+		}
+		// Example: /var/lib/flatpak/app/org.libretro.RetroArch/current/active/files/bin
+		if strings.Contains(baseDir, "flatpak") {
+			return filepath.Join(homeDir, ".var", "app", "org.libretro.RetroArch", "config", "retroarch", "cores")
+		}
+		// Native packages, AppImages, self-compiled binaries, etc.
+		return filepath.Join(homeDir, ".config", "retroarch", "cores")
+	default: // Windows
+		return filepath.Join(baseDir, "cores")
 	}
-	return filepath.Join(baseDir, "cores")
 }
 
 // PlatformCoreMap maps common platform names or slugs to an ordered list

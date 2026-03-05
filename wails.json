@@ -12,7 +12,7 @@
   },
   "linux": {
     "icon": "build/appicon.png",
-    "packages": "libgtk-3-dev,libwebkit2gtk-4.0-dev,gcc,pkg-config"
+    "packages": "libgtk-3-dev,libwebkit2gtk-4.1-dev,gcc,pkg-config"
   },
   "info": {
     "companyName": "Zapturk",
