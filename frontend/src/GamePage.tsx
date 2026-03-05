@@ -71,6 +71,21 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const [firmwares, setFirmwares] = useState<types.Firmware[]>([]);
     const [selectedFirmwareId, setSelectedFirmwareId] = useState<number>(0);
+    const [isFirmwarePickerOpen, setIsFirmwarePickerOpen] = useState(false);
+
+    const hasSavesOrStates = serverSaves.length > 0 || saves.length > 0 || serverStates.length > 0 || states.length > 0;
+
+    const focusFirstAvailableSaveState = () => {
+        if (serverSaves.length > 0) {
+            setFocus('server-save-0-download');
+        } else if (saves.length > 0) {
+            setFocus('save-0-upload');
+        } else if (serverStates.length > 0) {
+            setFocus('server-state-0-download');
+        } else if (states.length > 0) {
+            setFocus('state-0-upload');
+        }
+    };
     const [firmwareDownloading, setFirmwareDownloading] = useState(false);
     const [firmwareStatus, setFirmwareStatus] = useState<string>('');
     const fadeTimeoutRef = useRef<any>(null);
@@ -157,6 +172,11 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const closePicker = useCallback(() => {
         setIsPickerOpen(false);
         setTimeout(() => setFocus('core-selector'), 100);
+    }, []);
+
+    const closeFirmwarePicker = useCallback(() => {
+        setIsFirmwarePickerOpen(false);
+        setTimeout(() => setFocus('firmware-selector'), 100);
     }, []);
 
     // Download Handler
@@ -388,6 +408,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         try {
             await SetPlatformFirmware(game.platform_slug, fw);
             setFirmwareStatus('Downloaded');
+            closeFirmwarePicker();
             setTimeout(() => setFirmwareStatus(''), 3000);
         } catch (err) {
             console.error("Failed to set firmware:", err);
@@ -484,6 +505,10 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                     e.preventDefault();
                     e.stopImmediatePropagation(); // Prevent Library.tsx from seeing this
                     closePicker();
+                } else if (isFirmwarePickerOpen) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    closeFirmwarePicker();
                 }
             }
         };
@@ -491,7 +516,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         // Use capture phase to ensure we catch it before Library.tsx listener
         window.addEventListener('keydown', handleKeyDown, true);
         return () => window.removeEventListener('keydown', handleKeyDown, true);
-    }, [saves, serverSaves, states, serverStates, gameId, isPickerOpen, closePicker]);
+    }, [saves, serverSaves, states, serverStates, gameId, isPickerOpen, isFirmwarePickerOpen, closePicker, closeFirmwarePicker]);
 
     if (loading) {
         return <div className="game-page-loading">Loading game details...</div>;
@@ -544,6 +569,37 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                     </div>
                 </div>
             )}
+            {isFirmwarePickerOpen && (
+                <div className="core-picker-overlay" onClick={closeFirmwarePicker}>
+                    <div className="core-picker-modal" onClick={e => e.stopPropagation()}>
+                        <div className="core-picker-header">
+                            <h3>Select Firmware</h3>
+                        </div>
+                        <div className="core-picker-list">
+                            <FirmwareOption
+                                id={0}
+                                name="No Firmware"
+                                isSelected={selectedFirmwareId === 0}
+                                isFirst={true}
+                                onSelect={() => handleFirmwareChange(0)}
+                                focusKey="firmware-option-0"
+                            />
+                            {firmwares.map((fw, idx) => (
+                                <FirmwareOption
+                                    key={fw.id}
+                                    id={fw.id}
+                                    name={`${fw.file_name} ${fw.is_verified ? '✓' : ''}`}
+                                    isSelected={fw.id === selectedFirmwareId}
+                                    isFirst={false}
+                                    onSelect={() => handleFirmwareChange(fw.id)}
+                                    focusKey={`firmware-option-${idx + 1}`}
+                                />
+                            ))}
+                        </div>
+                        <CancelButton onCancel={closeFirmwarePicker} />
+                    </div>
+                </div>
+            )}
             <div className="game-page-content">
                 <div className="game-sidebar">
                     <GameCover game={game} className="game-page-cover" />
@@ -567,34 +623,64 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                     isDisabled={downloading || isPlaying}
                                     isDownloading={downloading}
                                     isExtracting={isExtracting}
+                                    hasSaves={hasSavesOrStates}
                                     onDownload={handleDownload}
+                                    onFocusSaves={focusFirstAvailableSaveState}
                                 />
                             )
                         ) : (
                             <>
+                                <div className="game-firmware-section">
+                                    <h3>Platform Firmware</h3>
+                                    {firmwares.length > 0 ? (
+                                        <InnerFirmwareSelector
+                                            firmwares={firmwares}
+                                            selectedId={selectedFirmwareId}
+                                            isDownloading={firmwareDownloading}
+                                            status={firmwareStatus}
+                                            hasSaves={hasSavesOrStates}
+                                            onClick={() => setIsFirmwarePickerOpen(true)}
+                                            onFocusRequest={() => setFocus('firmware-selector')}
+                                            onFocusSaves={focusFirstAvailableSaveState}
+                                        />
+                                    ) : (
+                                        <div className="firmware-status">No firmware available in RomM</div>
+                                    )}
+                                </div>
                                 {availableCores.length > 0 && (
-                                    <div className="core-selector-row">
-                                        <label className="core-selector-label" htmlFor="core-select">Core</label>
+                                    <div className="game-core-section">
+                                        <h3>Core</h3>
                                         <InnerCoreSelector
                                             currentCore={selectedCore}
                                             isDisabled={isPlaying}
+                                            hasFirmware={firmwares.length > 0}
+                                            hasSaves={hasSavesOrStates}
                                             onClick={() => setIsPickerOpen(true)}
                                             onFocusRequest={() => setFocus('core-selector')}
+                                            onFocusSaves={focusFirstAvailableSaveState}
                                         />
                                     </div>
                                 )}
                                 <div className="game-actions-vertical">
                                     <InnerPlayButton
                                         isDisabled={isPlaying}
+                                        hasCore={availableCores.length > 0}
+                                        hasFirmware={firmwares.length > 0}
+                                        hasSaves={hasSavesOrStates}
                                         onPlay={handlePlay}
+                                        onFocusSaves={focusFirstAvailableSaveState}
                                     />
                                     <InnerOpenFolderButton
+                                        hasSaves={hasSavesOrStates}
                                         onOpenFolder={handleOpenFolder}
+                                        onFocusSaves={focusFirstAvailableSaveState}
                                     />
                                     <InnerDeleteButton
                                         isDisabled={isPlaying}
+                                        hasSaves={hasSavesOrStates}
                                         onDelete={handleDelete}
                                         onFocusDownload={() => setFocus('download-button')}
+                                        onFocusSaves={focusFirstAvailableSaveState}
                                     />
                                 </div>
                             </>
@@ -610,20 +696,6 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                             )}
                         </div>
                     )}
-                    <div className="game-firmware-section">
-                        <h3>Platform Firmware</h3>
-                        {firmwares.length > 0 ? (
-                            <InnerFirmwareSelector
-                                firmwares={firmwares}
-                                selectedId={selectedFirmwareId}
-                                isDownloading={firmwareDownloading}
-                                status={firmwareStatus}
-                                onChange={handleFirmwareChange}
-                            />
-                        ) : (
-                            <div className="firmware-status">No firmware available in RomM</div>
-                        )}
-                    </div>
                 </div>
                 <div className="game-main-info">
                     <h1>{game.name}</h1>
@@ -750,10 +822,17 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     );
 }
 
-function InnerDownloadButton({ isDisabled, isDownloading, isExtracting, onDownload }: { isDisabled: boolean; isDownloading: boolean; isExtracting: boolean; onDownload: () => void }) {
+function InnerDownloadButton({ isDisabled, isDownloading, isExtracting, hasSaves, onDownload, onFocusSaves }: { isDisabled: boolean; isDownloading: boolean; isExtracting: boolean; hasSaves: boolean; onDownload: () => void; onFocusSaves: () => void }) {
     const { ref, focused } = useFocusable({
         focusKey: 'download-button',
-        onArrowPress: (direction: string) => direction === 'down' || direction === 'right',
+        onArrowPress: (direction: string) => {
+            if (direction === 'right' && hasSaves) {
+                onFocusSaves();
+                return false;
+            }
+            if (direction === 'left') return false;
+            return direction === 'down';
+        },
         onEnterPress: onDownload
     });
 
@@ -779,10 +858,31 @@ function InnerDownloadButton({ isDisabled, isDownloading, isExtracting, onDownlo
     );
 }
 
-function InnerCoreSelector({ currentCore, isDisabled, onClick, onFocusRequest }: { currentCore: string; isDisabled: boolean; onClick: () => void; onFocusRequest: () => void }) {
+function InnerCoreSelector({ currentCore, isDisabled, hasFirmware, hasSaves, onClick, onFocusRequest, onFocusSaves }: { currentCore: string; isDisabled: boolean; hasFirmware: boolean; hasSaves: boolean; onClick: () => void; onFocusRequest: () => void; onFocusSaves: () => void }) {
     const { ref, focused } = useFocusable({
         focusKey: 'core-selector',
-        onArrowPress: (direction: string) => direction === 'down' || direction === 'right',
+        onArrowPress: (direction: string) => {
+            if (direction === 'up') {
+                if (hasFirmware) {
+                    setFocus('firmware-selector');
+                }
+                return false; // Block Up to prevent focus loss
+            }
+            if (direction === 'down') {
+                setFocus('play-button');
+                return false;
+            }
+            if (direction === 'right') {
+                if (hasSaves) {
+                    onFocusSaves();
+                    return false;
+                }
+                setFocus('play-button');
+                return false;
+            }
+            if (direction === 'left') return false;
+            return true;
+        },
         onEnterPress: onClick
     });
 
@@ -806,14 +906,27 @@ function InnerCoreSelector({ currentCore, isDisabled, onClick, onFocusRequest }:
     );
 }
 
-function InnerPlayButton({ isDisabled, onPlay }: { isDisabled: boolean; onPlay: () => void }) {
+function InnerPlayButton({ isDisabled, hasCore, hasFirmware, hasSaves, onPlay, onFocusSaves }: { isDisabled: boolean; hasCore: boolean; hasFirmware: boolean; hasSaves: boolean; onPlay: () => void; onFocusSaves: () => void }) {
     const { ref, focused } = useFocusable({
         focusKey: 'play-button',
         onArrowPress: (direction: string) => {
+            if (direction === 'up') {
+                if (hasCore) {
+                    setFocus('core-selector');
+                } else if (hasFirmware) {
+                    setFocus('firmware-selector');
+                }
+                return false; // Block Up if nothing focusable is found
+            }
             if (direction === 'down') {
                 setFocus('open-folder-button');
                 return false;
             }
+            if (direction === 'right' && hasSaves) {
+                onFocusSaves();
+                return false;
+            }
+            if (direction === 'left') return false;
             return true;
         },
         onEnterPress: onPlay
@@ -839,7 +952,7 @@ function InnerPlayButton({ isDisabled, onPlay }: { isDisabled: boolean; onPlay: 
     );
 }
 
-function InnerOpenFolderButton({ onOpenFolder }: { onOpenFolder: () => void }) {
+function InnerOpenFolderButton({ hasSaves, onOpenFolder, onFocusSaves }: { hasSaves: boolean; onOpenFolder: () => void; onFocusSaves: () => void }) {
     const { ref, focused } = useFocusable({
         focusKey: 'open-folder-button',
         onArrowPress: (direction: string) => {
@@ -851,6 +964,11 @@ function InnerOpenFolderButton({ onOpenFolder }: { onOpenFolder: () => void }) {
                 setFocus('delete-button');
                 return false;
             }
+            if (direction === 'right' && hasSaves) {
+                onFocusSaves();
+                return false;
+            }
+            if (direction === 'left') return false;
             return true;
         },
         onEnterPress: onOpenFolder
@@ -875,7 +993,7 @@ function InnerOpenFolderButton({ onOpenFolder }: { onOpenFolder: () => void }) {
     );
 }
 
-function InnerDeleteButton({ isDisabled, onDelete, onFocusDownload }: { isDisabled: boolean; onDelete: () => void; onFocusDownload: () => void }) {
+function InnerDeleteButton({ isDisabled, hasSaves, onDelete, onFocusDownload, onFocusSaves }: { isDisabled: boolean; hasSaves: boolean; onDelete: () => void; onFocusDownload: () => void; onFocusSaves: () => void }) {
     const { ref, focused } = useFocusable({
         focusKey: 'delete-button',
         onArrowPress: (direction: string) => {
@@ -883,6 +1001,11 @@ function InnerDeleteButton({ isDisabled, onDelete, onFocusDownload }: { isDisabl
                 setFocus('open-folder-button');
                 return false;
             }
+            if (direction === 'right' && hasSaves) {
+                onFocusSaves();
+                return false;
+            }
+            if (direction === 'left') return false;
             return true;
         },
         onEnterPress: onDelete
@@ -974,46 +1097,95 @@ function CancelButton({ onCancel }: { onCancel: () => void }) {
     );
 }
 
-function InnerFirmwareSelector({ firmwares, selectedId, isDownloading, status, onChange }: {
+function InnerFirmwareSelector({ firmwares, selectedId, isDownloading, status, hasSaves, onClick, onFocusRequest, onFocusSaves }: {
     firmwares: types.Firmware[];
     selectedId: number;
     isDownloading: boolean;
     status: string;
-    onChange: (id: number) => void;
+    hasSaves: boolean;
+    onClick: () => void;
+    onFocusRequest: () => void;
+    onFocusSaves: () => void;
 }) {
     const { ref, focused } = useFocusable({
         focusKey: 'firmware-selector',
-        onEnterPress: () => {
-            // Standard select handles enter
-        }
+        onArrowPress: (direction: string) => {
+            if (direction === 'up') {
+                return false; // Header is above, nothing focusable
+            }
+            if (direction === 'down') {
+                setFocus('core-selector');
+                return false;
+            }
+            if (direction === 'right' && hasSaves) {
+                onFocusSaves();
+                return false;
+            }
+            if (direction === 'left') return false;
+            return true;
+        },
+        onEnterPress: onClick
     });
+
+    const selectedFw = firmwares.find(f => f.id === selectedId);
+    const displayText = selectedId === 0 ? "No Firmware" : (selectedFw?.file_name || "Unknown Firmware");
 
     return (
         <div className="platform-firmware-selector">
-            <select
+            <div
                 ref={ref}
-                className={`firmware-dropdown ${focused ? 'focused' : ''}`}
-                value={selectedId}
-                onChange={(e) => onChange(parseInt(e.target.value))}
-                disabled={isDownloading}
+                className={`firmware-selector-button ${focused ? 'focused' : ''} ${isDownloading ? 'disabled' : ''}`}
                 onMouseEnter={() => {
                     if (getMouseActive() && !isDownloading) {
-                        setFocus('firmware-selector');
+                        onFocusRequest();
                     }
                 }}
+                onClick={onClick}
             >
-                <option value={0}>No Firmware</option>
-                {firmwares.map(fw => (
-                    <option key={fw.id} value={fw.id}>
-                        {fw.file_name} {fw.is_verified ? '✓' : ''}
-                    </option>
-                ))}
-            </select>
+                <span className="current-firmware">
+                    {displayText}
+                </span>
+                <div className="dropdown-arrow"></div>
+            </div>
             {status && (
                 <div className={`firmware-status ${status.toLowerCase()}`}>
                     {status}
                 </div>
             )}
+        </div>
+    );
+}
+
+function FirmwareOption({ id, name, isSelected, onSelect, focusKey, isFirst }: { id: number; name: string; isSelected: boolean; onSelect: () => void; focusKey: string; isFirst: boolean }) {
+    const { ref, focused } = useFocusable({
+        focusKey,
+        onEnterPress: onSelect,
+        onArrowPress: (direction: string) => {
+            if (direction === 'left' || direction === 'right') return false;
+            if (direction === 'up' && isFirst) return false;
+            return true;
+        }
+    });
+
+    useEffect(() => {
+        if (isSelected) {
+            setFocus(focusKey);
+        }
+    }, [isSelected, focusKey]);
+
+    return (
+        <div
+            ref={ref}
+            className={`firmware-option ${focused ? 'focused' : ''} ${isSelected ? 'selected' : ''}`}
+            onClick={onSelect}
+            onMouseEnter={() => {
+                if (getMouseActive()) {
+                    setFocus(focusKey);
+                }
+            }}
+        >
+            <span className="firmware-name">{name}</span>
+            {isSelected && <span className="selected-check">✓</span>}
         </div>
     );
 }

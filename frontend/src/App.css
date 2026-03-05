@@ -353,7 +353,8 @@ body.mouse-mode .game-card:hover,
 }
 
 /* Core Selector Button */
-.core-selector-button {
+.core-selector-button,
+.firmware-selector-button {
     flex: 1;
     background: rgba(0, 0, 0, 0.35);
     border: 1px solid rgba(255, 255, 255, 0.15);
@@ -372,7 +373,8 @@ body.mouse-mode .game-card:hover,
     min-width: 150px;
 }
 
-.core-selector-button.focused {
+.core-selector-button.focused,
+.firmware-selector-button.focused {
     outline: 3px solid #fff;
     border-color: #fff;
     background-color: rgba(255, 255, 255, 0.1);
@@ -433,7 +435,8 @@ body.mouse-mode .game-card:hover,
     margin-bottom: 24px;
 }
 
-.core-option {
+.core-option,
+.firmware-option {
     padding: 12px 16px;
     background: rgba(255, 255, 255, 0.05);
     border-radius: 8px;
@@ -445,18 +448,21 @@ body.mouse-mode .game-card:hover,
     border: 1px solid transparent;
 }
 
-.core-option.focused {
+.core-option.focused,
+.firmware-option.focused {
     background: rgba(93, 63, 211, 0.4);
     outline: 3px solid #fff;
     transform: scale(1.02);
 }
 
-.core-option.selected {
+.core-option.selected,
+.firmware-option.selected {
     border-color: #5d3fd3;
     background: rgba(93, 63, 211, 0.2);
 }
 
-.core-name {
+.core-name,
+.firmware-name {
     font-size: 1rem;
     text-transform: capitalize;
     color: #eee;
@@ -804,13 +810,15 @@ body.input-keyboard .show-keyboard {
     color: #888;
 }
 
-/* Firmware Selection */
-.game-firmware-section {
-    margin-top: 30px;
+/* Firmware & Core Selection */
+.game-firmware-section,
+.game-core-section {
+    margin-top: -5px;
     text-align: left;
 }
 
-.game-firmware-section h3 {
+.game-firmware-section h3,
+.game-core-section h3 {
     font-size: 1.1rem;
     color: #ccc;
     margin-bottom: 12px;
