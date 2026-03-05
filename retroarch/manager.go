@@ -637,7 +637,8 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 	// Prepare temporary config for RetroAchievements and Directories.
 	// We use --appendconfig to pass these settings without modifying the user's main RetroArch config permanently.
 	var appendConfigPath string
-	tmpFile, err := os.CreateTemp("", "retroarch_config_*.cfg")
+	tmpDir := filepath.Dir(coresDir)
+	tmpFile, err := os.CreateTemp(tmpDir, "retroarch_config_*.cfg")
 	if err == nil {
 		appendConfigPath = tmpFile.Name()
 		content := fmt.Sprintf("savefile_directory = %q\nsavestate_directory = %q\n", savesDir, statesDir)

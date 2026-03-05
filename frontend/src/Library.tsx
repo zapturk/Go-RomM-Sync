@@ -41,7 +41,9 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     useEffect(() => {
         const updateColumns = () => {
             if (gridRef.current) {
-                const containerWidth = gridRef.current.offsetWidth;
+                // containerWidth includes padding. We must subtract the 40px (20px left + 20px right)
+                // defined in App.css `.grid-container { padding: 20px; }`
+                const containerWidth = gridRef.current.offsetWidth - 40;
                 const itemWidth = 200; // min-width from App.css
                 const gap = 20; // gap from App.css
                 const cols = Math.floor((containerWidth + gap) / (itemWidth + gap));

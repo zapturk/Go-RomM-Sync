@@ -25,8 +25,8 @@ func main() {
 	// Create application with options
 	err := wails.Run(&options.App{
 		Title:      "Go RomM Sync",
-		Width:      1024,
-		Height:     768,
+		Width:      1920,
+		Height:     1080,
 		Fullscreen: true,
 		AssetServer: &assetserver.Options{
 			Assets: assets,

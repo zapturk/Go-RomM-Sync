@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 
 interface FocusableButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -25,6 +26,15 @@ export function FocusableButton({
         onFocus,
         onBlur,
     });
+
+    useEffect(() => {
+        if (focused && ref.current) {
+            ref.current.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+            });
+        }
+    }, [focused]);
 
     return (
         <button
