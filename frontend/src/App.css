@@ -1,3 +1,15 @@
+:root {
+    --primary-color: #5d3fd3;
+    --primary-hover: #4b32ac;
+    --bg-dark: #121212;
+    --bg-card: #1e1e1e;
+    --text-main: #ffffff;
+    --text-dim: #b0b0b0;
+    --item-min-width: 200px;
+    --grid-gap: 20px;
+    --grid-padding: 20px;
+}
+
 #app {
     height: 100vh;
     text-align: center;
@@ -86,9 +98,9 @@
 
 .grid-container {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 20px;
-    padding: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(var(--item-min-width), 1fr));
+    gap: var(--grid-gap);
+    padding: var(--grid-padding);
     padding-bottom: 70px;
     /* Space for the footer */
 }

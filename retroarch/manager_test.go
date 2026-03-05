@@ -45,7 +45,10 @@ func TestGetCoresDir(t *testing.T) {
 		_ = origOS
 	}()
 
-	homeDir, _ := os.UserHomeDir()
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("Failed to get home dir: %v", err)
+	}
 
 	switch runtime.GOOS {
 	case constants.OSDarwin:
