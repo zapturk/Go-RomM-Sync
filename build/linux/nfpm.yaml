@@ -8,7 +8,7 @@ maintainer: "Zapturk <scottmckeefer@gmail.com>"
 description: "A seamless bridge between RomM and RetroArch for a console-like gaming experience."
 vendor: "Zapturk"
 homepage: "https://github.com/zapturk/Go-RomM-Sync"
-license: "GPL-3.0"
+license: "GPL-3.0-or-later"
 
 contents:
   - src: "go-romm-sync"
@@ -26,4 +26,4 @@ overrides:
   rpm:
     depends:
       - gtk3
-      - webkit2gtk3
+      - webkit2gtk4.1

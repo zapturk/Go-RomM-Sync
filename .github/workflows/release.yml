@@ -88,7 +88,15 @@ jobs:
           # Arch Linux PKGBUILD
           cd arch
           sed -i "s/pkgver=.*/pkgver=$VERSION/" PKGBUILD
+          
+          # Calculate SHA256 of the source archive
+          # We create a reproducible archive using git archive
+          git archive --format=tar.gz --prefix=Go-RomM-Sync-$VERSION/ HEAD -o source-code.tar.gz
+          SHA256=$(sha256sum source-code.tar.gz | cut -d ' ' -f 1)
+          sed -i "s/sha256sums=.*/sha256sums=('$SHA256')/" PKGBUILD
+          
           cp PKGBUILD ../../../go-romm-sync-arch-PKGBUILD
+          rm source-code.tar.gz
           
           # Maintain original tar.gz
           cd ../../../

@@ -9,7 +9,7 @@ license=('GPL3')
 depends=('gtk3' 'webkit2gtk')
 makedepends=('go' 'npm')
 source=("$pkgname-$pkgver.tar.gz::https://github.com/zapturk/Go-RomM-Sync/archive/v$pkgver.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('GENERATED_BY_CI')
 
 build() {
   cd "$srcdir/Go-RomM-Sync-$pkgver"

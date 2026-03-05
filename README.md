@@ -114,11 +114,11 @@ We provide native packages for major Linux distributions on our [Releases page](
 
 - **Debian / Ubuntu / Mint**: Download and install the `.deb` package.
   ```bash
-  sudo apt install ./go-romm-sync_amd64.deb
+  sudo apt install ./go-romm-sync_<version>_amd64.deb
   ```
 - **Fedora / RHEL / openSUSE**: Download and install the `.rpm` package.
   ```bash
-  sudo dnf install ./go-romm-sync_amd64.rpm
+  sudo dnf install ./go-romm-sync-<version>-1.x86_64.rpm
   ```
 - **Arch Linux**: Download the `go-romm-sync-arch-PKGBUILD`, rename it to `PKGBUILD`, and run:
   ```bash
