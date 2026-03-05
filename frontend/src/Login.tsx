@@ -55,12 +55,10 @@ function Login({ onLoginSuccess }: LoginProps) {
         SaveConfig(config)
             .then((saveResult) => {
                 setResultText("Connecting to server...");
-                console.log(saveResult);
                 return RommLogin();
             })
             .then((token) => {
                 setResultText("Success! Connected.");
-                console.log("Logged in with token:", token);
                 // Delay success slightly for better UX
                 setTimeout(onLoginSuccess, 500);
             })

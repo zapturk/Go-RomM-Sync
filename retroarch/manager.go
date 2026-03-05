@@ -673,7 +673,10 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 		if runtime.GOOS == constants.OSDarwin {
 			ui.WindowHide()
 		}
-		output, _ := cmd.CombinedOutput()
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			ui.LogErrorf("RetroArch failed with error: %v", err)
+		}
 		if len(output) > 0 {
 			ui.LogInfof("RetroArch Output:\n%s", string(output))
 		}

@@ -277,7 +277,11 @@ func (s *Service) DownloadFirmware(fw *types.Firmware) error {
 	// Not an archive, process single file
 	md5 := fw.MD5Hash
 	if md5 == "" {
-		md5, _ = fileio.GetMD5(tempFile)
+		var err error
+		md5, err = fileio.GetMD5(tempFile)
+		if err != nil {
+			s.ui.LogErrorf("DownloadFirmware: Failed to calculate MD5 for %s: %v", filename, err)
+		}
 	}
 
 	finalFilename := filename

@@ -243,14 +243,11 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 setGame(res);
 
                 // Fetch firmwares for this platform
-                console.log("Fetching firmwares for platform ID:", res.platform_id);
                 GetFirmware(res.platform_id).then(list => {
-                    console.log("Firmwares received:", list);
                     setFirmwares(list || []);
 
                     // Get current config to see if a firmware is already selected
                     GetConfig().then(cfg => {
-                        console.log("Current config platform_firmware:", cfg.platform_firmware);
                         if (cfg.platform_firmware && cfg.platform_firmware[res.platform_slug]) {
                             setSelectedFirmwareId(cfg.platform_firmware[res.platform_slug]);
                         }
@@ -532,15 +529,6 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         (game.full_path?.toLowerCase().includes('/3ds/'));
     const isUnsupported = isMac && is3DS;
 
-    console.log("GamePage Detection:", {
-        userAgent: navigator.userAgent,
-        isMac,
-        platformSlug: game.platform_slug,
-        platformName: game.platform_display_name,
-        fullPath: game.full_path,
-        is3DS,
-        isUnsupported
-    });
 
     return (
         <div id="game-page" ref={ref}>
