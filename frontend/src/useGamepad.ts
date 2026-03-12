@@ -29,7 +29,7 @@ const INPUT_DELAY = 150;
 export function useGamepad() {
     const prevButtonsRef = useRef<Record<number, boolean>>({});
     const lastInputTime = useRef(0);
-    const requestRef = useRef<number>();
+    const requestRef = useRef<number>(0);
     const isPlayingRef = useRef(false);
 
     const triggerKey = (key: string) => {
