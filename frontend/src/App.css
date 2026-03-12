@@ -10,8 +10,17 @@
     --grid-padding: 20px;
 }
 
+html,
+body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    background: radial-gradient(circle at top left, #5d3fd3, #2a1b5e) #553e98;
+    background-attachment: fixed;
+}
+
 #app {
-    height: 100vh;
+    min-height: 100vh;
     text-align: center;
 }
 
@@ -49,32 +58,36 @@
 .input-group {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    width: 300px;
+    width: 100%;
 }
 
 .input-group label {
-    margin-bottom: 5px;
-    font-size: 0.9rem;
-    color: white;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-weight: 600;
 }
 
-.input-box .input {
-    border: 1px solid #ccc;
-    border-radius: 3px;
-    outline: none;
-    height: 35px;
-    line-height: 35px;
-    padding: 0 10px;
-    background-color: #fff;
-    -webkit-font-smoothing: antialiased;
+.input {
     width: 100%;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    color: #fff;
+    padding: 0 15px;
+    height: 44px;
+    transition: all 0.3s ease;
     box-sizing: border-box;
-    transition: border-color 0.3s;
+    outline: none;
+    font-family: inherit;
 }
 
-.input-box .input:focus {
-    border-color: #007bff;
+.input:focus {
+    background: rgba(0, 0, 0, 0.3);
+    border-color: #fff;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
 }
 
 .input-box .btn {
@@ -98,7 +111,7 @@
 
 .grid-container {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(var(--item-min-width), 1fr));
+    grid-template-columns: repeat(6, 1fr);
     gap: var(--grid-gap);
     padding: var(--grid-padding);
     padding-bottom: 70px;
@@ -207,7 +220,6 @@ body.mouse-mode .game-card:hover,
     left: 0;
     right: 0;
     bottom: 0;
-    background: #553e98;
     z-index: 100;
     padding: 0;
     /* Removing padding to allow scrollable content with footer */
@@ -248,9 +260,25 @@ body.mouse-mode .game-card:hover,
 }
 
 .game-main-info h1 {
-    margin-top: 0;
+    margin: 0;
     font-size: 2.5rem;
+}
+
+.game-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
     margin-bottom: 20px;
+}
+
+.game-meta {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 25px;
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.8);
+    align-items: center;
 }
 
 .game-genres {
@@ -272,10 +300,12 @@ body.mouse-mode .game-card:hover,
     color: #ddd;
 }
 
-.game-summary h3 {
-    border-bottom: 1px solid #444;
+.game-description h3 {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     padding-bottom: 10px;
     margin-bottom: 15px;
+    font-size: 1.2rem;
+    color: #eee;
 }
 
 .game-saves-status {
@@ -299,6 +329,25 @@ body.mouse-mode .game-card:hover,
     gap: 12px;
     margin-top: 20px;
     width: 100%;
+}
+
+.game-firmware-section,
+.game-core-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.game-firmware-section h3,
+.game-core-section h3 {
+    margin-top: 0;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.5);
+
+    letter-spacing: 1px;
+    text-align: left;
 }
 
 .open-folder-btn {
@@ -404,6 +453,164 @@ body.mouse-mode .game-card:hover,
     border-right: 5px solid transparent;
     border-top: 5px solid rgba(255, 255, 255, 0.5);
     margin-left: 10px;
+}
+
+/* Settings Page - Premium Overhaul */
+#settings-page {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.settings-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 3rem 2rem;
+    padding-bottom: 140px;
+    /* More space for the fixed footer at the bottom */
+    box-sizing: border-box;
+    width: 100%;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.settings-inner {
+    max-width: 800px;
+    margin: 0 auto;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+}
+
+.settings-header {
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.settings-header h1 {
+    margin: 0;
+    font-size: 3rem;
+    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    letter-spacing: 2px;
+}
+
+.settings-status-box {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 1rem;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    margin-top: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.settings-card {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.settings-card:hover {
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+}
+
+.settings-section-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 0.75rem;
+    letter-spacing: 1px;
+}
+
+.settings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+}
+
+.settings-row-info {
+    flex: 1;
+}
+
+.settings-row-label {
+    display: block;
+    color: #fff;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.settings-row-desc {
+    display: block;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.settings-actions {
+    margin-top: 1rem;
+    display: flex;
+    gap: 1.5rem;
+}
+
+/* Updated Button Styles for Settings */
+.settings-page .btn {
+    height: 44px;
+    padding: 0 20px;
+    font-size: 0.95rem;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.settings-page .btn.focused {
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.settings-page .btn-primary {
+    background: #4CAF50;
+    color: #fff;
+}
+
+.settings-page .btn-danger {
+    background: rgba(255, 68, 68, 0.2);
+}
+
+.settings-card .input-group {
+    width: 100%;
+}
+
+.settings-card .input-group>div {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+}
+
+/* Inherits from global .input but allows flex-grow in settings rows with buttons */
+.settings-card .input-group>div .input {
+    flex: 1;
+    width: auto;
 }
 
 /* Core Picker Modal */
@@ -1031,4 +1238,24 @@ body.input-keyboard .show-keyboard {
 .pagination-btn {
     padding: 8px 20px;
     min-width: 120px;
+}
+
+.library-header-extras {
+    position: fixed;
+    z-index: 100;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.offline-badge {
+    background-color: #ff4444;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    text-transform: uppercase;
+    letter-spacing: 1px;
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { GetLibrary, GetPlatforms, Quit } from "../wailsjs/go/main/App";
+import { GetLibrary, GetPlatforms, Quit, GetConfig } from "../wailsjs/go/main/App";
+import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { GamePage } from "./GamePage";
 import { PlatformGridView } from "./views/Library/PlatformGridView";
@@ -24,13 +25,14 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     const gridRef = useRef<HTMLDivElement>(null);
     const [columns, setColumns] = useState(1);
     const [searchTerm, setSearchTerm] = useState("");
+    const [offlineMode, setOfflineMode] = useState(false);
 
     // Pagination state
     const [offset, setOffset] = useState(0);
     const [totalGames, setTotalGames] = useState(0);
     const [platformOffset, setPlatformOffset] = useState(0);
     const [totalPlatforms, setTotalPlatforms] = useState(0);
-    const PAGE_SIZE = 25;
+    const PAGE_SIZE = 30;
 
     useEffect(() => {
         if (!selectedPlatform) {
@@ -39,29 +41,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     }, [selectedPlatform]);
 
     useEffect(() => {
-        const updateColumns = () => {
-            if (gridRef.current) {
-                const style = window.getComputedStyle(gridRef.current);
-                const gap = parseInt(style.columnGap || style.gap) || 20;
-                // Width excluding padding
-                const containerWidth = gridRef.current.clientWidth;
-
-                // Get min-width from CSS variable
-                const itemMinWidthStr = style.getPropertyValue('--item-min-width').trim();
-                const itemMinWidth = parseInt(itemMinWidthStr) || 200;
-
-                const cols = Math.floor((containerWidth + gap) / (itemMinWidth + gap));
-                setColumns(cols || 1);
-            }
-        };
-
-        const observer = new ResizeObserver(updateColumns);
-        if (gridRef.current) {
-            observer.observe(gridRef.current);
-        }
-        updateColumns();
-
-        return () => observer.disconnect();
+        setColumns(6);
     }, [selectedPlatform]);
 
     const { ref } = useFocusable({
@@ -72,6 +52,10 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         setIsLoading(true);
         setStatus("Syncing...");
         setSyncTrigger(prev => prev + 1);
+
+        GetConfig().then(cfg => {
+            setOfflineMode(cfg.offline_mode || false);
+        });
 
         const activePlatform = platforms.find(p => p.name === selectedPlatform);
         const platformId = activePlatform?.id || 0;
@@ -164,6 +148,18 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [selectedPlatform, selectedGameId, isActive, offset, platformOffset, totalGames, totalPlatforms]);
 
+    // Handle offline-mode-changed event
+    useEffect(() => {
+        const unsubscribe = EventsOn("offline-mode-changed", (newOfflineMode: boolean) => {
+            setOfflineMode(newOfflineMode);
+            if (newOfflineMode) {
+                // If we switched to offline, refresh to filter only local games
+                refreshLibrary(0, platformOffset, searchTerm);
+            }
+        });
+        return () => unsubscribe();
+    }, [platformOffset, searchTerm]);
+
     // Handle "Refresh" (R key)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -199,132 +195,137 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     const sortedPlatforms = [...platforms].sort((a, b) => a.name.localeCompare(b.name));
 
 
-    if (selectedGameId) {
-        return (
-            <GamePage
-                gameId={selectedGameId}
-                onBack={() => setSelectedGameId(null)}
-            />
-        );
-    }
-
     const currentPlatformObj = platforms.find(p => p.name === selectedPlatform);
 
     return (
-        <div id="library" ref={ref}>
-            {!selectedPlatform || !currentPlatformObj ? (
-                <PlatformGridView
-                    platforms={sortedPlatforms}
-                    isLoading={isLoading}
-                    offset={platformOffset}
-                    totalPlatforms={totalPlatforms}
-                    pageSize={PAGE_SIZE}
-                    onSelectPlatform={(p) => {
-                        setSelectedPlatform(p.name);
-                        lastViewedPlatformId.current = p.id;
-                    }}
-                    onPageChange={handlePlatformPageChange}
-                    onOpenSettings={onOpenSettings}
-                    columns={columns}
-                    syncTrigger={syncTrigger}
-                    lastViewedPlatformId={lastViewedPlatformId.current}
-                    gridRef={gridRef}
+        <div id="library-root" ref={ref} style={{ height: '100%' }}>
+            {selectedGameId ? (
+                <GamePage
+                    gameId={selectedGameId}
+                    onBack={() => setSelectedGameId(null)}
                 />
             ) : (
-                <GameGridView
-                    platform={currentPlatformObj}
-                    games={games}
-                    isLoading={isLoading}
-                    offset={offset}
-                    totalGames={totalGames}
-                    pageSize={PAGE_SIZE}
-                    columns={columns}
-                    lastViewedGameId={lastViewedGameId.current}
-                    onSelectGame={(g) => {
-                        setSelectedGameId(g.id);
-                        lastViewedGameId.current = g.id;
-                    }}
-                    onPageChange={handlePageChange}
-                    searchTerm={searchTerm}
-                    onSearchChange={setSearchTerm}
-                    gridRef={gridRef}
-                />
+                <div id="library">
+                    <div className="library-header-extras" style={{ top: '2rem', right: '8rem' }}>
+                        {offlineMode && (
+                            <div className="offline-badge">
+                                Offline Mode
+                            </div>
+                        )}
+                    </div>
+                    {!selectedPlatform || !currentPlatformObj ? (
+                        <PlatformGridView
+                            platforms={sortedPlatforms}
+                            isLoading={isLoading}
+                            offset={platformOffset}
+                            totalPlatforms={totalPlatforms}
+                            pageSize={PAGE_SIZE}
+                            onSelectPlatform={(p) => {
+                                setSelectedPlatform(p.name);
+                                lastViewedPlatformId.current = p.id;
+                            }}
+                            onPageChange={handlePlatformPageChange}
+                            onOpenSettings={onOpenSettings}
+                            columns={columns}
+                            syncTrigger={syncTrigger}
+                            lastViewedPlatformId={lastViewedPlatformId.current}
+                            gridRef={gridRef}
+                        />
+                    ) : (
+                        <GameGridView
+                            platform={currentPlatformObj}
+                            games={games}
+                            isLoading={isLoading}
+                            offset={offset}
+                            totalGames={totalGames}
+                            pageSize={PAGE_SIZE}
+                            columns={columns}
+                            lastViewedGameId={lastViewedGameId.current}
+                            onSelectGame={(g) => {
+                                setSelectedGameId(g.id);
+                                lastViewedGameId.current = g.id;
+                            }}
+                            onPageChange={handlePageChange}
+                            searchTerm={searchTerm}
+                            onSearchChange={setSearchTerm}
+                            gridRef={gridRef}
+                        />
+                    )}
+
+                    <div className="input-legend">
+                        <div className="footer-left">
+                            <span>{status}</span>
+                        </div>
+                        <div className="footer-right">
+                            {!selectedGameId && (
+                                <div className="legend-item">
+                                    <div className="show-gamepad">
+                                        <div className="icon-group">
+                                            <div className="pill-icon">LB</div>
+                                            <div className="pill-icon">RB</div>
+                                        </div>
+                                    </div>
+                                    <div className="show-keyboard">
+                                        <div className="icon-group">
+                                            <div className="key-icon" style={{ width: 'auto', padding: '0 4px' }}>PgUp</div>
+                                            <div className="key-icon" style={{ width: 'auto', padding: '0 4px' }}>PgDn</div>
+                                        </div>
+                                    </div>
+                                    <span>Page</span>
+                                </div>
+                            )}
+
+                            <div className="legend-item">
+                                <div className="btn-icon show-gamepad">
+                                    <div className="btn-dot north"></div>
+                                    <div className="btn-dot east"></div>
+                                    <div className="btn-dot south"></div>
+                                    <div className="btn-dot west active"></div>
+                                </div>
+                                <div className="key-icon show-keyboard">R</div>
+                                <span>Sync</span>
+                            </div>
+
+                            {selectedPlatform && (
+                                <div className="legend-item">
+                                    <div className="btn-icon show-gamepad">
+                                        <div className="btn-dot north"></div>
+                                        <div className="btn-dot east active"></div>
+                                        <div className="btn-dot south"></div>
+                                        <div className="btn-dot west"></div>
+                                    </div>
+                                    <div className="key-icon show-keyboard">ESC</div>
+                                    <span>Back</span>
+                                </div>
+                            )}
+
+                            <div className="legend-item">
+                                <div className="btn-icon show-gamepad">
+                                    <div className="btn-dot north"></div>
+                                    <div className="btn-dot east"></div>
+                                    <div className="btn-dot south active"></div>
+                                    <div className="btn-dot west"></div>
+                                </div>
+                                <div className="key-icon show-keyboard">ENTER</div>
+                                <span>OK</span>
+                            </div>
+
+                            <div className="legend-item">
+                                <div className="show-gamepad">
+                                    <div className="icon-group">
+                                        <div className="pill-icon">SELECT</div>
+                                        <div className="pill-icon">START</div>
+                                    </div>
+                                </div>
+                                <div className="key-icon show-keyboard" style={{ width: 'auto', padding: '0 4px' }}>
+                                    {navigator.userAgent.includes('Mac') ? 'CMD + Q' : 'ALT + F4'}
+                                </div>
+                                <span>Exit</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
-
-            <div className="input-legend">
-                <div className="footer-left">
-                    <span>{status}</span>
-                </div>
-                <div className="footer-right">
-                    {!selectedGameId && (
-                        <div className="legend-item">
-                            <div className="show-gamepad">
-                                <div className="icon-group">
-                                    <div className="pill-icon">LB</div>
-                                    <div className="pill-icon">RB</div>
-                                </div>
-                            </div>
-                            <div className="show-keyboard">
-                                <div className="icon-group">
-                                    <div className="key-icon" style={{ width: 'auto', padding: '0 4px' }}>PgUp</div>
-                                    <div className="key-icon" style={{ width: 'auto', padding: '0 4px' }}>PgDn</div>
-                                </div>
-                            </div>
-                            <span>Page</span>
-                        </div>
-                    )}
-
-                    <div className="legend-item">
-                        {/* Gamepad Icon */}
-                        <div className="btn-icon show-gamepad">
-                            <div className="btn-dot north"></div>
-                            <div className="btn-dot east"></div>
-                            <div className="btn-dot south"></div>
-                            <div className="btn-dot west active"></div>
-                        </div>
-                        {/* Keyboard Icon */}
-                        <div className="key-icon show-keyboard">R</div>
-                        <span>Sync</span>
-                    </div>
-
-                    {selectedPlatform && (
-                        <div className="legend-item">
-                            <div className="btn-icon show-gamepad">
-                                <div className="btn-dot north"></div>
-                                <div className="btn-dot east active"></div>
-                                <div className="btn-dot south"></div>
-                                <div className="btn-dot west"></div>
-                            </div>
-                            <div className="key-icon show-keyboard">ESC</div>
-                            <span>Back</span>
-                        </div>
-                    )}
-
-                    <div className="legend-item">
-                        <div className="btn-icon show-gamepad">
-                            <div className="btn-dot north"></div>
-                            <div className="btn-dot east"></div>
-                            <div className="btn-dot south active"></div>
-                            <div className="btn-dot west"></div>
-                        </div>
-                        <div className="key-icon show-keyboard">ENTER</div>
-                        <span>OK</span>
-                    </div>
-
-                    <div className="legend-item">
-                        <div className="show-gamepad">
-                            <div className="icon-group">
-                                <div className="pill-icon">SELECT</div>
-                                <div className="pill-icon">START</div>
-                            </div>
-                        </div>
-                        <div className="key-icon show-keyboard" style={{ width: 'auto', padding: '0 4px' }}>
-                            {navigator.userAgent.includes('Mac') ? 'CMD + Q' : 'ALT + F4'}
-                        </div>
-                        <span>Exit</span>
-                    </div>
-                </div>
-            </div>
         </div>
     );
 }

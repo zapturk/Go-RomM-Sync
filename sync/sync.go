@@ -17,6 +17,7 @@ import (
 // LibraryProvider defines the local library interactions needed for syncing.
 type LibraryProvider interface {
 	GetRomDir(game *types.Game) string
+	GetLocalGame(id uint) (types.Game, error)
 }
 
 // RomMProvider defines the RomM API interactions needed for syncing.
@@ -62,9 +63,14 @@ func (s *Service) GetStates(id uint) (items []types.FileItem, err error) {
 }
 
 func (s *Service) getGameFiles(id uint, subDir string) (items []types.FileItem, err error) {
-	game, err := s.romm.GetRom(id)
+	// Try local library first for metadata
+	game, err := s.library.GetLocalGame(id)
 	if err != nil {
-		return nil, err
+		// Fallback to RomM if local metadata is missing
+		game, err = s.romm.GetRom(id)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	dirPath := filepath.Join(s.library.GetRomDir(&game), subDir)
@@ -147,9 +153,12 @@ func (s *Service) UploadState(id uint, core, filename string) error {
 }
 
 func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) error {
-	game, err := s.romm.GetRom(id)
+	game, err := s.library.GetLocalGame(id)
 	if err != nil {
-		return fmt.Errorf("failed to get ROM info: %w", err)
+		game, err = s.romm.GetRom(id)
+		if err != nil {
+			return fmt.Errorf("failed to get ROM info: %w", err)
+		}
 	}
 
 	romDir := s.library.GetRomDir(&game)
@@ -190,9 +199,12 @@ func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) erro
 
 // DeleteGameFile deletes a local save or state file.
 func (s *Service) DeleteGameFile(id uint, subDir, core, filename string) error {
-	game, err := s.romm.GetRom(id)
+	game, err := s.library.GetLocalGame(id)
 	if err != nil {
-		return err
+		game, err = s.romm.GetRom(id)
+		if err != nil {
+			return err
+		}
 	}
 
 	romDir := s.library.GetRomDir(&game)
@@ -233,9 +245,12 @@ func (s *Service) DownloadServerState(gameID uint, filePath, core, filename, upd
 }
 
 func (s *Service) downloadServerAsset(gameID uint, filePath, core, filename, updatedAt, subDir string) error {
-	game, err := s.romm.GetRom(gameID)
+	game, err := s.library.GetLocalGame(gameID)
 	if err != nil {
-		return fmt.Errorf("failed to get ROM info: %w", err)
+		game, err = s.romm.GetRom(gameID)
+		if err != nil {
+			return fmt.Errorf("failed to get ROM info: %w", err)
+		}
 	}
 
 	var reader io.ReadCloser

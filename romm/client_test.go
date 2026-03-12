@@ -63,8 +63,8 @@ func TestGetLibrary(t *testing.T) {
 			if r.URL.Query().Get("platform_ids") != "1" {
 				t.Errorf("Expected platform_ids=1, got %s", r.URL.Query().Get("platform_ids"))
 			}
-			if r.URL.Query().Get("limit") != "25" {
-				t.Errorf("Expected limit=25, got %s", r.URL.Query().Get("limit"))
+			if r.URL.Query().Get("limit") != "30" {
+				t.Errorf("Expected limit=30, got %s", r.URL.Query().Get("limit"))
 			}
 
 			w.Header().Set("Content-Type", "application/json")
@@ -76,7 +76,7 @@ func TestGetLibrary(t *testing.T) {
 		client := NewClient(server.URL)
 		client.Token = "test-token"
 
-		games, _, err := client.GetLibrary(25, 0, 1, "")
+		games, _, err := client.GetLibrary(30, 0, 1, "")
 		if err != nil {
 			t.Fatalf("GetLibrary failed: %v", err)
 		}
@@ -102,7 +102,7 @@ func TestGetLibrary(t *testing.T) {
 		client := NewClient(server.URL)
 		client.Token = "test-token"
 
-		_, _, err := client.GetLibrary(25, 0, 0, "zelda")
+		_, _, err := client.GetLibrary(30, 0, 0, "zelda")
 		if err != nil {
 			t.Fatalf("GetLibrary with search failed: %v", err)
 		}
@@ -191,7 +191,7 @@ func TestGetPlatforms(t *testing.T) {
 
 		client := NewClient(server.URL)
 		client.Token = "test-token"
-		platforms, total, err := client.GetPlatforms(25, 0)
+		platforms, total, err := client.GetPlatforms(30, 0)
 		if err != nil {
 			t.Fatalf("GetPlatforms failed: %v", err)
 		}

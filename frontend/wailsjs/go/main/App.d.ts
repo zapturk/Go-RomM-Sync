@@ -47,6 +47,8 @@ export function GetLibrary(arg1:number,arg2:number,arg3:number,arg4:string):Prom
 
 export function GetLibraryPath():Promise<string>;
 
+export function GetLocalGame(arg1:number):Promise<types.Game>;
+
 export function GetPassword():Promise<string>;
 
 export function GetPlatformCover(arg1:number,arg2:string):Promise<string>;
@@ -116,6 +118,10 @@ export function SelectLibraryPath():Promise<string>;
 export function SelectRetroArchExecutable():Promise<string>;
 
 export function SetPlatformFirmware(arg1:string,arg2:types.Firmware):Promise<void>;
+
+export function SyncOfflineMetadata():Promise<void>;
+
+export function ToggleOfflineMode():Promise<boolean>;
 
 export function UploadSave(arg1:number,arg2:string,arg3:string):Promise<void>;
 

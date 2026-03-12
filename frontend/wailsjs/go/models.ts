@@ -11,6 +11,7 @@ export namespace types {
 	    cheevos_password: string;
 	    last_used_cores: Record<string, string>;
 	    platform_firmware: Record<string, number>;
+	    offline_mode: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppConfig(source);
@@ -28,6 +29,7 @@ export namespace types {
 	        this.cheevos_password = source["cheevos_password"];
 	        this.last_used_cores = source["last_used_cores"];
 	        this.platform_firmware = source["platform_firmware"];
+	        this.offline_mode = source["offline_mode"];
 	    }
 	}
 	export class FileItem {

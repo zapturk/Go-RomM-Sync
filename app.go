@@ -177,23 +177,92 @@ func (a *App) ClearImageCache() error {
 }
 
 func (a *App) GetLibrary(limit, offset, platformID int, search string) (types.LibraryResult[types.Game], error) {
-	items, total, err := a.rommSrv.GetLibrary(limit, offset, platformID, search)
-	if err != nil {
-		return types.LibraryResult[types.Game]{}, err
+	for {
+		cfg := a.configManager.GetConfig()
+		if cfg.OfflineMode {
+			items, total, err := a.librarySrv.GetLocalLibrary(limit, offset, platformID, search)
+			if err != nil {
+				return types.LibraryResult[types.Game]{}, err
+			}
+			return types.LibraryResult[types.Game]{
+				Items: items,
+				Total: total,
+			}, nil
+		}
+
+		items, total, err := a.rommSrv.GetLibrary(limit, offset, platformID, search)
+		if err != nil {
+			a.handleConnectionError(err)
+			continue
+		}
+		return types.LibraryResult[types.Game]{
+			Items: items,
+			Total: total,
+		}, nil
 	}
-	return types.LibraryResult[types.Game]{
-		Items: items,
-		Total: total,
-	}, nil
 }
 
 func (a *App) GetPlatforms(limit, offset int) (types.LibraryResult[types.Platform], error) {
-	items, total, err := a.rommSrv.GetPlatforms(limit, offset)
+	for {
+		cfg := a.configManager.GetConfig()
+		if cfg.OfflineMode {
+			return a.getOfflinePlatforms(limit, offset)
+		}
+
+		items, total, err := a.rommSrv.GetPlatforms(limit, offset)
+		if err != nil {
+			a.handleConnectionError(err)
+			continue
+		}
+		return types.LibraryResult[types.Platform]{
+			Items: items,
+			Total: total,
+		}, nil
+	}
+}
+
+func (a *App) getOfflinePlatforms(limit, offset int) (types.LibraryResult[types.Platform], error) {
+	// For now, simplicity: scan local library for platforms
+	// Alternatively, we could save platform metadata too, but scanning works for now.
+	items, _, err := a.librarySrv.GetLocalLibrary(1000, 0, 0, "")
 	if err != nil {
 		return types.LibraryResult[types.Platform]{}, err
 	}
+	platformMap := make(map[uint]types.Platform)
+	for i := range items {
+		game := &items[i]
+		if _, ok := platformMap[game.PlatformID]; ok {
+			continue
+		}
+		platform := game.Platform
+		// Fill in missing fields from the game struct
+		if platform.ID == 0 {
+			platform.ID = game.PlatformID
+		}
+		if platform.Name == "" {
+			platform.Name = game.PlatformDisplayName
+		}
+		if platform.Slug == "" {
+			platform.Slug = game.PlatformSlug
+		}
+		platformMap[game.PlatformID] = platform
+	}
+	var platforms []types.Platform
+	for _, p := range platformMap {
+		platforms = append(platforms, p)
+	}
+	// Basic paging for offline platforms
+	total := len(platforms)
+	start := offset
+	if start > total {
+		start = total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
 	return types.LibraryResult[types.Platform]{
-		Items: items,
+		Items: platforms[start:end],
 		Total: total,
 	}, nil
 }
@@ -252,6 +321,11 @@ func (a *App) DownloadRomToLibrary(id uint) error {
 }
 
 func (a *App) GetRomDownloadStatus(id uint) (bool, error) {
+	cfg := a.configManager.GetConfig()
+	if cfg.OfflineMode {
+		_, err := a.librarySrv.GetLocalGame(id)
+		return err == nil, nil
+	}
 	return a.librarySrv.GetRomDownloadStatus(id)
 }
 
@@ -340,8 +414,80 @@ func (a *App) PlayRomWithCore(id uint, coreName string) error {
 	return a.launcher.PlayRomWithCore(id, coreName)
 }
 
+func (a *App) ToggleOfflineMode() bool {
+	var newState bool
+	if err := a.configManager.Update(func(cfg *types.AppConfig) {
+		cfg.OfflineMode = !cfg.OfflineMode
+		newState = cfg.OfflineMode
+	}); err != nil {
+		a.LogErrorf("Failed to update config during ToggleOfflineMode: %v", err)
+	}
+	if a.ctx != nil {
+		wailsRuntime.EventsEmit(a.ctx, "offline-mode-changed", newState)
+	}
+	return newState
+}
+
+func (a *App) handleConnectionError(err error) {
+	if err == nil {
+		return
+	}
+	a.LogErrorf("Server operation failed: %v. Automatically switching to offline mode.", err)
+	if err := a.configManager.Update(func(cfg *types.AppConfig) {
+		cfg.OfflineMode = true
+	}); err != nil {
+		a.LogErrorf("Failed to update config during handleConnectionError: %v", err)
+	}
+	if a.ctx != nil {
+		wailsRuntime.EventsEmit(a.ctx, "offline-mode-changed", true)
+	}
+}
+
+func (a *App) SyncOfflineMetadata() error {
+	// Fetches metadata from server for all currently downloaded games
+	// and saves it locally. This helps migrate existing libraries.
+	const batchSize = 100
+	offset := 0
+	for {
+		batch, total, err := a.rommSrv.GetLibrary(batchSize, offset, 0, "")
+		if err != nil {
+			return err
+		}
+		if len(batch) == 0 {
+			break
+		}
+		for i := range batch {
+			game := &batch[i]
+			status, err := a.librarySrv.GetRomDownloadStatus(game.ID)
+			if err != nil {
+				a.LogErrorf("Failed to get download status for game %d: %v", game.ID, err)
+				continue
+			}
+			if status {
+				if err := a.librarySrv.SaveMetadata(game); err != nil {
+					a.LogErrorf("Failed to save metadata for game %d: %v", game.ID, err)
+				}
+			}
+		}
+		offset += batchSize
+		if offset >= total {
+			break
+		}
+	}
+	return nil
+}
+
 func (a *App) GetCoresForGame(id uint) ([]string, error) {
-	game, err := a.rommSrv.GetRom(id)
+	var game types.Game
+	var err error
+
+	cfg := a.configManager.GetConfig()
+	if cfg.OfflineMode {
+		game, err = a.librarySrv.GetLocalGame(id)
+	} else {
+		game, err = a.rommSrv.GetRom(id)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ROM info: %w", err)
 	}
@@ -350,7 +496,6 @@ func (a *App) GetCoresForGame(id uint) ([]string, error) {
 	platformSlug := a.GetResolvedPlatformSlug(&game)
 
 	// Strategy 0: User Preference (Last Used Core for this platform).
-	cfg := a.configManager.GetConfig()
 	lastUsed := ""
 	if platformSlug != "" {
 		lastUsed = cfg.LastUsedCores[platformSlug]
@@ -521,7 +666,18 @@ func (a *App) GetCheevosCredentials() (username, password string) {
 }
 
 func (a *App) GetRom(id uint) (types.Game, error) {
-	return a.rommSrv.GetRom(id)
+	for {
+		cfg := a.configManager.GetConfig()
+		if cfg.OfflineMode {
+			return a.librarySrv.GetLocalGame(id)
+		}
+		game, err := a.rommSrv.GetRom(id)
+		if err != nil {
+			a.handleConnectionError(err)
+			continue
+		}
+		return game, nil
+	}
 }
 
 func (a *App) DownloadFile(game *types.Game) (reader io.ReadCloser, filename string, err error) {
@@ -530,6 +686,9 @@ func (a *App) DownloadFile(game *types.Game) (reader io.ReadCloser, filename str
 
 func (a *App) DownloadFirmwareContent(id uint, fileName string) (io.ReadCloser, string, error) {
 	return a.rommSrv.GetClient().DownloadFirmwareContent(id, fileName)
+}
+func (a *App) GetLocalGame(id uint) (types.Game, error) {
+	return a.librarySrv.GetLocalGame(id)
 }
 
 func (a *App) RomMUploadSave(id uint, core, filename string, content []byte) error {

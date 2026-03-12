@@ -12,6 +12,7 @@ interface FileItemRowProps {
     focusKeyPrefix: string;
     status?: 'newer' | 'older' | 'equal' | 'unsynced';
     isDisabled?: boolean;
+    isOffline?: boolean;
 }
 
 interface ActionButtonProps {
@@ -45,7 +46,7 @@ const ActionButton = ({ focusKey, onEnterPress, onArrowPress, className, childre
     );
 };
 
-export const FileItemRow = ({ item, onDelete, onUpload, onDownload, focusKeyPrefix, status, isDisabled = false }: FileItemRowProps) => {
+export const FileItemRow = ({ item, onDelete, onUpload, onDownload, focusKeyPrefix, status, isDisabled = false, isOffline = false }: FileItemRowProps) => {
     // Provide a default focus receiver if the prefix is targeted directly
     const { ref: rowRef } = useFocusable({
         focusKey: !isDisabled ? focusKeyPrefix : undefined,
@@ -87,7 +88,7 @@ export const FileItemRow = ({ item, onDelete, onUpload, onDownload, focusKeyPref
                         <DownloadIcon size={16} />
                     </ActionButton>
                 )}
-                {onUpload && !isDisabled && (
+                {onUpload && !isDisabled && !isOffline && (
                     <ActionButton
                         focusKey={`${focusKeyPrefix}-upload`}
                         onEnterPress={onUpload}
