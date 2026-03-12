@@ -210,21 +210,23 @@ func (a *App) GetPlatforms(limit, offset int) (types.LibraryResult[types.Platfor
 			return types.LibraryResult[types.Platform]{}, err
 		}
 		platformMap := make(map[uint]types.Platform)
-		for _, game := range items {
-			if _, ok := platformMap[game.PlatformID]; !ok {
-				platform := game.Platform
-				// Fill in missing fields from the game struct
-				if platform.ID == 0 {
-					platform.ID = game.PlatformID
-				}
-				if platform.Name == "" {
-					platform.Name = game.PlatformDisplayName
-				}
-				if platform.Slug == "" {
-					platform.Slug = game.PlatformSlug
-				}
-				platformMap[game.PlatformID] = platform
+		for i := range items {
+			game := &items[i]
+			if _, ok := platformMap[game.PlatformID]; ok {
+				continue
 			}
+			platform := game.Platform
+			// Fill in missing fields from the game struct
+			if platform.ID == 0 {
+				platform.ID = game.PlatformID
+			}
+			if platform.Name == "" {
+				platform.Name = game.PlatformDisplayName
+			}
+			if platform.Slug == "" {
+				platform.Slug = game.PlatformSlug
+			}
+			platformMap[game.PlatformID] = platform
 		}
 		var platforms []types.Platform
 		for _, p := range platformMap {
@@ -442,7 +444,8 @@ func (a *App) SyncOfflineMetadata() error {
 		if len(batch) == 0 {
 			break
 		}
-		for _, game := range batch {
+		for i := range batch {
+			game := &batch[i]
 			status, _ := a.librarySrv.GetRomDownloadStatus(game.ID)
 			if status {
 				_ = a.librarySrv.SaveMetadata(game)

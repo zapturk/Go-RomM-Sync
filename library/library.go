@@ -142,7 +142,7 @@ func (s *Service) DownloadRomToLibrary(id uint) error {
 	}
 
 	// Save metadata for offline use
-	if err := s.SaveMetadata(game); err != nil {
+	if err := s.SaveMetadata(&game); err != nil {
 		s.ui.LogErrorf("DownloadRomToLibrary: Failed to save metadata for ID %d: %v", id, err)
 	}
 
@@ -150,8 +150,8 @@ func (s *Service) DownloadRomToLibrary(id uint) error {
 }
 
 // SaveMetadata saves the game metadata to a local JSON file.
-func (s *Service) SaveMetadata(game types.Game) error {
-	destDir := s.GetRomDir(&game)
+func (s *Service) SaveMetadata(game *types.Game) error {
+	destDir := s.GetRomDir(game)
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
