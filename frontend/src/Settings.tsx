@@ -380,8 +380,7 @@ function SettingsForm({
                                 className={`btn ${isSaving ? 'disabled' : ''}`}
                                 style={{
                                     minWidth: '120px',
-                                    backgroundColor: offlineMode ? '#44ff44' : 'rgba(255,255,255,0.1)',
-                                    color: offlineMode ? '#000' : '#fff'
+                                    backgroundColor: offlineMode ? '#4CAF50' : 'rgba(255,255,255,0.1)',
                                 }}
                                 onClick={handleToggleOffline}
                                 onEnterPress={handleToggleOffline}
