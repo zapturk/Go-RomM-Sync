@@ -526,328 +526,332 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         return () => window.removeEventListener('keydown', handleKeyDown, true);
     }, [saves, serverSaves, states, serverStates, gameId, isPickerOpen, isFirmwarePickerOpen, closePicker, closeFirmwarePicker]);
 
-    if (loading) {
-        return <div className="game-page-loading">Loading game details...</div>;
-    }
-
-    if (!game) {
-        return <div className="game-page-error">Game not found.</div>;
-    }
-
     const isMac = navigator.userAgent.includes('Mac');
-    const is3DS = (game.platform_slug?.toLowerCase() === '3ds') ||
-        (game.platform_display_name?.toLowerCase().includes('3ds')) ||
-        (game.full_path?.toLowerCase().includes('/3ds/'));
+    const is3DS = (game?.platform_slug?.toLowerCase() === '3ds') ||
+        (game?.platform_display_name?.toLowerCase().includes('3ds')) ||
+        (game?.full_path?.toLowerCase().includes('/3ds/'));
     const isUnsupported = isMac && is3DS;
 
 
     return (
         <div id="game-page" ref={ref}>
-            <div className="library-header-extras" style={{
-                position: 'fixed',
-                top: '5rem',
-                right: '11rem',
-                zIndex: 100,
-                display: 'flex',
-                gap: '1rem',
-                alignItems: 'center'
-            }}>
-                {offlineMode && (
-                    <div className="offline-badge" style={{
-                        backgroundColor: '#ff4444',
-                        color: 'white',
-                        padding: '4px 12px',
-                        borderRadius: '20px',
-                        fontSize: '0.8rem',
-                        fontWeight: 'bold',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '1px'
+            {loading ? (
+                <div className="game-page-loading">Loading game details...</div>
+            ) : !game ? (
+                <div className="game-page-error">Game not found.</div>
+            ) : (
+                <>
+                    <div className="library-header-extras" style={{
+                        position: 'fixed',
+                        top: '5rem',
+                        right: '11rem',
+                        zIndex: 100,
+                        display: 'flex',
+                        gap: '1rem',
+                        alignItems: 'center'
                     }}>
-                        Offline Mode
+                        {offlineMode && (
+                            <div className="offline-badge" style={{
+                                backgroundColor: '#ff4444',
+                                color: 'white',
+                                padding: '4px 12px',
+                                borderRadius: '20px',
+                                fontSize: '0.8rem',
+                                fontWeight: 'bold',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                                textTransform: 'uppercase',
+                                letterSpacing: '1px'
+                            }}>
+                                Offline Mode
+                            </div>
+                        )}
                     </div>
-                )}
-            </div>
-            {isPickerOpen && (
-                <div className="core-picker-overlay" onClick={closePicker}>
-                    <div className="core-picker-modal" onClick={e => e.stopPropagation()}>
-                        <div className="core-picker-header">
-                            <h3>Select Core</h3>
-                        </div>
-                        <div className="core-picker-list">
-                            {availableCores.map((core, idx) => (
-                                <CoreOption
-                                    key={core}
-                                    core={core}
-                                    isSelected={core === selectedCore}
-                                    isFirst={idx === 0}
-                                    onSelect={() => {
-                                        setSelectedCore(core);
-                                        closePicker();
-                                    }}
-                                    focusKey={`core-option-${idx}`}
-                                />
-                            ))}
-                        </div>
-                        <CancelButton onCancel={closePicker} />
-                    </div>
-                </div>
-            )}
-            {isFirmwarePickerOpen && (
-                <div className="core-picker-overlay" onClick={closeFirmwarePicker}>
-                    <div className="core-picker-modal" onClick={e => e.stopPropagation()}>
-                        <div className="core-picker-header">
-                            <h3>Select Firmware</h3>
-                        </div>
-                        <div className="core-picker-list">
-                            <FirmwareOption
-                                id={0}
-                                name="No Firmware"
-                                isSelected={selectedFirmwareId === 0}
-                                isFirst={true}
-                                onSelect={() => handleFirmwareChange(0)}
-                                focusKey="firmware-option-0"
-                            />
-                            {firmwares.map((fw, idx) => (
-                                <FirmwareOption
-                                    key={fw.id}
-                                    id={fw.id}
-                                    name={`${fw.file_name} ${fw.is_verified ? '✓' : ''}`}
-                                    isSelected={fw.id === selectedFirmwareId}
-                                    isFirst={false}
-                                    onSelect={() => handleFirmwareChange(fw.id)}
-                                    focusKey={`firmware-option-${idx + 1}`}
-                                />
-                            ))}
-                        </div>
-                        <CancelButton onCancel={closeFirmwarePicker} />
-                    </div>
-                </div>
-            )}
-            <div className="game-page-content">
-                <div className="game-sidebar">
-                    <GameCover game={game} className="game-page-cover" />
-                    {game.fs_size_bytes > 0 && (
-                        <div className="game-file-size">
-                            {formatFileSize(game.fs_size_bytes)}
+                    {isPickerOpen && (
+                        <div className="core-picker-overlay" onClick={closePicker}>
+                            <div className="core-picker-modal" onClick={e => e.stopPropagation()}>
+                                <div className="core-picker-header">
+                                    <h3>Select Core</h3>
+                                </div>
+                                <div className="core-picker-list">
+                                    {availableCores.map((core, idx) => (
+                                        <CoreOption
+                                            key={core}
+                                            core={core}
+                                            isSelected={core === selectedCore}
+                                            isFirst={idx === 0}
+                                            onSelect={() => {
+                                                setSelectedCore(core);
+                                                closePicker();
+                                            }}
+                                            focusKey={`core-option-${idx}`}
+                                        />
+                                    ))}
+                                </div>
+                                <CancelButton onCancel={closePicker} />
+                            </div>
                         </div>
                     )}
-                    {statusChecked && (
-                        !isDownloaded ? (
-                            isUnsupported ? (
-                                <button
-                                    className="btn download-btn disabled"
-                                    disabled={true}
-                                    style={{ opacity: 0.5, cursor: 'not-allowed' }}
-                                >
-                                    Not Supported on macOS
-                                </button>
-                            ) : (
-                                !offlineMode ? (
-                                    <InnerDownloadButton
-                                        isDisabled={downloading || isPlaying}
-                                        isDownloading={downloading}
-                                        isExtracting={isExtracting}
-                                        hasSaves={hasSavesOrStates}
-                                        onDownload={handleDownload}
-                                        onFocusSaves={focusFirstAvailableSaveState}
-                                    />
-                                ) : (
-                                    <div className="offline-status-msg">Download unavailable offline</div>
-                                )
-                            )
-                        ) : (
-                            <>
-                                <div className="game-firmware-section">
-                                    <h3>Platform Firmware</h3>
-                                    {firmwares.length > 0 ? (
-                                        <InnerFirmwareSelector
-                                            firmwares={firmwares}
-                                            selectedId={selectedFirmwareId}
-                                            isDownloading={firmwareDownloading}
-                                            status={firmwareStatus}
-                                            hasSaves={hasSavesOrStates}
-                                            onClick={() => setIsFirmwarePickerOpen(true)}
-                                            onFocusRequest={() => setFocus('firmware-selector')}
-                                            onFocusSaves={focusFirstAvailableSaveState}
-                                        />
-                                    ) : (
-                                        <div className="firmware-status">No firmware available in RomM</div>
-                                    )}
+                    {isFirmwarePickerOpen && (
+                        <div className="core-picker-overlay" onClick={closeFirmwarePicker}>
+                            <div className="core-picker-modal" onClick={e => e.stopPropagation()}>
+                                <div className="core-picker-header">
+                                    <h3>Select Firmware</h3>
                                 </div>
-                                {availableCores.length > 0 && (
-                                    <div className="game-core-section">
-                                        <h3>Core</h3>
-                                        <InnerCoreSelector
-                                            currentCore={selectedCore}
+                                <div className="core-picker-list">
+                                    <FirmwareOption
+                                        id={0}
+                                        name="No Firmware"
+                                        isSelected={selectedFirmwareId === 0}
+                                        isFirst={true}
+                                        onSelect={() => handleFirmwareChange(0)}
+                                        focusKey="firmware-option-0"
+                                    />
+                                    {firmwares.map((fw, idx) => (
+                                        <FirmwareOption
+                                            key={fw.id}
+                                            id={fw.id}
+                                            name={`${fw.file_name} ${fw.is_verified ? '✓' : ''}`}
+                                            isSelected={fw.id === selectedFirmwareId}
+                                            isFirst={false}
+                                            onSelect={() => handleFirmwareChange(fw.id)}
+                                            focusKey={`firmware-option-${idx + 1}`}
+                                        />
+                                    ))}
+                                </div>
+                                <CancelButton onCancel={closeFirmwarePicker} />
+                            </div>
+                        </div>
+                    )}
+                    <div className="game-page-content">
+                        <div className="game-sidebar">
+                            <GameCover game={game} className="game-page-cover" />
+                            {game.fs_size_bytes > 0 && (
+                                <div className="game-file-size">
+                                    {formatFileSize(game.fs_size_bytes)}
+                                </div>
+                            )}
+                            {statusChecked && (
+                                !isDownloaded ? (
+                                    isUnsupported ? (
+                                        <button
+                                            className="btn download-btn disabled"
+                                            disabled={true}
+                                            style={{ opacity: 0.5, cursor: 'not-allowed' }}
+                                        >
+                                            Not Supported on macOS
+                                        </button>
+                                    ) : (
+                                        !offlineMode ? (
+                                            <InnerDownloadButton
+                                                isDisabled={downloading || isPlaying}
+                                                isDownloading={downloading}
+                                                isExtracting={isExtracting}
+                                                hasSaves={hasSavesOrStates}
+                                                onDownload={handleDownload}
+                                                onFocusSaves={focusFirstAvailableSaveState}
+                                            />
+                                        ) : (
+                                            <div className="offline-notice">
+                                                Download unavailable in offline mode
+                                            </div>
+                                        )
+                                    )
+                                ) : (
+                                    <div className="game-actions-vertical">
+                                        <div className="game-firmware-section">
+                                            <h3>Platform Firmware</h3>
+                                            {firmwares.length > 0 ? (
+                                                <InnerFirmwareSelector
+                                                    firmwares={firmwares}
+                                                    selectedId={selectedFirmwareId}
+                                                    isDownloading={firmwareDownloading}
+                                                    status={firmwareStatus}
+                                                    hasSaves={hasSavesOrStates}
+                                                    onClick={() => setIsFirmwarePickerOpen(true)}
+                                                    onFocusRequest={() => setFocus('firmware-selector')}
+                                                    onFocusSaves={focusFirstAvailableSaveState}
+                                                />
+                                            ) : (
+                                                <div className="firmware-status">No firmware available in RomM</div>
+                                            )}
+                                        </div>
+                                        <div className="game-core-section">
+                                            <h3>Core</h3>
+                                            {availableCores.length > 0 && (
+                                                <InnerCoreSelector
+                                                    currentCore={selectedCore}
+                                                    isDisabled={isPlaying}
+                                                    hasFirmware={firmwares.length > 0}
+                                                    hasSaves={hasSavesOrStates}
+                                                    onClick={() => setIsPickerOpen(true)}
+                                                    onFocusRequest={() => setFocus('core-selector')}
+                                                    onFocusSaves={focusFirstAvailableSaveState}
+                                                />
+                                            )}
+                                        </div>
+                                        <InnerPlayButton
                                             isDisabled={isPlaying}
+                                            hasCore={availableCores.length > 0}
                                             hasFirmware={firmwares.length > 0}
                                             hasSaves={hasSavesOrStates}
-                                            onClick={() => setIsPickerOpen(true)}
-                                            onFocusRequest={() => setFocus('core-selector')}
+                                            onPlay={handlePlay}
+                                            onFocusSaves={focusFirstAvailableSaveState}
+                                        />
+                                        <InnerOpenFolderButton
+                                            hasSaves={hasSavesOrStates}
+                                            onOpenFolder={handleOpenFolder}
+                                            onFocusSaves={focusFirstAvailableSaveState}
+                                        />
+                                        <InnerDeleteButton
+                                            isDisabled={isPlaying}
+                                            hasSaves={hasSavesOrStates}
+                                            onDelete={handleDelete}
+                                            onFocusDownload={() => setFocus('download-button')}
                                             onFocusSaves={focusFirstAvailableSaveState}
                                         />
                                     </div>
-                                )}
-                                <div className="game-actions-vertical">
-                                    <InnerPlayButton
-                                        isDisabled={isPlaying}
-                                        hasCore={availableCores.length > 0}
-                                        hasFirmware={firmwares.length > 0}
-                                        hasSaves={hasSavesOrStates}
-                                        onPlay={handlePlay}
-                                        onFocusSaves={focusFirstAvailableSaveState}
-                                    />
-                                    <InnerOpenFolderButton
-                                        hasSaves={hasSavesOrStates}
-                                        onOpenFolder={handleOpenFolder}
-                                        onFocusSaves={focusFirstAvailableSaveState}
-                                    />
-                                    <InnerDeleteButton
-                                        isDisabled={isPlaying}
-                                        hasSaves={hasSavesOrStates}
-                                        onDelete={handleDelete}
-                                        onFocusDownload={() => setFocus('download-button')}
-                                        onFocusSaves={focusFirstAvailableSaveState}
-                                    />
-                                </div>
-                            </>
-                        )
-                    )}
-                    {downloadStatus && (
-                        <div className={`download-status ${downloadStatus.includes("Error") ? "error" : "success"} ${statusFading && !downloadStatus.includes("Error") ? "fading" : ""}`}>
-                            {downloadStatus}
-                            {downloading && downloadProgress > 0 && downloadProgress < 100 && (
-                                <span style={{ marginLeft: "10px", fontWeight: "bold" }}>
-                                    ({Math.round(downloadProgress)}%)
-                                </span>
+                                )
                             )}
-                        </div>
-                    )}
-                </div>
-                <div className="game-main-info">
-                    <h1>{game.name}</h1>
-                    {game.genres && game.genres.length > 0 && (
-                        <div className="game-genres">
-                            {game.genres.map((genre: string, idx: number) => (
-                                <span key={idx} className="genre-tag">{genre}</span>
-                            ))}
-                        </div>
-                    )}
-                    <div className="game-summary">
-                        <h3>Summary</h3>
-                        <p>{decodeHtml(game.summary) || "No summary available."}</p>
-                    </div>
-                    <div className="game-saves-states-section">
-                        <div className="game-saves-column">
-                            <h3>Server Saves</h3>
-                            <div className="file-list">
-                                {serverSaves.map((save, idx) => (
-                                    <FileItemRow
-                                        key={`server-save-${idx}`}
-                                        focusKeyPrefix={`server-save-${idx}`}
-                                        item={save}
-                                        onDownload={() => handleDownloadServerSave(save)}
-                                        status={getFileStatus(save, saves)}
-                                        isDisabled={isPlaying || offlineMode}
-                                    />
-                                ))}
-                                {(serverSaves.length === 0 || offlineMode) && <p className="no-files">{offlineMode ? "Server sync unavailable offline" : "No server saves found."}</p>}
-                            </div>
-
-                            <h3 style={{ marginTop: '20px' }}>Local Saves</h3>
-                            <div className="file-list">
-                                {saves.map((save, idx) => (
-                                    <FileItemRow
-                                        key={`save-${idx}`}
-                                        focusKeyPrefix={`save-${idx}`}
-                                        item={save}
-                                        onDelete={() => handleDeleteSave(save.core, save.name, idx)}
-                                        onUpload={() => handleUploadSave(save.core, save.name)}
-                                        status={getFileStatus(save, serverSaves)}
-                                        isDisabled={isPlaying}
-                                        isOffline={offlineMode}
-                                    />
-                                ))}
-                                {saves.length === 0 && <p className="no-files">No local saves found.</p>}
+                            <div className={`status-display ${statusFading ? 'fading' : ''}`}>
+                                {downloadStatus}
+                                {downloading && downloadProgress > 0 && downloadProgress < 100 && (
+                                    <div className="progress-container">
+                                        <div className="progress-bar" style={{ width: `${downloadProgress}%` }}></div>
+                                    </div>
+                                )}
                             </div>
                         </div>
-                        <div className="game-states-column">
-                            <h3>Server States</h3>
-                            <div className="file-list">
-                                {serverStates.map((state, idx) => (
-                                    <FileItemRow
-                                        key={`server-state-${idx}`}
-                                        focusKeyPrefix={`server-state-${idx}`}
-                                        item={state}
-                                        onDownload={() => handleDownloadServerState(state)}
-                                        status={getFileStatus(state, states)}
-                                        isDisabled={isPlaying || offlineMode}
-                                    />
-                                ))}
-                                {(serverStates.length === 0 || offlineMode) && <p className="no-files">{offlineMode ? "Server sync unavailable offline" : "No server states found."}</p>}
+
+                        <div className="game-main-info">
+                            <div className="game-header-row">
+                                <h1 className="game-title">{decodeHtml(game.name)}</h1>
+                            </div>
+                            <div className="game-meta">
+                                {game.genres && game.genres.length > 0 && (
+                                    <div className="game-genres">
+                                        {game.genres.map((genre: string, idx: number) => (
+                                            <span key={idx} className="genre-tag">{genre}</span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="game-description">
+                                <h3>Summary</h3>
+                                <p>
+                                    {decodeHtml(game.summary || "No description available.")}
+                                </p>
+                            </div>
+                            <div className="game-saves-states-section">
+                                <div className="game-saves-column">
+                                    <h3>Server Saves</h3>
+                                    <div className="file-list">
+                                        {serverSaves.map((save, idx) => (
+                                            <FileItemRow
+                                                key={`server-save-${idx}`}
+                                                focusKeyPrefix={`server-save-${idx}`}
+                                                item={save}
+                                                onDownload={() => handleDownloadServerSave(save)}
+                                                status={getFileStatus(save, saves)}
+                                                isDisabled={isPlaying || offlineMode}
+                                            />
+                                        ))}
+                                        {(serverSaves.length === 0 || offlineMode) && <p className="no-files">{offlineMode ? "Server sync unavailable offline" : "No server saves found."}</p>}
+                                    </div>
+
+                                    <h3 style={{ marginTop: '20px' }}>Local Saves</h3>
+                                    <div className="file-list">
+                                        {saves.map((save, idx) => (
+                                            <FileItemRow
+                                                key={`save-${idx}`}
+                                                focusKeyPrefix={`save-${idx}`}
+                                                item={save}
+                                                onDelete={() => handleDeleteSave(save.core, save.name, idx)}
+                                                onUpload={() => handleUploadSave(save.core, save.name)}
+                                                status={getFileStatus(save, serverSaves)}
+                                                isDisabled={isPlaying}
+                                                isOffline={offlineMode}
+                                            />
+                                        ))}
+                                        {saves.length === 0 && <p className="no-files">No local saves found.</p>}
+                                    </div>
+                                </div>
+                                <div className="game-states-column">
+                                    <h3>Server States</h3>
+                                    <div className="file-list">
+                                        {serverStates.map((state, idx) => (
+                                            <FileItemRow
+                                                key={`server-state-${idx}`}
+                                                focusKeyPrefix={`server-state-${idx}`}
+                                                item={state}
+                                                onDownload={() => handleDownloadServerState(state)}
+                                                status={getFileStatus(state, states)}
+                                                isDisabled={isPlaying || offlineMode}
+                                            />
+                                        ))}
+                                        {(serverStates.length === 0 || offlineMode) && <p className="no-files">{offlineMode ? "Server sync unavailable offline" : "No server states found."}</p>}
+                                    </div>
+
+                                    <h3 style={{ marginTop: '20px' }}>Local States</h3>
+                                    <div className="file-list">
+                                        {states.map((state, idx) => (
+                                            <FileItemRow
+                                                key={`state-${idx}`}
+                                                focusKeyPrefix={`state-${idx}`}
+                                                item={state}
+                                                onDelete={() => handleDeleteState(state.core, state.name, idx)}
+                                                onUpload={() => handleUploadState(state.core, state.name)}
+                                                status={getFileStatus(state, serverStates)}
+                                                isDisabled={isPlaying}
+                                                isOffline={offlineMode}
+                                            />
+                                        ))}
+                                        {states.length === 0 && <p className="no-files">No local states found.</p>}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="input-legend">
+                        <div className="footer-left">
+                            <span>{game.name}</span>
+                        </div>
+                        <div className="footer-right">
+                            <div className="legend-item">
+                                <div className="btn-icon show-gamepad">
+                                    <div className="btn-dot north"></div>
+                                    <div className="btn-dot east"></div>
+                                    <div className="btn-dot south"></div>
+                                    <div className="btn-dot west active"></div>
+                                </div>
+                                <div className="key-icon show-keyboard">R</div>
+                                <span>Sync</span>
                             </div>
 
-                            <h3 style={{ marginTop: '20px' }}>Local States</h3>
-                            <div className="file-list">
-                                {states.map((state, idx) => (
-                                    <FileItemRow
-                                        key={`state-${idx}`}
-                                        focusKeyPrefix={`state-${idx}`}
-                                        item={state}
-                                        onDelete={() => handleDeleteState(state.core, state.name, idx)}
-                                        onUpload={() => handleUploadState(state.core, state.name)}
-                                        status={getFileStatus(state, serverStates)}
-                                        isDisabled={isPlaying}
-                                        isOffline={offlineMode}
-                                    />
-                                ))}
-                                {states.length === 0 && <p className="no-files">No local states found.</p>}
+                            <div className="legend-item">
+                                <div className="btn-icon show-gamepad">
+                                    <div className="btn-dot north"></div>
+                                    <div className="btn-dot east active"></div>
+                                    <div className="btn-dot south"></div>
+                                    <div className="btn-dot west"></div>
+                                </div>
+                                <div className="key-icon show-keyboard">ESC</div>
+                                <span>Back</span>
+                            </div>
+
+                            <div className="legend-item">
+                                <div className="btn-icon show-gamepad">
+                                    <div className="btn-dot north"></div>
+                                    <div className="btn-dot east"></div>
+                                    <div className="btn-dot south active"></div>
+                                    <div className="btn-dot west"></div>
+                                </div>
+                                <div className="key-icon show-keyboard">ENTER</div>
+                                <span>OK</span>
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
-
-            <div className="input-legend">
-                <div className="footer-left">
-                    <span>{game.name}</span>
-                </div>
-                <div className="footer-right">
-                    <div className="legend-item">
-                        <div className="btn-icon show-gamepad">
-                            <div className="btn-dot north"></div>
-                            <div className="btn-dot east"></div>
-                            <div className="btn-dot south"></div>
-                            <div className="btn-dot west active"></div>
-                        </div>
-                        <div className="key-icon show-keyboard">R</div>
-                        <span>Sync</span>
-                    </div>
-
-                    <div className="legend-item">
-                        <div className="btn-icon show-gamepad">
-                            <div className="btn-dot north"></div>
-                            <div className="btn-dot east active"></div>
-                            <div className="btn-dot south"></div>
-                            <div className="btn-dot west"></div>
-                        </div>
-                        <div className="key-icon show-keyboard">ESC</div>
-                        <span>Back</span>
-                    </div>
-
-                    <div className="legend-item">
-                        <div className="btn-icon show-gamepad">
-                            <div className="btn-dot north"></div>
-                            <div className="btn-dot east"></div>
-                            <div className="btn-dot south active"></div>
-                            <div className="btn-dot west"></div>
-                        </div>
-                        <div className="key-icon show-keyboard">ENTER</div>
-                        <span>OK</span>
-                    </div>
-                </div>
-            </div>
+                </>
+            )}
         </div>
     );
 }

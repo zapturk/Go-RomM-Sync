@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 
-interface FocusableButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface FocusableInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
     focusKey?: string;
     onEnterPress?: () => void;
     onArrowPress?: (direction: string) => boolean;
@@ -9,16 +9,15 @@ interface FocusableButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElem
     onBlur?: () => void;
 }
 
-export function FocusableButton({
+export function FocusableInput({
     focusKey,
     onEnterPress,
     onArrowPress,
     onFocus,
     onBlur,
-    children,
     className,
     ...props
-}: FocusableButtonProps) {
+}: FocusableInputProps) {
     const { ref, focused } = useFocusable({
         focusKey,
         onEnterPress,
@@ -37,17 +36,17 @@ export function FocusableButton({
                     block: 'center',
                     inline: 'nearest'
                 });
+                // Also focus the actual DOM element so user can start typing
+                element.focus();
             }, 50);
         }
     }, [focused]);
 
     return (
-        <button
+        <input
             ref={ref}
             className={`${className || ''} ${focused ? 'focused' : ''}`}
             {...props}
-        >
-            {children}
-        </button>
+        />
     );
 }

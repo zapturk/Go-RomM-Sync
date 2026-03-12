@@ -83,113 +83,92 @@ function Login({ onLoginSuccess }: LoginProps) {
     });
 
     return (
-        <div id="login-page" ref={ref} style={{ padding: '2rem 4rem', textAlign: 'left', maxWidth: '900px', margin: '0 auto', height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <div className="nav-header" style={{ marginBottom: '2.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
-                <a
-                    href="https://github.com/rommapp/romm"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="Visit official RomM GitHub"
-                    style={{ transition: 'transform 0.2s' }}
-                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                >
-                    <img
-                        src="https://raw.githubusercontent.com/rommapp/romm/master/.github/resources/isotipo.svg"
-                        alt="RomM Logo"
-                        style={{ height: '80px', width: 'auto' }}
-                    />
-                </a>
-                <h1 style={{ margin: 0, fontSize: '3rem', letterSpacing: '2px', textTransform: 'uppercase' }}>Login</h1>
-            </div>
-
-            <div id="result" className="result" style={{ marginBottom: '3rem', textAlign: 'center', color: 'rgba(255,255,255,0.7)', fontSize: '1.2rem', minHeight: '1.4em' }}>{resultText}</div>
-
-            <div className="login-container" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', alignItems: 'center' }}>
-                <div className="section" style={{ width: '100%', maxWidth: '500px' }}>
-                    <div className="input-group" style={{ width: '100%', marginBottom: '1.5rem' }}>
-                        <label htmlFor="server">RomM Server URL</label>
-                        <input
-                            id="server"
-                            className="input"
-                            style={{ width: '100%' }}
-                            value={server}
-                            onChange={(e) => setServer(e.target.value)}
-                            onKeyDown={handleInputKeyDown}
-                            autoComplete="off"
-                            placeholder="http://localhost:8080"
-                            onFocus={() => setFocus('server-input')}
-                        />
+        <div id="login-page" ref={ref}>
+            <div className="login-content settings-content">
+                <div className="settings-inner">
+                    <div className="settings-header">
+                        <a
+                            href="https://github.com/rommapp/romm"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="logo-link"
+                        >
+                            <img
+                                src="https://raw.githubusercontent.com/rommapp/romm/master/.github/resources/isotipo.svg"
+                                alt="RomM Logo"
+                                style={{ height: '80px', width: 'auto', marginBottom: '1rem' }}
+                            />
+                        </a>
+                        <h1>Login</h1>
+                        <div className="settings-status-box">{resultText}</div>
                     </div>
-                    <div className="input-group" style={{ width: '100%', marginBottom: '1.5rem' }}>
-                        <label htmlFor="username">Username</label>
-                        <input
-                            id="username"
-                            className="input"
-                            style={{ width: '100%' }}
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            onKeyDown={handleInputKeyDown}
-                            autoComplete="off"
-                        />
+
+                    <div className="premium-card" style={{ maxWidth: '500px', margin: '0 auto', width: '100%' }}>
+                        <div className="input-group">
+                            <label htmlFor="server">RomM Server URL</label>
+                            <input
+                                id="server"
+                                className="input"
+                                value={server}
+                                onChange={(e) => setServer(e.target.value)}
+                                onKeyDown={handleInputKeyDown}
+                                autoComplete="off"
+                                placeholder="e.g. http://localhost:8080"
+                                onFocus={() => setFocus('server-input')}
+                            />
+                        </div>
+                        <div className="input-group">
+                            <label htmlFor="username">Username</label>
+                            <input
+                                id="username"
+                                className="input"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                onKeyDown={handleInputKeyDown}
+                                autoComplete="off"
+                            />
+                        </div>
+                        <div className="input-group">
+                            <label htmlFor="password">Password</label>
+                            <input
+                                id="password"
+                                className="input"
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                onKeyDown={handleInputKeyDown}
+                                autoComplete="off"
+                            />
+                        </div>
+
+                        <button
+                            ref={connectRef}
+                            className={`btn play-btn ${connectFocused ? 'focused' : ''}`}
+                            style={{
+                                width: '100%',
+                                height: '56px',
+                                fontSize: '1.2rem',
+                                marginTop: '1rem'
+                            }}
+                            onClick={handleConnect}
+                            disabled={isLoggingIn}
+                            onMouseEnter={() => getMouseActive() && setFocus('connect-button')}
+                        >
+                            {isLoggingIn ? "Connecting..." : "Connect"}
+                        </button>
                     </div>
-                    <div className="input-group" style={{ width: '100%', marginBottom: '2rem' }}>
-                        <label htmlFor="password">Password</label>
-                        <input
-                            id="password"
-                            className="input"
-                            type="password"
-                            style={{ width: '100%' }}
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            onKeyDown={handleInputKeyDown}
-                            autoComplete="off"
-                        />
+
+                    <div className="branding-disclaimer">
+                        This project is not affiliated with, endorsed by, or in any way officially connected with the
+                        <a
+                            href="https://github.com/rommapp/romm"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            RomM project
+                        </a>.
                     </div>
                 </div>
-
-                <div style={{ width: '100%', maxWidth: '500px' }}>
-                    <button
-                        ref={connectRef}
-                        className={`btn play-btn ${connectFocused ? 'focused' : ''}`}
-                        style={{
-                            width: '100%',
-                            height: '60px',
-                            fontSize: '1.3rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            margin: 0,
-                            letterSpacing: '1px'
-                        }}
-                        onClick={handleConnect}
-                        disabled={isLoggingIn}
-                        onMouseEnter={() => getMouseActive() && setFocus('connect-button')}
-                    >
-                        {isLoggingIn ? "Connecting..." : "Connect"}
-                    </button>
-                </div>
-            </div>
-
-            <div className="branding-disclaimer" style={{
-                marginTop: 'auto',
-                padding: '2rem 0',
-                textAlign: 'center',
-                fontSize: '0.85rem',
-                color: 'rgba(255,255,255,0.4)',
-                maxWidth: '600px',
-                alignSelf: 'center',
-                lineHeight: '1.4'
-            }}>
-                This project is not affiliated with, endorsed by, or in any way officially connected with the
-                <a
-                    href="https://github.com/rommapp/romm"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ color: 'inherit', textDecoration: 'underline', marginLeft: '4px' }}
-                >
-                    RomM project
-                </a>.
             </div>
 
             <div className="input-legend" style={{ position: 'fixed', bottom: 0, left: 0, right: 0 }}>
@@ -209,7 +188,7 @@ function Login({ onLoginSuccess }: LoginProps) {
                     </div>
                 </div>
             </div>
-        </div >
+        </div>
     );
 }
 

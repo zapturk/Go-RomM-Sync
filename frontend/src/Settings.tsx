@@ -5,6 +5,8 @@ import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
+import { FocusableButton } from './components/FocusableButton';
+import { FocusableInput } from './components/FocusableInput';
 
 interface SettingsProps {
     isActive?: boolean;
@@ -256,8 +258,8 @@ function SettingsForm({
     handleSyncMetadata,
     isSyncing
 }: SettingsFormProps) {
-    const { ref } = useFocusable({
-        trackChildren: true
+    const { ref: containerRef } = useFocusable({
+        trackChildren: true,
     });
 
     // Auto-focus save button on load or when view becomes active
@@ -269,260 +271,210 @@ function SettingsForm({
         }
     }, [isActive]);
 
-    const { ref: browseRARef, focused: browseRAFocused } = useFocusable({
-        focusKey: 'browse-ra-button',
-        onEnterPress: handleBrowseRA
-    });
-
-    const { ref: browseLibRef, focused: browseLibFocused } = useFocusable({
-        focusKey: 'browse-lib-button',
-        onEnterPress: handleBrowseLib
-    });
-
-    const { ref: defaultLibRef, focused: defaultLibFocused } = useFocusable({
-        focusKey: 'default-lib-button',
-        onEnterPress: handleSetDefaultLib
-    });
-
-    const { ref: clearCacheRef, focused: clearCacheFocused } = useFocusable({
-        focusKey: 'clear-cache-button',
-        onEnterPress: handleClearCache
-    });
-
-    const { ref: offlineToggleRef, focused: offlineToggleFocused } = useFocusable({
-        focusKey: 'offline-toggle-button',
-        onEnterPress: handleToggleOffline
-    });
-
-    const { ref: syncMetadataRef, focused: syncMetadataFocused } = useFocusable({
-        focusKey: 'sync-metadata-button',
-        onEnterPress: handleSyncMetadata
-    });
-
-    const { ref: logoutRef, focused: logoutFocused } = useFocusable({
-        focusKey: 'logout-button',
-        onEnterPress: handleLogout
-    });
-
-    const { ref: saveRef, focused: saveFocused } = useFocusable({
-        focusKey: 'save-button',
-        onEnterPress: handleSave
-    });
-
-    const handleInputKeyDown = (e: React.KeyboardEvent) => {
-        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
-            e.stopPropagation();
-        }
-    };
+    // Focus management handled by components
 
     return (
-        <div id="settings-page" ref={ref} style={{ padding: '2rem 4rem', textAlign: 'left', maxWidth: '900px', margin: '0 auto' }}>
-            <div className="nav-header" style={{ marginBottom: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <h1 style={{ margin: 0, fontSize: '2.5rem' }}>Settings</h1>
-            </div>
+        <div id="settings-page" className="settings-page">
+            <div className="settings-content" ref={containerRef}>
+                <div className="settings-inner">
+                    <div className="settings-header">
+                        <h1>Settings</h1>
+                        <div className="settings-status-box">{status}</div>
+                    </div>
 
-            <div id="result" className="result" style={{ marginBottom: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.7)', fontSize: '1.1rem' }}>{status}</div>
-
-            <div className="settings-container" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', alignItems: 'center' }}>
-                {/* Emulator Section */}
-                <div className="section" style={{ width: '100%', maxWidth: '500px' }}>
-                    <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', marginBottom: '1.5rem', color: 'rgba(255,255,255,0.9)' }}>Emulator Configuration</h3>
-                    <div className="input-group" style={{ width: '100%' }}>
-                        <label>RetroArch Executable</label>
-                        <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
-                            <input
-                                className="input"
-                                value={raPath}
-                                readOnly
-                                style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)' }}
-                                placeholder="Not configured"
-                            />
-                            <button
-                                ref={browseRARef}
-                                className={`btn ${browseRAFocused ? 'focused' : ''} ${isSaving ? 'disabled' : ''}`}
-                                style={{ margin: 0, minWidth: '100px' }}
-                                onClick={handleBrowseRA}
-                                disabled={isSaving}
-                                onMouseEnter={() => getMouseActive() && !isSaving && setFocus('browse-ra-button')}
-                            >
-                                Browse
-                            </button>
+                    {/* Emulator Section */}
+                    <div className="settings-card">
+                        <div className="settings-section-title">Emulator Configuration</div>
+                        <div className="input-group">
+                            <label>RetroArch Executable</label>
+                            <div>
+                                <FocusableInput
+                                    className="input"
+                                    value={raPath}
+                                    readOnly
+                                    placeholder="Not configured"
+                                    focusKey="ra-path-input"
+                                />
+                                <FocusableButton
+                                    focusKey="browse-ra-button"
+                                    className={`btn ${isSaving ? 'disabled' : ''}`}
+                                    onClick={handleBrowseRA}
+                                    onEnterPress={handleBrowseRA}
+                                    disabled={isSaving}
+                                    onMouseEnter={() => getMouseActive() && !isSaving && setFocus('browse-ra-button')}
+                                >
+                                    Browse
+                                </FocusableButton>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Library Section */}
-                <div className="section" style={{ width: '100%', maxWidth: '500px' }}>
-                    <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', marginBottom: '1.5rem', color: 'rgba(255,255,255,0.9)' }}>Library Configuration</h3>
-                    <div className="input-group" style={{ width: '100%' }}>
-                        <label>Local ROM Library Path</label>
-                        <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
-                            <input
-                                className="input"
-                                value={libPath}
-                                readOnly
-                                style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)' }}
-                                placeholder="Not configured"
-                            />
-                            <button
-                                ref={browseLibRef}
-                                className={`btn ${browseLibFocused ? 'focused' : ''} ${isSaving ? 'disabled' : ''}`}
-                                style={{ margin: 0, minWidth: '100px' }}
-                                onClick={handleBrowseLib}
-                                disabled={isSaving}
-                                onMouseEnter={() => getMouseActive() && !isSaving && setFocus('browse-lib-button')}
-                            >
-                                Browse
-                            </button>
-                            <button
-                                ref={defaultLibRef}
-                                className={`btn ${defaultLibFocused ? 'focused' : ''} ${isSaving ? 'disabled' : ''}`}
-                                style={{ margin: 0, minWidth: '120px' }}
-                                onClick={handleSetDefaultLib}
-                                disabled={isSaving}
-                                onMouseEnter={() => getMouseActive() && !isSaving && setFocus('default-lib-button')}
-                            >
-                                Set Default
-                            </button>
+                    {/* Library Section */}
+                    <div className="settings-card">
+                        <div className="settings-section-title">Library Configuration</div>
+                        <div className="input-group">
+                            <label>Local ROM Library Path</label>
+                            <div>
+                                <FocusableInput
+                                    className="input"
+                                    value={libPath}
+                                    readOnly
+                                    placeholder="Not configured"
+                                    focusKey="lib-path-input"
+                                />
+                                <FocusableButton
+                                    focusKey="browse-lib-button"
+                                    className={`btn ${isSaving ? 'disabled' : ''}`}
+                                    onClick={handleBrowseLib}
+                                    onEnterPress={handleBrowseLib}
+                                    disabled={isSaving}
+                                    onMouseEnter={() => getMouseActive() && !isSaving && setFocus('browse-lib-button')}
+                                >
+                                    Browse
+                                </FocusableButton>
+                                <FocusableButton
+                                    focusKey="default-lib-button"
+                                    className={`btn ${isSaving ? 'disabled' : ''}`}
+                                    onClick={handleSetDefaultLib}
+                                    onEnterPress={handleSetDefaultLib}
+                                    disabled={isSaving}
+                                    onMouseEnter={() => getMouseActive() && !isSaving && setFocus('default-lib-button')}
+                                >
+                                    Set Default
+                                </FocusableButton>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Maintenance Section */}
-                <div className="section" style={{ width: '100%', maxWidth: '500px' }}>
-                    <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', marginBottom: '1.5rem', color: 'rgba(255,255,255,0.9)' }}>Maintenance</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ color: 'rgba(255,255,255,0.7)' }}>Local Image Cache</span>
-                            <button
-                                ref={clearCacheRef}
-                                className={`btn ${clearCacheFocused ? 'focused' : ''} ${isSaving ? 'disabled' : ''}`}
-                                style={{ margin: 0, minWidth: '160px' }}
+                    {/* Maintenance Section */}
+                    <div className="settings-card">
+                        <div className="settings-section-title">Maintenance</div>
+                        <div className="settings-row">
+                            <div className="settings-row-info">
+                                <span className="settings-row-label">Local Image Cache</span>
+                                <span className="settings-row-desc">Refresh game covers and screenshots</span>
+                            </div>
+                            <FocusableButton
+                                focusKey="clear-cache-button"
+                                className={`btn ${isSaving ? 'disabled' : ''}`}
                                 onClick={handleClearCache}
+                                onEnterPress={handleClearCache}
                                 disabled={isSaving}
                                 onMouseEnter={() => getMouseActive() && !isSaving && setFocus('clear-cache-button')}
                             >
-                                Clear Image Cache
-                            </button>
+                                Clear Cache
+                            </FocusableButton>
                         </div>
                     </div>
-                </div>
 
-                {/* Offline Support Section */}
-                <div className="section" style={{ width: '100%', maxWidth: '500px' }}>
-                    <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', marginBottom: '1.5rem', color: 'rgba(255,255,255,0.9)' }}>Offline Support</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ color: 'rgba(255,255,255,0.7)' }}>Offline Mode</span>
-                            <button
-                                ref={offlineToggleRef}
-                                className={`btn ${offlineToggleFocused ? 'focused' : ''} ${isSaving ? 'disabled' : ''}`}
-                                style={{ 
-                                    margin: 0, 
-                                    minWidth: '160px',
+                    {/* Offline Support Section */}
+                    <div className="settings-card">
+                        <div className="settings-section-title">Offline Support</div>
+                        <div className="settings-row">
+                            <div className="settings-row-info">
+                                <span className="settings-row-label">Offline Mode</span>
+                                <span className="settings-row-desc">Enable browsing without server connection</span>
+                            </div>
+                            <FocusableButton
+                                focusKey="offline-toggle-button"
+                                className={`btn ${isSaving ? 'disabled' : ''}`}
+                                style={{
+                                    minWidth: '120px',
                                     backgroundColor: offlineMode ? '#44ff44' : 'rgba(255,255,255,0.1)',
                                     color: offlineMode ? '#000' : '#fff'
                                 }}
                                 onClick={handleToggleOffline}
+                                onEnterPress={handleToggleOffline}
                                 disabled={isSaving}
                                 onMouseEnter={() => getMouseActive() && !isSaving && setFocus('offline-toggle-button')}
                             >
                                 {offlineMode ? "Enabled" : "Disabled"}
-                            </button>
+                            </FocusableButton>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{ color: 'rgba(255,255,255,0.7)' }}>Sync Metadata</span>
-                                <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)' }}>Prepare for offline use</span>
+                        <div className="settings-row">
+                            <div className="settings-row-info">
+                                <span className="settings-row-label">Sync Metadata</span>
+                                <span className="settings-row-desc">Prepare game data for offline use</span>
                             </div>
-                            <button
-                                ref={syncMetadataRef}
-                                className={`btn ${syncMetadataFocused ? 'focused' : ''} ${isSaving || isSyncing ? 'disabled' : ''}`}
-                                style={{ margin: 0, minWidth: '160px' }}
+                            <FocusableButton
+                                focusKey="sync-metadata-button"
+                                className={`btn ${isSaving || isSyncing ? 'disabled' : ''}`}
                                 onClick={handleSyncMetadata}
+                                onEnterPress={handleSyncMetadata}
                                 disabled={isSaving || isSyncing}
                                 onMouseEnter={() => getMouseActive() && !isSaving && !isSyncing && setFocus('sync-metadata-button')}
                             >
                                 {isSyncing ? "Syncing..." : "Sync Now"}
-                            </button>
+                            </FocusableButton>
                         </div>
                     </div>
-                </div>
 
-                {/* RetroAchievements Section */}
-                <div className="section" style={{ width: '100%', maxWidth: '500px' }}>
-                    <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', marginBottom: '1.5rem', color: 'rgba(255,255,255,0.9)' }}>RetroAchievements</h3>
-                    <div className="input-group" style={{ width: '100%', marginBottom: '1rem' }}>
-                        <label htmlFor="cheevosUser">Username</label>
-                        <input
-                            id="cheevosUser"
-                            className="input"
-                            style={{ width: '100%' }}
-                            value={cheevosUser}
-                            onChange={(e) => setCheevosUser(e.target.value)}
-                            onKeyDown={handleInputKeyDown}
-                            autoComplete="off"
-                        />
+                    {/* RetroAchievements Section */}
+                    <div className="settings-card">
+                        <div className="settings-section-title">RetroAchievements</div>
+                        <div className="input-group">
+                            <label htmlFor="cheevosUser">Username</label>
+                            <FocusableInput
+                                id="cheevosUser"
+                                focusKey="cheevos-user-input"
+                                className="input"
+                                value={cheevosUser}
+                                onChange={(e) => setCheevosUser(e.target.value)}
+                                autoComplete="off"
+                            />
+                        </div>
+                        <div className="input-group">
+                            <label htmlFor="cheevosPass">Password</label>
+                            <FocusableInput
+                                id="cheevosPass"
+                                focusKey="cheevos-pass-input"
+                                className="input"
+                                type="password"
+                                value={cheevosPass}
+                                onChange={(e) => setCheevosPass(e.target.value)}
+                                autoComplete="off"
+                            />
+                        </div>
                     </div>
-                    <div className="input-group" style={{ width: '100%' }}>
-                        <label htmlFor="cheevosPass">Password</label>
-                        <input
-                            id="cheevosPass"
-                            className="input"
-                            type="password"
-                            style={{ width: '100%' }}
-                            value={cheevosPass}
-                            onChange={(e) => setCheevosPass(e.target.value)}
-                            onKeyDown={handleInputKeyDown}
-                            autoComplete="off"
-                        />
-                    </div>
-                </div>
 
-                <div style={{ marginTop: '2rem', width: '100%', maxWidth: '500px', display: 'flex', gap: '1rem' }}>
-                    <button
-                        ref={saveRef}
-                        className={`btn play-btn ${saveFocused ? 'focused' : ''}`}
-                        style={{
-                            flex: 1,
-                            height: '50px',
-                            fontSize: '1.1rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            margin: 0
-                        }}
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        onMouseEnter={() => getMouseActive() && setFocus('save-button')}
-                    >
-                        {isSaving ? "Saving..." : "Save Settings"}
-                    </button>
-                    <button
-                        ref={logoutRef}
-                        className={`btn ${logoutFocused ? 'focused' : ''}`}
-                        style={{
-                            flex: 1,
-                            height: '50px',
-                            fontSize: '1.1rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            margin: 0,
-                            backgroundColor: logoutFocused ? '#ff4444' : 'rgba(255, 68, 68, 0.2)',
-                            borderColor: '#ff4444',
-                            color: 'white'
-                        }}
-                        onClick={handleLogout}
-                        disabled={isSaving}
-                        onMouseEnter={() => getMouseActive() && !isSaving && setFocus('logout-button')}
-                    >
-                        Logout
-                    </button>
+                    <div className="settings-actions">
+                        <FocusableButton
+                            focusKey="save-button"
+                            className="btn btn-primary"
+                            style={{
+                                flex: 1,
+                                height: '50px',
+                                fontSize: '1.2rem',
+                                margin: 0
+                            }}
+                            onClick={handleSave}
+                            onEnterPress={handleSave}
+                            disabled={isSaving}
+                            onMouseEnter={() => getMouseActive() && setFocus('save-button')}
+                        >
+                            {isSaving ? "Saving..." : "Save Settings"}
+                        </FocusableButton>
+                        <FocusableButton
+                            focusKey="logout-button"
+                            className="btn btn-danger"
+                            style={{
+                                flex: 1,
+                                height: '50px',
+                                fontSize: '1.2rem',
+                                margin: 0
+                            }}
+                            onClick={handleLogout}
+                            onEnterPress={handleLogout}
+                            disabled={isSaving}
+                            onMouseEnter={() => getMouseActive() && !isSaving && setFocus('logout-button')}
+                        >
+                            Logout
+                        </FocusableButton>
+                    </div>
                 </div>
             </div>
 
-            <div className="input-legend" style={{ position: 'fixed', bottom: 0, left: 0, right: 0 }}>
+            <div className="input-legend">
                 <div className="footer-left">
                     <span>{status}</span>
                 </div>
