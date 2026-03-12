@@ -206,49 +206,7 @@ func (a *App) GetPlatforms(limit, offset int) (types.LibraryResult[types.Platfor
 	for {
 		cfg := a.configManager.GetConfig()
 		if cfg.OfflineMode {
-			// For now, simplicity: scan local library for platforms
-			// Alternatively, we could save platform metadata too, but scanning works for now.
-			items, _, err := a.librarySrv.GetLocalLibrary(1000, 0, 0, "")
-			if err != nil {
-				return types.LibraryResult[types.Platform]{}, err
-			}
-			platformMap := make(map[uint]types.Platform)
-			for i := range items {
-				game := &items[i]
-				if _, ok := platformMap[game.PlatformID]; ok {
-					continue
-				}
-				platform := game.Platform
-				// Fill in missing fields from the game struct
-				if platform.ID == 0 {
-					platform.ID = game.PlatformID
-				}
-				if platform.Name == "" {
-					platform.Name = game.PlatformDisplayName
-				}
-				if platform.Slug == "" {
-					platform.Slug = game.PlatformSlug
-				}
-				platformMap[game.PlatformID] = platform
-			}
-			var platforms []types.Platform
-			for _, p := range platformMap {
-				platforms = append(platforms, p)
-			}
-			// Basic paging for offline platforms
-			total := len(platforms)
-			start := offset
-			if start > total {
-				start = total
-			}
-			end := offset + limit
-			if end > total {
-				end = total
-			}
-			return types.LibraryResult[types.Platform]{
-				Items: platforms[start:end],
-				Total: total,
-			}, nil
+			return a.getOfflinePlatforms(limit, offset)
 		}
 
 		items, total, err := a.rommSrv.GetPlatforms(limit, offset)
@@ -261,6 +219,52 @@ func (a *App) GetPlatforms(limit, offset int) (types.LibraryResult[types.Platfor
 			Total: total,
 		}, nil
 	}
+}
+
+func (a *App) getOfflinePlatforms(limit, offset int) (types.LibraryResult[types.Platform], error) {
+	// For now, simplicity: scan local library for platforms
+	// Alternatively, we could save platform metadata too, but scanning works for now.
+	items, _, err := a.librarySrv.GetLocalLibrary(1000, 0, 0, "")
+	if err != nil {
+		return types.LibraryResult[types.Platform]{}, err
+	}
+	platformMap := make(map[uint]types.Platform)
+	for i := range items {
+		game := &items[i]
+		if _, ok := platformMap[game.PlatformID]; ok {
+			continue
+		}
+		platform := game.Platform
+		// Fill in missing fields from the game struct
+		if platform.ID == 0 {
+			platform.ID = game.PlatformID
+		}
+		if platform.Name == "" {
+			platform.Name = game.PlatformDisplayName
+		}
+		if platform.Slug == "" {
+			platform.Slug = game.PlatformSlug
+		}
+		platformMap[game.PlatformID] = platform
+	}
+	var platforms []types.Platform
+	for _, p := range platformMap {
+		platforms = append(platforms, p)
+	}
+	// Basic paging for offline platforms
+	total := len(platforms)
+	start := offset
+	if start > total {
+		start = total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return types.LibraryResult[types.Platform]{
+		Items: platforms[start:end],
+		Total: total,
+	}, nil
 }
 
 func (a *App) GetFirmware(platformID uint) ([]types.Firmware, error) {
