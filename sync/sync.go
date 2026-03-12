@@ -235,16 +235,16 @@ func (s *Service) DeleteGameFile(id uint, subDir, core, filename string) error {
 }
 
 // DownloadServerSave downloads a save from RomM.
-func (s *Service) DownloadServerSave(gameID uint, serverID uint, core, filename, updatedAt string) error {
+func (s *Service) DownloadServerSave(gameID, serverID uint, core, filename, updatedAt string) error {
 	return s.downloadServerAsset(gameID, serverID, core, filename, updatedAt, constants.DirSaves)
 }
 
 // DownloadServerState downloads a state from RomM.
-func (s *Service) DownloadServerState(gameID uint, serverID uint, core, filename, updatedAt string) error {
+func (s *Service) DownloadServerState(gameID, serverID uint, core, filename, updatedAt string) error {
 	return s.downloadServerAsset(gameID, serverID, core, filename, updatedAt, constants.DirStates)
 }
 
-func (s *Service) downloadServerAsset(gameID uint, serverID uint, core, filename, updatedAt, subDir string) error {
+func (s *Service) downloadServerAsset(gameID, serverID uint, core, filename, updatedAt, subDir string) error {
 	game, err := s.library.GetLocalGame(gameID)
 	if err != nil {
 		game, err = s.romm.GetRom(gameID)

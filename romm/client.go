@@ -486,7 +486,7 @@ func (c *Client) DownloadState(id uint) (reader io.ReadCloser, filename string, 
 	return c.downloadAsset(id, "states", "unknown.state")
 }
 
-func (c *Client) downloadAsset(id uint, assetType string, fallbackFilename string) (reader io.ReadCloser, filename string, err error) {
+func (c *Client) downloadAsset(id uint, assetType, fallbackFilename string) (reader io.ReadCloser, filename string, err error) {
 	if c.Token == "" {
 		return nil, "", fmt.Errorf("not authenticated")
 	}

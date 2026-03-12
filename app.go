@@ -392,12 +392,12 @@ func (a *App) UploadState(id uint, core, filename string) error {
 }
 
 // DownloadServerSave downloads a remote save file into the local library structure
-func (a *App) DownloadServerSave(gameID uint, serverID uint, core, filename, updatedAt string) error {
+func (a *App) DownloadServerSave(gameID, serverID uint, core, filename, updatedAt string) error {
 	return a.syncSrv.DownloadServerSave(gameID, serverID, core, filename, updatedAt)
 }
 
 // DownloadServerState downloads a remote state file into the local library structure
-func (a *App) DownloadServerState(gameID uint, serverID uint, core, filename, updatedAt string) error {
+func (a *App) DownloadServerState(gameID, serverID uint, core, filename, updatedAt string) error {
 	return a.syncSrv.DownloadServerState(gameID, serverID, core, filename, updatedAt)
 }
 
