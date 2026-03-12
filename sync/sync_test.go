@@ -24,9 +24,11 @@ func (m *MockLibraryProvider) GetLocalGame(id uint) (types.Game, error) {
 
 // MockRomMProvider implements RomMProvider
 type MockRomMProvider struct {
-	Game       types.Game
-	UploadErr  error
-	DownloadCl io.ReadCloser
+	Game              types.Game
+	UploadErr         error
+	DownloadCl        io.ReadCloser
+	downloadSaveFunc  func(id uint) (io.ReadCloser, string, error)
+	downloadStateFunc func(id uint) (io.ReadCloser, string, error)
 }
 
 func (m *MockRomMProvider) GetRom(id uint) (types.Game, error) { return m.Game, nil }
@@ -36,10 +38,16 @@ func (m *MockRomMProvider) RomMUploadSave(id uint, core, filename string, conten
 func (m *MockRomMProvider) RomMUploadState(id uint, core, filename string, content []byte) error {
 	return m.UploadErr
 }
-func (m *MockRomMProvider) RomMDownloadSave(filePath string) (reader io.ReadCloser, filename string, err error) {
+func (m *MockRomMProvider) RomMDownloadSave(id uint) (reader io.ReadCloser, filename string, err error) {
+	if m.downloadSaveFunc != nil {
+		return m.downloadSaveFunc(id)
+	}
 	return m.DownloadCl, "save.srm", nil
 }
-func (m *MockRomMProvider) RomMDownloadState(filePath string) (reader io.ReadCloser, filename string, err error) {
+func (m *MockRomMProvider) RomMDownloadState(id uint) (reader io.ReadCloser, filename string, err error) {
+	if m.downloadStateFunc != nil {
+		return m.downloadStateFunc(id)
+	}
 	return m.DownloadCl, "state.st0", nil
 }
 
@@ -155,14 +163,18 @@ func TestDownloadServerAsset(t *testing.T) {
 	tempDir, _ := os.MkdirTemp("", "sync_test_dl")
 	defer os.RemoveAll(tempDir)
 
+	fakeServerData := []byte("server data")
+
 	lib := &MockLibraryProvider{RomDir: tempDir}
 	romm := &MockRomMProvider{
-		Game:       types.Game{ID: 1},
-		DownloadCl: io.NopCloser(bytes.NewReader([]byte("server data"))),
+		Game: types.Game{ID: 1},
+	}
+	romm.downloadSaveFunc = func(id uint) (io.ReadCloser, string, error) {
+		return io.NopCloser(bytes.NewReader(fakeServerData)), "game.srm", nil
 	}
 	s := New(lib, romm, &MockUIProvider{})
 
-	err := s.DownloadServerSave(1, "remote/path", "snes", "game.srm", "")
+	err := s.DownloadServerSave(1, 123, "snes", "game.srm", "")
 	if err != nil {
 		t.Fatalf("DownloadServerSave failed: %v", err)
 	}

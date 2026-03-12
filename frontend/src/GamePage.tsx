@@ -377,7 +377,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const handleDownloadServerSave = (save: types.ServerSave) => {
         setDownloadStatus(`Downloading save ${save.file_name}...`);
         const cleanFileName = save.file_name.replace(TIMESTAMP_REGEX, "");
-        DownloadServerSave(gameId, save.full_path, save.emulator, cleanFileName, save.updated_at).then(() => {
+        DownloadServerSave(gameId, save.id, save.emulator, cleanFileName, save.updated_at).then(() => {
             setSuccessStatus("Server save downloaded successfully!");
             fetchAppData(); // Refresh local saves list
         }).catch((err: string) => {
@@ -388,7 +388,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const handleDownloadServerState = (state: types.ServerState) => {
         setDownloadStatus(`Downloading state ${state.file_name}...`);
         const cleanFileName = state.file_name.replace(TIMESTAMP_REGEX, "");
-        DownloadServerState(gameId, state.full_path, state.emulator, cleanFileName, state.updated_at).then(() => {
+        DownloadServerState(gameId, state.id, state.emulator, cleanFileName, state.updated_at).then(() => {
             setSuccessStatus("Server state downloaded successfully!");
             fetchAppData(); // Refresh local states list
         }).catch((err: string) => {
@@ -443,12 +443,12 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 if (localTime > serverTime) {
                     await UploadSave(gameId, local.core, local.name).catch(console.error);
                 } else if (serverTime > localTime) {
-                    await DownloadServerSave(gameId, serverClean.full_path, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
+                    await DownloadServerSave(gameId, serverClean.id, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
                 }
             } else if (local && !serverClean) {
                 await UploadSave(gameId, local.core, local.name).catch(console.error);
             } else if (!local && serverClean) {
-                await DownloadServerSave(gameId, serverClean.full_path, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
+                await DownloadServerSave(gameId, serverClean.id, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
             }
         }
         setSuccessStatus("Smart sync for saves complete!");
@@ -474,12 +474,12 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 if (localTime > serverTime) {
                     await UploadState(gameId, local.core, local.name).catch(console.error);
                 } else if (serverTime > localTime) {
-                    await DownloadServerState(gameId, serverClean.full_path, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
+                    await DownloadServerState(gameId, serverClean.id, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
                 }
             } else if (local && !serverClean) {
                 await UploadState(gameId, local.core, local.name).catch(console.error);
             } else if (!local && serverClean) {
-                await DownloadServerState(gameId, serverClean.full_path, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
+                await DownloadServerState(gameId, serverClean.id, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
             }
         }
         setSuccessStatus("Smart sync for states complete!");

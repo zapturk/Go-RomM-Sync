@@ -273,8 +273,8 @@ func TestAppComplexWrappers(t *testing.T) {
 	// Test Sync wrappers
 	app.UploadSave(1, "snes", "game.srm")
 	app.UploadState(1, "snes", "game.st0")
-	app.DownloadServerSave(1, "remote", "snes", "game.srm", "")
-	app.DownloadServerState(1, "remote", "snes", "game.st0", "")
+	app.DownloadServerSave(1, 1, "snes", "game.srm", "")
+	app.DownloadServerState(1, 1, "snes", "game.st0", "")
 }
 
 func TestAppExhaustiveWrappers(t *testing.T) {

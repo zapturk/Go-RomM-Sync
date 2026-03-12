@@ -11,7 +11,7 @@
 >
 > **Note:** This project is not affiliated with, endorsed by, or in any way officially connected with the [RomM project](https://github.com/rommapp/romm).
 >
-> **Supported RomM Version:** [4.6.1](https://github.com/rommapp/romm/releases/tag/4.6.1)
+> **Supported RomM Version:** [4.7.0](https://github.com/rommapp/romm/releases/tag/4.7.0)
 >
 > 📖 **[Project Wiki](https://github.com/zapturk/Go-RomM-Sync/wiki)**: Check out our wiki for setup guides, platform compatibility, and more!
 
