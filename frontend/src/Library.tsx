@@ -206,27 +206,9 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
                 />
             ) : (
                 <div id="library">
-                    <div className="library-header-extras" style={{
-                        position: 'fixed',
-                        top: '2rem',
-                        right: '8rem',
-                        zIndex: 100,
-                        display: 'flex',
-                        gap: '1rem',
-                        alignItems: 'center'
-                    }}>
+                    <div className="library-header-extras" style={{ top: '2rem', right: '8rem' }}>
                         {offlineMode && (
-                            <div className="offline-badge" style={{
-                                backgroundColor: '#ff4444',
-                                color: 'white',
-                                padding: '4px 12px',
-                                borderRadius: '20px',
-                                fontSize: '0.8rem',
-                                fontWeight: 'bold',
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                                textTransform: 'uppercase',
-                                letterSpacing: '1px'
-                            }}>
+                            <div className="offline-badge">
                                 Offline Mode
                             </div>
                         )}

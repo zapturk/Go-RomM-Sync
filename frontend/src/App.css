@@ -1239,3 +1239,23 @@ body.input-keyboard .show-keyboard {
     padding: 8px 20px;
     min-width: 120px;
 }
+
+.library-header-extras {
+    position: fixed;
+    z-index: 100;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.offline-badge {
+    background-color: #ff4444;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
