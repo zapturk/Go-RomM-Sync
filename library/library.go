@@ -1,6 +1,7 @@
 package library
 
 import (
+	"encoding/json"
 	"fmt"
 	"go-romm-sync/constants"
 	"go-romm-sync/retroarch"
@@ -140,7 +141,124 @@ func (s *Service) DownloadRomToLibrary(id uint) error {
 		}
 	}
 
+	// Save metadata for offline use
+	if err := s.SaveMetadata(game); err != nil {
+		s.ui.LogErrorf("DownloadRomToLibrary: Failed to save metadata for ID %d: %v", id, err)
+	}
+
 	return nil
+}
+
+// SaveMetadata saves the game metadata to a local JSON file.
+func (s *Service) SaveMetadata(game types.Game) error {
+	destDir := s.GetRomDir(&game)
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	metadataPath := filepath.Join(destDir, "metadata.json")
+	data, err := json.MarshalIndent(game, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal metadata: %w", err)
+	}
+
+	return os.WriteFile(metadataPath, data, 0o644)
+}
+
+// GetLocalLibrary scans the library directory and returns a list of games with metadata.
+func (s *Service) GetLocalLibrary(limit, offset, platformID int, search string) ([]types.Game, int, error) {
+	libPath := s.config.GetLibraryPath()
+	if libPath == "" {
+		return nil, 0, fmt.Errorf("library path not configured")
+	}
+
+	var games []types.Game
+	err := filepath.Walk(libPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil || !info.IsDir() {
+			return nil
+		}
+
+		metadataPath := filepath.Join(path, "metadata.json")
+		if _, err := os.Stat(metadataPath); err == nil {
+			data, err := os.ReadFile(metadataPath)
+			if err != nil {
+				return nil
+			}
+
+			var game types.Game
+			if err := json.Unmarshal(data, &game); err != nil {
+				return nil
+			}
+
+			// Filter by platform
+			if platformID != 0 && int(game.PlatformID) != platformID {
+				return nil
+			}
+
+			// Filter by search
+			if search != "" {
+				searchLower := strings.ToLower(search)
+				if !strings.Contains(strings.ToLower(game.Title), searchLower) {
+					return nil
+				}
+			}
+
+			games = append(games, game)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	total := len(games)
+	start := offset
+	if start > total {
+		start = total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+
+	return games[start:end], total, nil
+}
+
+// GetLocalGame retrieves local metadata for a specific game ID.
+func (s *Service) GetLocalGame(id uint) (types.Game, error) {
+	libPath := s.config.GetLibraryPath()
+	var foundGame types.Game
+	var found bool
+
+	err := filepath.Walk(libPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil || found || !info.IsDir() {
+			return nil
+		}
+
+		if filepath.Base(path) == fmt.Sprintf("%d", id) {
+			metadataPath := filepath.Join(path, "metadata.json")
+			if _, err := os.Stat(metadataPath); err == nil {
+				data, err := os.ReadFile(metadataPath)
+				if err != nil {
+					return nil
+				}
+				if err := json.Unmarshal(data, &foundGame); err == nil {
+					found = true
+				}
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return types.Game{}, err
+	}
+	if !found {
+		return types.Game{}, fmt.Errorf("game %d not found in local library", id)
+	}
+
+	return foundGame, nil
 }
 
 // GetRomDownloadStatus checks if a ROM has been downloaded.

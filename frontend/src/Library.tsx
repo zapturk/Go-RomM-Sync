@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { GetLibrary, GetPlatforms, Quit } from "../wailsjs/go/main/App";
+import { GetLibrary, GetPlatforms, Quit, GetConfig } from "../wailsjs/go/main/App";
+import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { GamePage } from "./GamePage";
 import { PlatformGridView } from "./views/Library/PlatformGridView";
@@ -24,6 +25,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     const gridRef = useRef<HTMLDivElement>(null);
     const [columns, setColumns] = useState(1);
     const [searchTerm, setSearchTerm] = useState("");
+    const [offlineMode, setOfflineMode] = useState(false);
 
     // Pagination state
     const [offset, setOffset] = useState(0);
@@ -72,6 +74,11 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         setIsLoading(true);
         setStatus("Syncing...");
         setSyncTrigger(prev => prev + 1);
+
+        GetConfig().then(cfg => {
+            // @ts-ignore
+            setOfflineMode(cfg.offline_mode || false);
+        });
 
         const activePlatform = platforms.find(p => p.name === selectedPlatform);
         const platformId = activePlatform?.id || 0;
@@ -164,6 +171,18 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [selectedPlatform, selectedGameId, isActive, offset, platformOffset, totalGames, totalPlatforms]);
 
+    // Handle offline-mode-changed event
+    useEffect(() => {
+        const unsubscribe = EventsOn("offline-mode-changed", (newOfflineMode: boolean) => {
+            setOfflineMode(newOfflineMode);
+            if (newOfflineMode) {
+                // If we switched to offline, refresh to filter only local games
+                refreshLibrary(0, platformOffset, searchTerm);
+            }
+        });
+        return () => unsubscribe();
+    }, [platformOffset, searchTerm]);
+
     // Handle "Refresh" (R key)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -212,6 +231,31 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
 
     return (
         <div id="library" ref={ref}>
+            <div className="library-header-extras" style={{
+                position: 'fixed',
+                top: '2rem',
+                right: '8rem',
+                zIndex: 100,
+                display: 'flex',
+                gap: '1rem',
+                alignItems: 'center'
+            }}>
+                {offlineMode && (
+                    <div className="offline-badge" style={{
+                        backgroundColor: '#ff4444',
+                        color: 'white',
+                        padding: '4px 12px',
+                        borderRadius: '20px',
+                        fontSize: '0.8rem',
+                        fontWeight: 'bold',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '1px'
+                    }}>
+                        Offline Mode
+                    </div>
+                )}
+            </div>
             {!selectedPlatform || !currentPlatformObj ? (
                 <PlatformGridView
                     platforms={sortedPlatforms}

@@ -90,6 +90,10 @@ export function GetLibraryPath() {
   return window['go']['main']['App']['GetLibraryPath']();
 }
 
+export function GetLocalGame(arg1) {
+  return window['go']['main']['App']['GetLocalGame'](arg1);
+}
+
 export function GetPassword() {
   return window['go']['main']['App']['GetPassword']();
 }
@@ -228,6 +232,14 @@ export function SelectRetroArchExecutable() {
 
 export function SetPlatformFirmware(arg1, arg2) {
   return window['go']['main']['App']['SetPlatformFirmware'](arg1, arg2);
+}
+
+export function SyncOfflineMetadata() {
+  return window['go']['main']['App']['SyncOfflineMetadata']();
+}
+
+export function ToggleOfflineMode() {
+  return window['go']['main']['App']['ToggleOfflineMode']();
 }
 
 export function UploadSave(arg1, arg2, arg3) {

@@ -72,6 +72,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const [firmwares, setFirmwares] = useState<types.Firmware[]>([]);
     const [selectedFirmwareId, setSelectedFirmwareId] = useState<number>(0);
     const [isFirmwarePickerOpen, setIsFirmwarePickerOpen] = useState(false);
+    const [offlineMode, setOfflineMode] = useState(false);
 
     const hasSavesOrStates = serverSaves.length > 0 || saves.length > 0 || serverStates.length > 0 || states.length > 0;
 
@@ -91,6 +92,13 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const fadeTimeoutRef = useRef<any>(null);
     const clearStatusTimeoutRef = useRef<any>(null);
     const statusSequenceRef = useRef(0);
+
+    useEffect(() => {
+        const unsubscribe = EventsOn("offline-mode-changed", (newOfflineMode: boolean) => {
+            setOfflineMode(newOfflineMode);
+        });
+        return () => unsubscribe();
+    }, []);
 
     const setSuccessStatus = (msg: string) => {
         const sequence = ++statusSequenceRef.current;
@@ -251,6 +259,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                         if (cfg.platform_firmware && cfg.platform_firmware[res.platform_slug]) {
                             setSelectedFirmwareId(cfg.platform_firmware[res.platform_slug]);
                         }
+                        // @ts-ignore
+                        setOfflineMode(cfg.offline_mode || false);
                     });
                 }).catch(err => console.error("Failed to fetch firmwares:", err));
 
@@ -478,6 +488,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     };
 
     const handleSmartSync = async () => {
+        if (offlineMode) return;
         setDownloadStatus("Starting full smart sync...");
         await handleSyncSaves();
         await handleSyncStates();
@@ -532,6 +543,31 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
     return (
         <div id="game-page" ref={ref}>
+            <div className="library-header-extras" style={{
+                position: 'fixed',
+                top: '5rem',
+                right: '11rem',
+                zIndex: 100,
+                display: 'flex',
+                gap: '1rem',
+                alignItems: 'center'
+            }}>
+                {offlineMode && (
+                    <div className="offline-badge" style={{
+                        backgroundColor: '#ff4444',
+                        color: 'white',
+                        padding: '4px 12px',
+                        borderRadius: '20px',
+                        fontSize: '0.8rem',
+                        fontWeight: 'bold',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '1px'
+                    }}>
+                        Offline Mode
+                    </div>
+                )}
+            </div>
             {isPickerOpen && (
                 <div className="core-picker-overlay" onClick={closePicker}>
                     <div className="core-picker-modal" onClick={e => e.stopPropagation()}>
@@ -607,14 +643,18 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                     Not Supported on macOS
                                 </button>
                             ) : (
-                                <InnerDownloadButton
-                                    isDisabled={downloading || isPlaying}
-                                    isDownloading={downloading}
-                                    isExtracting={isExtracting}
-                                    hasSaves={hasSavesOrStates}
-                                    onDownload={handleDownload}
-                                    onFocusSaves={focusFirstAvailableSaveState}
-                                />
+                                !offlineMode ? (
+                                    <InnerDownloadButton
+                                        isDisabled={downloading || isPlaying}
+                                        isDownloading={downloading}
+                                        isExtracting={isExtracting}
+                                        hasSaves={hasSavesOrStates}
+                                        onDownload={handleDownload}
+                                        onFocusSaves={focusFirstAvailableSaveState}
+                                    />
+                                ) : (
+                                    <div className="offline-status-msg">Download unavailable offline</div>
+                                )
                             )
                         ) : (
                             <>
@@ -709,10 +749,10 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                         item={save}
                                         onDownload={() => handleDownloadServerSave(save)}
                                         status={getFileStatus(save, saves)}
-                                        isDisabled={isPlaying}
+                                        isDisabled={isPlaying || offlineMode}
                                     />
                                 ))}
-                                {serverSaves.length === 0 && <p className="no-files">No server saves found.</p>}
+                                {(serverSaves.length === 0 || offlineMode) && <p className="no-files">{offlineMode ? "Server sync unavailable offline" : "No server saves found."}</p>}
                             </div>
 
                             <h3 style={{ marginTop: '20px' }}>Local Saves</h3>
@@ -726,6 +766,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                         onUpload={() => handleUploadSave(save.core, save.name)}
                                         status={getFileStatus(save, serverSaves)}
                                         isDisabled={isPlaying}
+                                        isOffline={offlineMode}
                                     />
                                 ))}
                                 {saves.length === 0 && <p className="no-files">No local saves found.</p>}
@@ -741,10 +782,10 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                         item={state}
                                         onDownload={() => handleDownloadServerState(state)}
                                         status={getFileStatus(state, states)}
-                                        isDisabled={isPlaying}
+                                        isDisabled={isPlaying || offlineMode}
                                     />
                                 ))}
-                                {serverStates.length === 0 && <p className="no-files">No server states found.</p>}
+                                {(serverStates.length === 0 || offlineMode) && <p className="no-files">{offlineMode ? "Server sync unavailable offline" : "No server states found."}</p>}
                             </div>
 
                             <h3 style={{ marginTop: '20px' }}>Local States</h3>
@@ -758,6 +799,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                         onUpload={() => handleUploadState(state.core, state.name)}
                                         status={getFileStatus(state, serverStates)}
                                         isDisabled={isPlaying}
+                                        isOffline={offlineMode}
                                     />
                                 ))}
                                 {states.length === 0 && <p className="no-files">No local states found.</p>}

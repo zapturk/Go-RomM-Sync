@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath, Logout, ClearImageCache } from "../wailsjs/go/main/App";
+// @ts-ignore
+import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath, Logout, ClearImageCache, ToggleOfflineMode, SyncOfflineMetadata } from "../wailsjs/go/main/App";
+import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
@@ -19,6 +21,8 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [libPath, setLibPath] = useState('');
     const [cheevosUser, setCheevosUser] = useState('');
     const [cheevosPass, setCheevosPass] = useState('');
+    const [offlineMode, setOfflineMode] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
 
     useEffect(() => {
         GetConfig().then((cfg) => {
@@ -27,7 +31,16 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             setLibPath(cfg.library_path || '');
             setCheevosUser(cfg.cheevos_username || '');
             setCheevosPass(cfg.cheevos_password || '');
+            // @ts-ignore
+            setOfflineMode(cfg.offline_mode || false);
         });
+    }, []);
+
+    useEffect(() => {
+        const unsubscribe = EventsOn("offline-mode-changed", (newOfflineMode: boolean) => {
+            setOfflineMode(newOfflineMode);
+        });
+        return () => unsubscribe();
     }, []);
 
     const handleBrowseRA = () => {
@@ -129,6 +142,30 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             });
     };
 
+    const handleToggleOffline = () => {
+        // @ts-ignore
+        ToggleOfflineMode().then((newState: boolean) => {
+            setOfflineMode(newState);
+            setStatus(`Offline mode ${newState ? 'enabled' : 'disabled'}.`);
+        });
+    };
+
+    const handleSyncMetadata = () => {
+        setIsSyncing(true);
+        setStatus("Syncing metadata for local games...");
+        // @ts-ignore
+        SyncOfflineMetadata()
+            .then(() => {
+                setStatus("Metadata sync complete!");
+            })
+            .catch((err: any) => {
+                setStatus("Error syncing metadata: " + err);
+            })
+            .finally(() => {
+                setIsSyncing(false);
+            });
+    };
+
     const handleInputKeyDown = (e: React.KeyboardEvent) => {
         if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
             e.stopPropagation();
@@ -159,6 +196,10 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             handleSave={handleSave}
             handleLogout={handleLogout}
             handleClearCache={handleClearCache}
+            offlineMode={offlineMode}
+            handleToggleOffline={handleToggleOffline}
+            handleSyncMetadata={handleSyncMetadata}
+            isSyncing={isSyncing}
         />
     );
 }
@@ -184,6 +225,10 @@ interface SettingsFormProps {
     handleSave: () => void;
     handleLogout: () => void;
     handleClearCache: () => void;
+    offlineMode: boolean;
+    handleToggleOffline: () => void;
+    handleSyncMetadata: () => void;
+    isSyncing: boolean;
 }
 
 function SettingsForm({
@@ -205,7 +250,11 @@ function SettingsForm({
     handleSetDefaultLib,
     handleSave,
     handleLogout,
-    handleClearCache
+    handleClearCache,
+    offlineMode,
+    handleToggleOffline,
+    handleSyncMetadata,
+    isSyncing
 }: SettingsFormProps) {
     const { ref } = useFocusable({
         trackChildren: true
@@ -238,6 +287,16 @@ function SettingsForm({
     const { ref: clearCacheRef, focused: clearCacheFocused } = useFocusable({
         focusKey: 'clear-cache-button',
         onEnterPress: handleClearCache
+    });
+
+    const { ref: offlineToggleRef, focused: offlineToggleFocused } = useFocusable({
+        focusKey: 'offline-toggle-button',
+        onEnterPress: handleToggleOffline
+    });
+
+    const { ref: syncMetadataRef, focused: syncMetadataFocused } = useFocusable({
+        focusKey: 'sync-metadata-button',
+        onEnterPress: handleSyncMetadata
     });
 
     const { ref: logoutRef, focused: logoutFocused } = useFocusable({
@@ -344,6 +403,47 @@ function SettingsForm({
                                 onMouseEnter={() => getMouseActive() && !isSaving && setFocus('clear-cache-button')}
                             >
                                 Clear Image Cache
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Offline Support Section */}
+                <div className="section" style={{ width: '100%', maxWidth: '500px' }}>
+                    <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', marginBottom: '1.5rem', color: 'rgba(255,255,255,0.9)' }}>Offline Support</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'rgba(255,255,255,0.7)' }}>Offline Mode</span>
+                            <button
+                                ref={offlineToggleRef}
+                                className={`btn ${offlineToggleFocused ? 'focused' : ''} ${isSaving ? 'disabled' : ''}`}
+                                style={{ 
+                                    margin: 0, 
+                                    minWidth: '160px',
+                                    backgroundColor: offlineMode ? '#44ff44' : 'rgba(255,255,255,0.1)',
+                                    color: offlineMode ? '#000' : '#fff'
+                                }}
+                                onClick={handleToggleOffline}
+                                disabled={isSaving}
+                                onMouseEnter={() => getMouseActive() && !isSaving && setFocus('offline-toggle-button')}
+                            >
+                                {offlineMode ? "Enabled" : "Disabled"}
+                            </button>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ color: 'rgba(255,255,255,0.7)' }}>Sync Metadata</span>
+                                <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)' }}>Prepare for offline use</span>
+                            </div>
+                            <button
+                                ref={syncMetadataRef}
+                                className={`btn ${syncMetadataFocused ? 'focused' : ''} ${isSaving || isSyncing ? 'disabled' : ''}`}
+                                style={{ margin: 0, minWidth: '160px' }}
+                                onClick={handleSyncMetadata}
+                                disabled={isSaving || isSyncing}
+                                onMouseEnter={() => getMouseActive() && !isSaving && !isSyncing && setFocus('sync-metadata-button')}
+                            >
+                                {isSyncing ? "Syncing..." : "Sync Now"}
                             </button>
                         </div>
                     </div>

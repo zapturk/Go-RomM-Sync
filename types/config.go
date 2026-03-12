@@ -12,4 +12,5 @@ type AppConfig struct {
 	CheevosPassword     string            `json:"cheevos_password"`
 	LastUsedCores       map[string]string `json:"last_used_cores"`   // Platform slug -> Core base name
 	PlatformFirmware    map[string]uint   `json:"platform_firmware"` // Platform slug -> Selected Firmware ID
+	OfflineMode         bool              `json:"offline_mode"`      // Enable offline mode
 }
