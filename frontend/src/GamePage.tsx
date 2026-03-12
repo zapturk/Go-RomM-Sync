@@ -259,7 +259,6 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                         if (cfg.platform_firmware && cfg.platform_firmware[res.platform_slug]) {
                             setSelectedFirmwareId(cfg.platform_firmware[res.platform_slug]);
                         }
-                        // @ts-ignore
                         setOfflineMode(cfg.offline_mode || false);
                     });
                 }).catch(err => console.error("Failed to fetch firmwares:", err));

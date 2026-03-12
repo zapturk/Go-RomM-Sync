@@ -54,7 +54,6 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         setSyncTrigger(prev => prev + 1);
 
         GetConfig().then(cfg => {
-            // @ts-ignore
             setOfflineMode(cfg.offline_mode || false);
         });
 

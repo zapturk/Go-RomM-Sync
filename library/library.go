@@ -182,11 +182,13 @@ func (s *Service) GetLocalLibrary(limit, offset, platformID int, search string) 
 		if _, err := os.Stat(metadataPath); err == nil {
 			data, err := os.ReadFile(metadataPath)
 			if err != nil {
+				s.ui.LogErrorf("GetLocalLibrary: Failed to read metadata at %s: %v", metadataPath, err)
 				return nil
 			}
 
 			var game types.Game
 			if err := json.Unmarshal(data, &game); err != nil {
+				s.ui.LogErrorf("GetLocalLibrary: Failed to unmarshal metadata at %s: %v", metadataPath, err)
 				return nil
 			}
 
@@ -241,9 +243,12 @@ func (s *Service) GetLocalGame(id uint) (types.Game, error) {
 			if _, err := os.Stat(metadataPath); err == nil {
 				data, err := os.ReadFile(metadataPath)
 				if err != nil {
+					s.ui.LogErrorf("GetLocalGame: Failed to read metadata at %s: %v", metadataPath, err)
 					return nil
 				}
-				if err := json.Unmarshal(data, &foundGame); err == nil {
+				if err := json.Unmarshal(data, &foundGame); err != nil {
+					s.ui.LogErrorf("GetLocalGame: Failed to unmarshal metadata at %s: %v", metadataPath, err)
+				} else {
 					found = true
 				}
 			}

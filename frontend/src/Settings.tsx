@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-// @ts-ignore
 import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath, Logout, ClearImageCache, ToggleOfflineMode, SyncOfflineMetadata } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
@@ -33,7 +32,6 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             setLibPath(cfg.library_path || '');
             setCheevosUser(cfg.cheevos_username || '');
             setCheevosPass(cfg.cheevos_password || '');
-            // @ts-ignore
             setOfflineMode(cfg.offline_mode || false);
         });
     }, []);
@@ -145,7 +143,6 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     };
 
     const handleToggleOffline = () => {
-        // @ts-ignore
         ToggleOfflineMode().then((newState: boolean) => {
             setOfflineMode(newState);
             setStatus(`Offline mode ${newState ? 'enabled' : 'disabled'}.`);
@@ -155,7 +152,6 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const handleSyncMetadata = () => {
         setIsSyncing(true);
         setStatus("Syncing metadata for local games...");
-        // @ts-ignore
         SyncOfflineMetadata()
             .then(() => {
                 setStatus("Metadata sync complete!");

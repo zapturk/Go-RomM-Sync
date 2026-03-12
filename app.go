@@ -408,10 +408,12 @@ func (a *App) PlayRomWithCore(id uint, coreName string) error {
 
 func (a *App) ToggleOfflineMode() bool {
 	var newState bool
-	_ = a.configManager.Update(func(cfg *types.AppConfig) {
+	if err := a.configManager.Update(func(cfg *types.AppConfig) {
 		cfg.OfflineMode = !cfg.OfflineMode
 		newState = cfg.OfflineMode
-	})
+	}); err != nil {
+		a.LogErrorf("Failed to update config during ToggleOfflineMode: %v", err)
+	}
 	if a.ctx != nil {
 		wailsRuntime.EventsEmit(a.ctx, "offline-mode-changed", newState)
 	}
@@ -423,9 +425,11 @@ func (a *App) handleConnectionError(err error) {
 		return
 	}
 	a.LogErrorf("Server operation failed: %v. Automatically switching to offline mode.", err)
-	_ = a.configManager.Update(func(cfg *types.AppConfig) {
+	if err := a.configManager.Update(func(cfg *types.AppConfig) {
 		cfg.OfflineMode = true
-	})
+	}); err != nil {
+		a.LogErrorf("Failed to update config during handleConnectionError: %v", err)
+	}
 	if a.ctx != nil {
 		wailsRuntime.EventsEmit(a.ctx, "offline-mode-changed", true)
 	}
