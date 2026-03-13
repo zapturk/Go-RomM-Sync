@@ -18,7 +18,7 @@ interface GameGridViewProps {
     onPageChange: (newOffset: number) => void;
     searchTerm: string;
     onSearchChange: (value: string) => void;
-    gridRef: React.RefObject<HTMLDivElement>;
+    gridRef: React.RefObject<HTMLDivElement | null>;
     isActive: boolean;
 }
 

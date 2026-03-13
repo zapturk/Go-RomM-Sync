@@ -18,7 +18,7 @@ interface PlatformGridViewProps {
     columns: number;
     syncTrigger: number;
     lastViewedPlatformId: number | null;
-    gridRef: React.RefObject<HTMLDivElement>;
+    gridRef: React.RefObject<HTMLDivElement | null>;
     isActive: boolean;
 }
 
