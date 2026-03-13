@@ -136,7 +136,6 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
     useEffect(() => {
         const unlisten = EventsOn("download-progress", (data: { game_id: number; percentage: number }) => {
-            console.log(`Download progress for ${data.game_id}: ${data.percentage}%`);
             if (data.game_id === gameId) {
                 setDownloadProgress(data.percentage);
             }

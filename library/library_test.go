@@ -356,3 +356,59 @@ func (r *errorReader) Read(p []byte) (n int, err error) {
 	r.read = true
 	return 12, nil
 }
+
+func TestPostDownloadProcessing_ExtractionInterference(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "library_interference_test")
+	defer os.RemoveAll(tempDir)
+
+	// Create a dummy archive that looks like it could contain both
+	// We'll use a real zip file to make archive.ExtractCueBin and ExtractGameCube happy
+	archivePath := filepath.Join(tempDir, "game.zip")
+	zipFile, _ := os.Create(archivePath)
+	zw := zip.NewWriter(zipFile)
+	
+	// Add files that satisfy ExtractCueBin
+	f1, _ := zw.Create("game.cue")
+	f1.Write([]byte("FILE \"game.bin\" BINARY\n  TRACK 01 MODE1/2352\n    INDEX 01 00:00:00"))
+	f2, _ := zw.Create("game.bin")
+	f2.Write([]byte("fake bin content"))
+	
+	// Add a file that satisfies ExtractGameCube (though normally it's one or the other,
+	// we want to test that the logic doesn't crash if both are checked)
+	f3, _ := zw.Create("game.rvz")
+	f3.Write([]byte("fake rvz content"))
+	
+	zw.Close()
+	zipFile.Close()
+
+	cfg := &MockConfigProvider{LibraryPath: tempDir}
+	romm := &MockRomMProvider{}
+	ui := &MockUIProvider{}
+	s := New(cfg, romm, ui)
+
+	game := &types.Game{ID: 1, FullPath: "GameCube/game.zip"}
+	destDir := filepath.Join(tempDir, "GameCube", "1")
+	os.MkdirAll(destDir, 0o755)
+
+	// We need to move the archive to where postDownloadProcessing expects it
+	finalArchivePath := filepath.Join(destDir, "game.zip")
+	os.Rename(archivePath, finalArchivePath)
+
+	err := s.postDownloadProcessing(1, game, finalArchivePath, destDir)
+	if err != nil {
+		t.Fatalf("postDownloadProcessing failed: %v", err)
+	}
+
+	// Verify that the archive was removed
+	if _, err := os.Stat(finalArchivePath); !os.IsNotExist(err) {
+		t.Errorf("Expected archive to be removed after successful extraction")
+	}
+
+	// Verify that files were extracted (at least .cue/.bin or GameCube)
+	if _, err := os.Stat(filepath.Join(destDir, "game.cue")); err != nil {
+		t.Errorf("Expected game.cue to be extracted")
+	}
+	if _, err := os.Stat(filepath.Join(destDir, "game.bin")); err != nil {
+		t.Errorf("Expected game.bin to be extracted")
+	}
+}

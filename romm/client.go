@@ -372,13 +372,7 @@ func (c *Client) DownloadFile(ctx context.Context, game *types.Game) (reader io.
 	}
 
 	if filename == "" {
-		// Fallback to name from path if CD is missing
-		idx := strings.LastIndex(game.FullPath, "/")
-		if idx != -1 {
-			filename = game.FullPath[idx+1:]
-		} else {
-			filename = game.FullPath
-		}
+		filename = filepath.Base(game.FullPath)
 	}
 
 	return resp.Body, filename, nil

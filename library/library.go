@@ -156,24 +156,34 @@ func (s *Service) DownloadRomToLibrary(ctx context.Context, id uint) error {
 }
 
 func (s *Service) postDownloadProcessing(id uint, game *types.Game, destPath, destDir string) error {
-	// Archive check: Extract .cue/.bin if present
+	// Archive check: Extract .cue/.bin or GameCube files if present
 	s.ui.EventsEmit("library-status", map[string]interface{}{"game_id": id, "status": "extracting"})
-	if extracted, err := archive.ExtractCueBin(destPath, destDir); err != nil {
+
+	var extracted bool
+	var err error
+
+	// Try extracting .cue/.bin files
+	extracted, err = archive.ExtractCueBin(destPath, destDir)
+	if err != nil {
 		s.ui.LogErrorf("DownloadRomToLibrary: .cue/.bin extraction failed for %s: %v", destPath, err)
 	} else if extracted {
 		s.ui.LogInfof("DownloadRomToLibrary: Extracted .cue/.bin files from archive: %s", destPath)
-		if err := os.Remove(destPath); err != nil {
-			s.ui.LogErrorf("DownloadRomToLibrary: Failed to remove archive after .cue/.bin extraction: %v", err)
+	}
+
+	// Try extracting GameCube files if not already extracted (archive package extracts everything)
+	if !extracted {
+		extracted, err = archive.ExtractGameCube(destPath, destDir)
+		if err != nil {
+			s.ui.LogErrorf("DownloadRomToLibrary: GameCube extraction failed for %s: %v", destPath, err)
+		} else if extracted {
+			s.ui.LogInfof("DownloadRomToLibrary: Extracted GameCube files from archive: %s", destPath)
 		}
 	}
 
-	// Archive check: Extract GameCube files if present
-	if extracted, err := archive.ExtractGameCube(destPath, destDir); err != nil {
-		s.ui.LogErrorf("DownloadRomToLibrary: GameCube extraction failed for %s: %v", destPath, err)
-	} else if extracted {
-		s.ui.LogInfof("DownloadRomToLibrary: Extracted GameCube files from archive: %s", destPath)
+	// Archive cleanup: Remove the source archive only if something was extracted
+	if extracted {
 		if err := os.Remove(destPath); err != nil {
-			s.ui.LogErrorf("DownloadRomToLibrary: Failed to remove archive after GameCube extraction: %v", err)
+			s.ui.LogErrorf("DownloadRomToLibrary: Failed to remove archive after extraction: %v", err)
 		}
 	}
 
