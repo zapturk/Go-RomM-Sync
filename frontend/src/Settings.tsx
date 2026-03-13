@@ -269,12 +269,7 @@ function SettingsForm({
 
     // Focus management handled by components
 
-    const handleTopArrowPress = (direction: string) => {
-        if (direction === 'up') {
-            return false;
-        }
-        return true;
-    };
+    const handleTopArrowPress = (direction: string) => direction !== 'up';
 
     return (
         <div id="settings-page" className="settings-page">
