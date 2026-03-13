@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"context"
 	"fmt"
 	"go-romm-sync/types"
 	"go-romm-sync/utils"
@@ -25,8 +26,8 @@ type RomMProvider interface {
 	GetRom(id uint) (types.Game, error)
 	RomMUploadSave(id uint, core, filename string, content []byte) error
 	RomMUploadState(id uint, core, filename string, content []byte) error
-	RomMDownloadSave(id uint) (io.ReadCloser, string, error)
-	RomMDownloadState(id uint) (io.ReadCloser, string, error)
+	RomMDownloadSave(ctx context.Context, id uint) (io.ReadCloser, string, error)
+	RomMDownloadState(ctx context.Context, id uint) (io.ReadCloser, string, error)
 }
 
 // UIProvider defines logging and event emission.
@@ -253,12 +254,13 @@ func (s *Service) downloadServerAsset(gameID, serverID uint, core, filename, upd
 		}
 	}
 
+	ctx := context.Background()
 	var reader io.ReadCloser
 	var serverFilename string
 	if subDir == constants.DirSaves {
-		reader, serverFilename, err = s.romm.RomMDownloadSave(serverID)
+		reader, serverFilename, err = s.romm.RomMDownloadSave(ctx, serverID)
 	} else {
-		reader, serverFilename, err = s.romm.RomMDownloadState(serverID)
+		reader, serverFilename, err = s.romm.RomMDownloadState(ctx, serverID)
 	}
 
 	if err != nil {

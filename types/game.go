@@ -21,6 +21,7 @@ type Game struct {
 	PlatformSlug        string   `json:"platform_slug"`
 	PlatformDisplayName string   `json:"platform_display_name"`
 	Platform            Platform `json:"platform"`
+	FSName              string   `json:"fs_name"`
 }
 
 // FileItem represents a local save or state file

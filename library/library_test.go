@@ -3,6 +3,7 @@ package library
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"fmt"
 	"go-romm-sync/types"
 	"io"
@@ -31,8 +32,8 @@ type MockRomMProvider struct {
 	Error error
 }
 
-func (m *MockRomMProvider) DownloadFile(game *types.Game) (reader io.ReadCloser, filename string, err error) {
-	return io.NopCloser(bytes.NewReader([]byte("dummy content"))), "game.sfc", m.Error
+func (m *MockRomMProvider) DownloadFile(ctx context.Context, game *types.Game) (reader io.ReadCloser, filename string, err error) {
+	return io.NopCloser(bytes.NewReader([]byte("dummy content"))), "Game.sfc", m.Error
 }
 
 func (m *MockRomMProvider) GetRom(id uint) (types.Game, error) {
@@ -49,7 +50,11 @@ func (m *MockRomMProvider) GetFirmware(platformID uint) ([]types.Firmware, error
 	return nil, m.Error
 }
 
-func (m *MockRomMProvider) DownloadFirmwareContent(id uint, fileName string) (io.ReadCloser, string, error) {
+func (m *MockRomMProvider) GetRomDownloadStatus(id uint) (bool, error) {
+	return id == 1 && m.Error == nil, nil
+}
+
+func (m *MockRomMProvider) DownloadFirmwareContent(ctx context.Context, id uint, fileName string) (io.ReadCloser, string, error) {
 	return io.NopCloser(bytes.NewReader([]byte("dummy firmware"))), fileName, m.Error
 }
 
@@ -153,7 +158,7 @@ func TestDownloadRomToLibrary(t *testing.T) {
 	ui := &MockUIProvider{}
 	s := New(cfg, romm, ui)
 
-	err := s.DownloadRomToLibrary(1)
+	err := s.DownloadRomToLibrary(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("DownloadRomToLibrary failed: %v", err)
 	}
@@ -267,7 +272,7 @@ type MockRomMProviderWithContent struct {
 	Name    string
 }
 
-func (m *MockRomMProviderWithContent) DownloadFirmwareContent(id uint, fileName string) (io.ReadCloser, string, error) {
+func (m *MockRomMProviderWithContent) DownloadFirmwareContent(ctx context.Context, id uint, fileName string) (io.ReadCloser, string, error) {
 	return io.NopCloser(bytes.NewReader(m.Content)), m.Name, nil
 }
 
@@ -303,5 +308,107 @@ func TestCleanupFirmware(t *testing.T) {
 	// PS1 BIOS should still be there
 	if _, err := os.Stat(ps1Path); err != nil {
 		t.Errorf("Expected PS1 BIOS to still exist")
+	}
+}
+
+func TestDownloadRomToLibrary_Cleanup(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "library_cleanup_test")
+	defer os.RemoveAll(tempDir)
+
+	cfg := &MockConfigProvider{LibraryPath: tempDir}
+	romm := &MockRomMProviderWithError{
+		MockRomMProvider: MockRomMProvider{
+			Game: types.Game{ID: 1, FullPath: "SNES/Game.sfc", FileSize: 100},
+		},
+	}
+	ui := &MockUIProvider{}
+	s := New(cfg, romm, ui)
+
+	err := s.DownloadRomToLibrary(context.Background(), 1)
+	if err == nil {
+		t.Errorf("Expected error from failed download, got nil")
+	}
+
+	destPath := filepath.Join(tempDir, "SNES", "1", "Game.sfc")
+	if _, err := os.Stat(destPath); err == nil {
+		t.Errorf("Expected partial ROM file at %s to be deleted on failure", destPath)
+	}
+}
+
+type MockRomMProviderWithError struct {
+	MockRomMProvider
+}
+
+func (m *MockRomMProviderWithError) DownloadFile(ctx context.Context, game *types.Game) (io.ReadCloser, string, error) {
+	return io.NopCloser(&errorReader{}), "Game.sfc", nil
+}
+
+type errorReader struct {
+	read bool
+}
+
+func (r *errorReader) Read(p []byte) (n int, err error) {
+	if r.read {
+		return 0, fmt.Errorf("simulated read error")
+	}
+	// Return some data first
+	copy(p, "partial data")
+	r.read = true
+	return 12, nil
+}
+
+func TestPostDownloadProcessing_ExtractionInterference(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "library_interference_test")
+	defer os.RemoveAll(tempDir)
+
+	// Create a dummy archive that looks like it could contain both
+	// We'll use a real zip file to make archive.ExtractCueBin and ExtractGameCube happy
+	archivePath := filepath.Join(tempDir, "game.zip")
+	zipFile, _ := os.Create(archivePath)
+	zw := zip.NewWriter(zipFile)
+	
+	// Add files that satisfy ExtractCueBin
+	f1, _ := zw.Create("game.cue")
+	f1.Write([]byte("FILE \"game.bin\" BINARY\n  TRACK 01 MODE1/2352\n    INDEX 01 00:00:00"))
+	f2, _ := zw.Create("game.bin")
+	f2.Write([]byte("fake bin content"))
+	
+	// Add a file that satisfies ExtractGameCube (though normally it's one or the other,
+	// we want to test that the logic doesn't crash if both are checked)
+	f3, _ := zw.Create("game.rvz")
+	f3.Write([]byte("fake rvz content"))
+	
+	zw.Close()
+	zipFile.Close()
+
+	cfg := &MockConfigProvider{LibraryPath: tempDir}
+	romm := &MockRomMProvider{}
+	ui := &MockUIProvider{}
+	s := New(cfg, romm, ui)
+
+	game := &types.Game{ID: 1, FullPath: "GameCube/game.zip"}
+	destDir := filepath.Join(tempDir, "GameCube", "1")
+	os.MkdirAll(destDir, 0o755)
+
+	// We need to move the archive to where postDownloadProcessing expects it
+	finalArchivePath := filepath.Join(destDir, "game.zip")
+	os.Rename(archivePath, finalArchivePath)
+
+	err := s.postDownloadProcessing(1, game, finalArchivePath, destDir)
+	if err != nil {
+		t.Fatalf("postDownloadProcessing failed: %v", err)
+	}
+
+	// Verify that the archive was removed
+	if _, err := os.Stat(finalArchivePath); !os.IsNotExist(err) {
+		t.Errorf("Expected archive to be removed after successful extraction")
+	}
+
+	// Verify that files were extracted (at least .cue/.bin or GameCube)
+	if _, err := os.Stat(filepath.Join(destDir, "game.cue")); err != nil {
+		t.Errorf("Expected game.cue to be extracted")
+	}
+	if _, err := os.Stat(filepath.Join(destDir, "game.bin")); err != nil {
+		t.Errorf("Expected game.bin to be extracted")
 	}
 }

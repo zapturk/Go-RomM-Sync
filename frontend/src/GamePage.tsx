@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRomWithCore, GetCoresForGame, GetSaves, GetStates, DeleteSave, DeleteState, UploadSave, UploadState, GetServerSaves, GetServerStates, DownloadServerSave, DownloadServerState, OpenGameFolder, GetFirmware, SetPlatformFirmware, GetConfig } from "../wailsjs/go/main/App";
+import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRomWithCore, GetCoresForGame, GetSaves, GetStates, DeleteSave, DeleteState, UploadSave, UploadState, GetServerSaves, GetServerStates, DownloadServerSave, DownloadServerState, OpenGameFolder, GetFirmware, SetPlatformFirmware, GetConfig, CancelDownload } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { GameCover } from "./GameCover";
@@ -191,7 +191,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const handleDownload = useCallback(() => {
         if (!game || downloading || isDownloaded) return;
         setDownloading(true);
-        setDownloadStatus("Starting download...");
+        setDownloadStatus("Downloading...");
         DownloadRomToLibrary(game.id)
             .then(() => {
                 setSuccessStatus("Download complete!");
@@ -209,6 +209,12 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 setIsExtracting(false);
             });
     }, [game, downloading, isDownloaded]);
+
+    const handleCancel = useCallback(() => {
+        if (!game) return;
+        CancelDownload(game.id);
+        setDownloadStatus("Cancellation requested...");
+    }, [game]);
 
     // Play Handler
     const handlePlay = useCallback(() => {
@@ -629,6 +635,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                                 isExtracting={isExtracting}
                                                 hasSaves={hasSavesOrStates}
                                                 onDownload={handleDownload}
+                                                onCancel={handleCancel}
                                                 onFocusSaves={focusFirstAvailableSaveState}
                                             />
                                         ) : (
@@ -695,9 +702,12 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                             )}
                             <div className={`status-display ${statusFading ? 'fading' : ''}`}>
                                 {downloadStatus}
-                                {downloading && downloadProgress > 0 && downloadProgress < 100 && (
-                                    <div className="progress-container">
-                                        <div className="progress-bar" style={{ width: `${downloadProgress}%` }}></div>
+                                {downloading && (
+                                    <div className="progress-wrapper">
+                                        <div className="progress-container">
+                                            <div className="progress-bar" style={{ width: `${downloadProgress}%` }}></div>
+                                        </div>
+                                        <span className="progress-percentage">{Math.round(downloadProgress)}%</span>
                                     </div>
                                 )}
                             </div>
@@ -837,7 +847,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     );
 }
 
-function InnerDownloadButton({ isDisabled, isDownloading, isExtracting, hasSaves, onDownload, onFocusSaves }: { isDisabled: boolean; isDownloading: boolean; isExtracting: boolean; hasSaves: boolean; onDownload: () => void; onFocusSaves: () => void }) {
+function InnerDownloadButton({ isDisabled, isDownloading, isExtracting, hasSaves, onDownload, onCancel, onFocusSaves }: { isDisabled: boolean; isDownloading: boolean; isExtracting: boolean; hasSaves: boolean; onDownload: () => void; onCancel: () => void; onFocusSaves: () => void }) {
     const { ref, focused } = useFocusable({
         focusKey: 'download-button',
         onArrowPress: (direction: string) => {
@@ -848,25 +858,25 @@ function InnerDownloadButton({ isDisabled, isDownloading, isExtracting, hasSaves
             if (direction === 'left') return false;
             return direction === 'down';
         },
-        onEnterPress: onDownload
+        onEnterPress: isDownloading ? onCancel : onDownload
     });
 
     return (
         <button
             ref={ref}
-            className={`btn download-btn ${focused ? 'focused' : ''} ${isDisabled ? 'disabled' : ''}`}
-            disabled={isDisabled}
+            className={`btn download-btn ${focused ? 'focused' : ''} ${isDisabled && !isDownloading ? 'disabled' : ''} ${isDownloading ? 'cancel-mode' : ''}`}
+            disabled={isDisabled && !isDownloading}
             onMouseEnter={() => {
-                if (getMouseActive() && !isDisabled) {
+                if (getMouseActive() && (!isDisabled || isDownloading)) {
                     setFocus('download-button');
                 }
             }}
-            onClick={onDownload}
+            onClick={isDownloading ? onCancel : onDownload}
         >
             <div className="btn-content">
-                <DownloadIcon />
+                {isDownloading ? <TrashIcon /> : <DownloadIcon />}
                 <span>
-                    {isExtracting ? "Extracting..." : isDownloading ? "Downloading..." : "Download to Library"}
+                    {isExtracting ? "Extracting..." : isDownloading ? "Cancel Download" : "Download to Library"}
                 </span>
             </div>
         </button>

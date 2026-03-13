@@ -9,7 +9,7 @@ import (
 	"go-romm-sync/library"
 	"go-romm-sync/retroarch"
 	"go-romm-sync/rommsrv"
-	"go-romm-sync/sync"
+	syncSrvPkg "go-romm-sync/sync"
 	"go-romm-sync/types"
 	"io"
 	"os"
@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync" // Added for download cancellation map protection
 
 	"go-romm-sync/constants"
 
@@ -30,19 +31,24 @@ type App struct {
 	configSrv     *configsrv.Service
 	rommSrv       *rommsrv.Service
 	librarySrv    *library.Service
-	syncSrv       *sync.Service
+	syncSrv       *syncSrvPkg.Service
 	launcher      *launcher.Launcher
+
+	// Download cancellation support
+	downloadCancels map[uint]context.CancelFunc
+	downloadMu      sync.Mutex
 }
 
 // NewApp creates a new App application struct
 func NewApp(cm *config.ConfigManager) *App {
 	app := &App{
-		configManager: cm,
+		configManager:   cm,
+		downloadCancels: make(map[uint]context.CancelFunc),
 	}
 	app.configSrv = configsrv.New(app, app)
 	app.rommSrv = rommsrv.New(app)
 	app.librarySrv = library.New(app, app, app)
-	app.syncSrv = sync.New(app, app, app)
+	app.syncSrv = syncSrvPkg.New(app, app, app)
 	app.launcher = launcher.New(app, app, app, app)
 	return app
 }
@@ -317,7 +323,38 @@ func (a *App) GetServerStates(id uint) ([]types.ServerState, error) {
 
 // Library
 func (a *App) DownloadRomToLibrary(id uint) error {
-	return a.librarySrv.DownloadRomToLibrary(id)
+	// 1. Create a cancellable context
+	parentCtx := a.ctx
+	if parentCtx == nil {
+		parentCtx = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parentCtx)
+	defer cancel()
+
+	// 2. Store the cancel function
+	a.downloadMu.Lock()
+	a.downloadCancels[id] = cancel
+	a.downloadMu.Unlock()
+
+	// 3. Ensure cleanup when done
+	defer func() {
+		a.downloadMu.Lock()
+		delete(a.downloadCancels, id)
+		a.downloadMu.Unlock()
+	}()
+
+	return a.librarySrv.DownloadRomToLibrary(ctx, id)
+}
+
+func (a *App) CancelDownload(id uint) {
+	a.downloadMu.Lock()
+	cancel, ok := a.downloadCancels[id]
+	a.downloadMu.Unlock()
+
+	if ok {
+		a.LogInfof("Cancelling download for game ID %d", id)
+		cancel()
+	}
 }
 
 func (a *App) GetRomDownloadStatus(id uint) (bool, error) {
@@ -682,12 +719,12 @@ func (a *App) GetRom(id uint) (types.Game, error) {
 	}
 }
 
-func (a *App) DownloadFile(game *types.Game) (reader io.ReadCloser, filename string, err error) {
-	return a.rommSrv.GetClient().DownloadFile(game)
+func (a *App) DownloadFile(ctx context.Context, game *types.Game) (reader io.ReadCloser, filename string, err error) {
+	return a.rommSrv.GetClient().DownloadFile(ctx, game)
 }
 
-func (a *App) DownloadFirmwareContent(id uint, fileName string) (io.ReadCloser, string, error) {
-	return a.rommSrv.GetClient().DownloadFirmwareContent(id, fileName)
+func (a *App) DownloadFirmwareContent(ctx context.Context, id uint, fileName string) (io.ReadCloser, string, error) {
+	return a.rommSrv.GetClient().DownloadFirmwareContent(ctx, id, fileName)
 }
 func (a *App) GetLocalGame(id uint) (types.Game, error) {
 	return a.librarySrv.GetLocalGame(id)
@@ -701,12 +738,12 @@ func (a *App) RomMUploadState(id uint, core, filename string, content []byte) er
 	return a.rommSrv.GetClient().UploadState(id, core, filename, content)
 }
 
-func (a *App) RomMDownloadSave(id uint) (reader io.ReadCloser, filename string, err error) {
-	return a.rommSrv.GetClient().DownloadSave(id)
+func (a *App) RomMDownloadSave(ctx context.Context, id uint) (reader io.ReadCloser, filename string, err error) {
+	return a.rommSrv.GetClient().DownloadSave(ctx, id)
 }
 
-func (a *App) RomMDownloadState(id uint) (reader io.ReadCloser, filename string, err error) {
-	return a.rommSrv.GetClient().DownloadState(id)
+func (a *App) RomMDownloadState(ctx context.Context, id uint) (reader io.ReadCloser, filename string, err error) {
+	return a.rommSrv.GetClient().DownloadState(ctx, id)
 }
 
 func (a *App) GetRomDir(game *types.Game) string {

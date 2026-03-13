@@ -710,7 +710,16 @@ body.mouse-mode .game-card:hover,
     opacity: 0.7;
 }
 
-.download-status {
+.download-btn.cancel-mode {
+    background-color: #ff9800; /* Orange for cancellation */
+}
+
+.download-btn.cancel-mode.focused {
+    background-color: #f57c00;
+    outline-color: #fff;
+}
+
+.status-display {
     margin-top: 10px;
     font-size: 0.9rem;
     padding: 8px;
@@ -718,20 +727,55 @@ body.mouse-mode .game-card:hover,
     text-align: center;
     transition: opacity 0.5s ease-out;
     opacity: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
 }
 
-.download-status.fading {
+.status-display.fading {
     opacity: 0;
 }
 
-.download-status.success {
+.status-display.success {
     background: rgba(76, 175, 80, 0.2);
     color: #8bc34a;
 }
 
-.download-status.error {
+.status-display.error {
     background: rgba(244, 67, 54, 0.2);
     color: #ff5252;
+}
+
+.progress-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+}
+
+.progress-container {
+    flex: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    background: #a855f7; /* Brighter purple */
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
+    transition: width 0.3s ease;
+}
+
+.progress-percentage {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #fff;
+    min-width: 35px;
+    text-align: right;
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
 }
 
 .btn {
