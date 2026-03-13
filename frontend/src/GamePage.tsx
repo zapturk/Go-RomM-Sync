@@ -136,6 +136,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
     useEffect(() => {
         const unlisten = EventsOn("download-progress", (data: { game_id: number; percentage: number }) => {
+            console.log(`Download progress for ${data.game_id}: ${data.percentage}%`);
             if (data.game_id === gameId) {
                 setDownloadProgress(data.percentage);
             }
@@ -191,7 +192,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const handleDownload = useCallback(() => {
         if (!game || downloading || isDownloaded) return;
         setDownloading(true);
-        setDownloadStatus("Starting download...");
+        setDownloadStatus("Downloading...");
         DownloadRomToLibrary(game.id)
             .then(() => {
                 setSuccessStatus("Download complete!");
@@ -695,9 +696,12 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                             )}
                             <div className={`status-display ${statusFading ? 'fading' : ''}`}>
                                 {downloadStatus}
-                                {downloading && downloadProgress > 0 && downloadProgress < 100 && (
-                                    <div className="progress-container">
-                                        <div className="progress-bar" style={{ width: `${downloadProgress}%` }}></div>
+                                {downloading && (
+                                    <div className="progress-wrapper">
+                                        <div className="progress-container">
+                                            <div className="progress-bar" style={{ width: `${downloadProgress}%` }}></div>
+                                        </div>
+                                        <span className="progress-percentage">{Math.round(downloadProgress)}%</span>
                                     </div>
                                 )}
                             </div>

@@ -242,28 +242,13 @@ var platformSearchPatterns = []struct {
 	patterns []string
 	all      bool
 }{
-	// Handhelds - variants first
-	{"gba", []string{"advance", "gba"}, false},
-	{"dsi", []string{"dsi"}, false},
-	{"3ds", []string{"3ds"}, false},
-	{"nds", []string{"nds", "ds", "dual screen"}, false},
-	{"psp", []string{"psp", "playstation portable"}, false},
-	{"wsc", []string{"wonderswan", "wsc"}, false},
-	{"ngp", []string{"neo", "pocket"}, true},
-	{"vb", []string{"virtual", "boy"}, true},
-	{"lynx", []string{"lynx"}, false},
-	{"pico8", []string{"pico-8", "pico8", "pico 8", "p8"}, false},
-	{"gamegear", []string{"game gear", "gamegear"}, false},
-	{"gbc", []string{"color", "gbc"}, false},
-	{"gb", []string{"game boy", "gb"}, false},
-
 	// Consoles - Specific/Modern first to avoid broad matches
-	{"ps2", []string{"ps2", "playstation 2"}, false},
-	{"ps1", []string{"playstation", "ps1", "psx"}, false},
 	{"wiiu", []string{"wii u", "wiiu"}, false},
 	{"wii", []string{"wii"}, false},
-	{"gamecube", []string{"gamecube", "gcn"}, false},
+	{"gamecube", []string{"gamecube", "gcn", "dolphin"}, false},
 	{"n64", []string{"n64", "nintendo 64"}, false},
+	{"ps2", []string{"ps2", "playstation 2"}, false},
+	{"ps1", []string{"playstation", "ps1", "psx"}, false},
 	{"dreamcast", []string{"dreamcast"}, false},
 	{"saturn", []string{"saturn"}, false},
 	{"genesis", []string{"genesis", "mega drive", "megadrive"}, false},
@@ -273,6 +258,21 @@ var platformSearchPatterns = []struct {
 	{"segacd", []string{"sega cd", "segacd", "mega-cd", "megacd"}, false},
 	{"pce", []string{"pce", "pc engine", "turbo", "grafx"}, false},
 	{"3do", []string{"3do"}, false},
+
+	// Handhelds
+	{"gba", []string{"advance", "gba"}, false},
+	{"dsi", []string{"dsi"}, false},
+	{"3ds", []string{"3ds"}, false},
+	{"nds", []string{"nintendo ds", "nds", "dual screen", "ds"}, false},
+	{"psp", []string{"psp", "playstation portable"}, false},
+	{"wsc", []string{"wonderswan", "wsc"}, false},
+	{"ngp", []string{"neo", "pocket"}, true},
+	{"vb", []string{"virtual", "boy"}, true},
+	{"lynx", []string{"lynx"}, false},
+	{"pico8", []string{"pico-8", "pico8", "pico 8", "p8"}, false},
+	{"gamegear", []string{"game gear", "gamegear"}, false},
+	{"gbc", []string{"color", "gbc"}, false},
+	{"gb", []string{"game boy", "gb"}, false},
 
 	// 8-bit / Classic
 	{"a78", []string{"7800"}, false},
@@ -302,9 +302,16 @@ func IdentifyPlatform(input string) string {
 		return ""
 	}
 
+	// 0. Extension-based hint (High Priority)
+	// If the input contains a known GameCube/Wii extension, prioritize it.
+	if strings.Contains(lower, ".rvz") || strings.Contains(lower, ".gcz") || strings.Contains(lower, ".gcm") {
+		return "gamecube"
+	}
+	if strings.Contains(lower, ".wbfs") {
+		return "wii"
+	}
+
 	// 1. Direct check for exact slug matches (Primary)
-	// This ensures that if the input IS already a canonical slug (e.g., from RomM metadata),
-	// we don't accidentally fuzzy-match it to something else.
 	if _, ok := PlatformCoreMap[lower]; ok {
 		return lower
 	}
@@ -322,6 +329,15 @@ func IdentifyPlatform(input string) string {
 			}
 		} else {
 			for _, p := range entry.patterns {
+				// Special check for "ds" to ensure it's a word, not a substring
+				if p == "ds" {
+					if matched, _ := regexp.MatchString(`\bds\b`, lower); matched {
+						matches = true
+						break
+					}
+					continue
+				}
+
 				if strings.Contains(lower, p) {
 					matches = true
 					break

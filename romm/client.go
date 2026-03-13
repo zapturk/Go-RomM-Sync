@@ -354,6 +354,10 @@ func (c *Client) DownloadFile(game *types.Game) (reader io.ReadCloser, filename 
 		return nil, "", fmt.Errorf("download failed with status %d", resp.StatusCode)
 	}
 
+	if game.FileSize <= 0 && resp.ContentLength > 0 {
+		game.FileSize = resp.ContentLength
+	}
+
 	// Double check Content-Disposition if the backend assigned an explicit download name
 	cd := resp.Header.Get("Content-Disposition")
 	if cd != "" && strings.Contains(cd, "filename=") {

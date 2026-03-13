@@ -14,6 +14,7 @@ import (
 
 	"go-romm-sync/utils/archive"
 	"go-romm-sync/utils/fileio"
+	"time"
 )
 
 // ConfigProvider defines the configuration needed for library management.
@@ -38,10 +39,12 @@ type UIProvider interface {
 }
 
 type ProgressWriter struct {
-	Total      int64
-	Downloaded int64
-	GameID     uint
-	UI         UIProvider
+	Total       int64
+	Downloaded  int64
+	GameID      uint
+	UI          UIProvider
+	LastPercent float64
+	LastEmit    time.Time
 }
 
 func (pw *ProgressWriter) Write(p []byte) (int, error) {
@@ -49,10 +52,15 @@ func (pw *ProgressWriter) Write(p []byte) (int, error) {
 	pw.Downloaded += int64(n)
 	if pw.Total > 0 {
 		percentage := float64(pw.Downloaded) / float64(pw.Total) * 100
-		pw.UI.EventsEmit("download-progress", map[string]interface{}{
-			"game_id":    pw.GameID,
-			"percentage": percentage,
-		})
+		// Throttle: emit if percentage changed significantly (>= 1%) OR it's been > 500ms
+		if percentage-pw.LastPercent >= 1.0 || time.Since(pw.LastEmit) > 500*time.Millisecond || percentage >= 100 {
+			pw.UI.EventsEmit("download-progress", map[string]interface{}{
+				"game_id":    pw.GameID,
+				"percentage": percentage,
+			})
+			pw.LastPercent = percentage
+			pw.LastEmit = time.Now()
+		}
 	}
 	return n, nil
 }
@@ -120,11 +128,13 @@ func (s *Service) DownloadRomToLibrary(id uint) error {
 	defer fileio.Close(out, s.ui.LogErrorf, "DownloadRomToLibrary: Failed to close destination file")
 
 	pw := &ProgressWriter{
-		Total:  game.FileSize,
-		GameID: game.ID,
-		UI:     s.ui,
+		Total:    game.FileSize,
+		GameID:   game.ID,
+		UI:       s.ui,
+		LastEmit: time.Now(),
 	}
 
+	s.ui.LogInfof("DownloadRomToLibrary: Starting download for ID %d, Size: %d", id, game.FileSize)
 	if _, err := io.Copy(io.MultiWriter(out, pw), reader); err != nil {
 		return fmt.Errorf("failed to save file: %w", err)
 	}
@@ -132,10 +142,16 @@ func (s *Service) DownloadRomToLibrary(id uint) error {
 	// Archive check: Extract .cue/.bin if present
 	s.ui.EventsEmit("library-status", map[string]interface{}{"game_id": id, "status": "extracting"})
 	if extracted, err := archive.ExtractCueBin(destPath, destDir); err != nil {
-		s.ui.LogErrorf("DownloadRomToLibrary: Extraction failed for %s: %v", destPath, err)
+		s.ui.LogErrorf("DownloadRomToLibrary: .cue/.bin extraction failed for %s: %v", destPath, err)
 	} else if extracted {
 		s.ui.LogInfof("DownloadRomToLibrary: Extracted .cue/.bin files from archive: %s", destPath)
-		// Optionally delete the original archive to keep the folder clean
+		if err := os.Remove(destPath); err != nil {
+			s.ui.LogErrorf("DownloadRomToLibrary: Failed to remove original archive %s: %v", destPath, err)
+		}
+	} else if extracted, err := archive.ExtractGameCube(destPath, destDir); err != nil {
+		s.ui.LogErrorf("DownloadRomToLibrary: GameCube extraction failed for %s: %v", destPath, err)
+	} else if extracted {
+		s.ui.LogInfof("DownloadRomToLibrary: Extracted GameCube ROM from archive: %s", destPath)
 		if err := os.Remove(destPath); err != nil {
 			s.ui.LogErrorf("DownloadRomToLibrary: Failed to remove original archive %s: %v", destPath, err)
 		}

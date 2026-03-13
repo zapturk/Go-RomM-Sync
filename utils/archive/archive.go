@@ -44,9 +44,38 @@ func Extract(src, destDir string) (bool, error) {
 // ExtractCueBin checks if an archive contains .cue and .bin files and extracts them if it does.
 // Returns true if files were extracted, false if not an archive or no .cue/.bin pair found.
 func ExtractCueBin(src, destDir string) (bool, error) {
+	return extractByCondition(src, destDir, func(entries []archiveEntry) bool {
+		hasCue := false
+		hasBin := false
+		for _, e := range entries {
+			switch strings.ToLower(filepath.Ext(e.Name())) {
+			case ".cue":
+				hasCue = true
+			case ".bin":
+				hasBin = true
+			}
+		}
+		return hasCue && hasBin
+	})
+}
+
+// ExtractGameCube checks if an archive contains .rvz, .gcm, or .gcz files and extracts them if it does.
+// Returns true if files were extracted, false if not an archive or no GameCube ROM found.
+func ExtractGameCube(src, destDir string) (bool, error) {
+	return extractByCondition(src, destDir, func(entries []archiveEntry) bool {
+		for _, e := range entries {
+			ext := strings.ToLower(filepath.Ext(e.Name()))
+			if ext == ".rvz" || ext == ".gcm" || ext == ".gcz" {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+func extractByCondition(src, destDir string, condition func([]archiveEntry) bool) (bool, error) {
 	format := sniffFormat(src)
 	if format == "" {
-		// Fallback to extension if sniffing fails (e.g. file too small or access error)
 		ext := strings.ToLower(filepath.Ext(src))
 		switch ext {
 		case ".zip":
@@ -62,24 +91,20 @@ func ExtractCueBin(src, destDir string) (bool, error) {
 		return false, nil
 	}
 
-	// Try the detected format first
-	extracted, err := tryExtract(format, src, destDir, true)
-	if err == nil {
-		return extracted, nil
-	}
+	// Try extracting with the condition
+	return tryExtractWithCondition(format, src, destDir, condition)
+}
 
-	// If it fails, try other formats as fallback (mislabeled files are common)
-	formats := []string{formatZip, format7z, formatRar}
-	for _, f := range formats {
-		if f == format {
-			continue
-		}
-		if ext, err := tryExtract(f, src, destDir, true); err == nil {
-			return ext, nil
-		}
+func tryExtractWithCondition(format, src, destDir string, condition func([]archiveEntry) bool) (bool, error) {
+	switch format {
+	case formatZip:
+		return extractZipWithCondition(src, destDir, condition)
+	case format7z:
+		return extract7zWithCondition(src, destDir, condition)
+	case formatRar:
+		return extractRarWithCondition(src, destDir, condition)
 	}
-
-	return false, err
+	return false, nil
 }
 
 func sniffFormat(src string) string {
@@ -130,15 +155,10 @@ func sniffRar(buf []byte, n int) string {
 }
 
 func tryExtract(format, src, destDir string, cueBinOnly bool) (bool, error) {
-	switch format {
-	case formatZip:
-		return extractZip(src, destDir, cueBinOnly)
-	case format7z:
-		return extract7z(src, destDir, cueBinOnly)
-	case formatRar:
-		return extractRar(src, destDir, cueBinOnly)
+	if cueBinOnly {
+		return ExtractCueBin(src, destDir)
 	}
-	return false, nil
+	return tryExtractWithCondition(format, src, destDir, nil)
 }
 
 type archiveEntry interface {
@@ -163,7 +183,7 @@ func (e sevenZipEntry) Name() string                 { return e.File.Name }
 func (e sevenZipEntry) IsDir() bool                  { return e.File.FileInfo().IsDir() }
 func (e sevenZipEntry) Open() (io.ReadCloser, error) { return e.File.Open() }
 
-func extractZip(src, destDir string, cueBinOnly bool) (bool, error) {
+func extractZipWithCondition(src, destDir string, condition func([]archiveEntry) bool) (bool, error) {
 	r, err := zip.OpenReader(src)
 	if err != nil {
 		return false, fmt.Errorf("failed to open zip: %w", err)
@@ -175,10 +195,14 @@ func extractZip(src, destDir string, cueBinOnly bool) (bool, error) {
 		entries[i] = zipEntry{f}
 	}
 
-	return processArchiveEntries(entries, destDir, cueBinOnly)
+	if condition != nil && !condition(entries) {
+		return false, nil
+	}
+
+	return processArchiveEntries(entries, destDir, false)
 }
 
-func extract7z(src, destDir string, cueBinOnly bool) (bool, error) {
+func extract7zWithCondition(src, destDir string, condition func([]archiveEntry) bool) (bool, error) {
 	r, err := sevenzip.OpenReader(src)
 	if err != nil {
 		return false, fmt.Errorf("failed to open 7z: %w", err)
@@ -190,7 +214,11 @@ func extract7z(src, destDir string, cueBinOnly bool) (bool, error) {
 		entries[i] = sevenZipEntry{f}
 	}
 
-	return processArchiveEntries(entries, destDir, cueBinOnly)
+	if condition != nil && !condition(entries) {
+		return false, nil
+	}
+
+	return processArchiveEntries(entries, destDir, false)
 }
 
 func processArchiveEntries(entries []archiveEntry, destDir string, cueBinOnly bool) (bool, error) {
@@ -226,6 +254,59 @@ func processArchiveEntries(entries []archiveEntry, destDir string, cueBinOnly bo
 
 	return true, nil
 }
+
+func extractRarWithCondition(src, destDir string, condition func([]archiveEntry) bool) (bool, error) {
+	f, err := os.Open(src)
+	if err != nil {
+		return false, fmt.Errorf("failed to open rar: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	rr, err := rardecode.NewReader(f)
+	if err != nil {
+		return false, fmt.Errorf("failed to create rar reader: %w", err)
+	}
+
+	// Since rardecode reader doesn't support random access/peeking without consuming,
+	// we have to check the condition by iterating, then re-open if we need to extract.
+	// This is inefficient but necessary for RAR.
+	if condition != nil {
+		var entries []archiveEntry
+		for {
+			header, err := rr.Next()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return false, err
+			}
+			entries = append(entries, rarEntry{header})
+		}
+		if !condition(entries) {
+			return false, nil
+		}
+
+		// Re-open
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			return true, err
+		}
+		rr, err = rardecode.NewReader(f)
+		if err != nil {
+			return true, err
+		}
+	}
+
+	err = performRarExtraction(rr, destDir)
+	return true, err
+}
+
+type rarEntry struct {
+	*rardecode.FileHeader
+}
+
+func (e rarEntry) Name() string                 { return e.FileHeader.Name }
+func (e rarEntry) IsDir() bool                  { return e.FileHeader.IsDir }
+func (e rarEntry) Open() (io.ReadCloser, error) { return nil, fmt.Errorf("rar entry open not implemented for condition check") }
 
 func extractRar(src, destDir string, cueBinOnly bool) (bool, error) {
 	// First pass: check for .cue and .bin if requested
