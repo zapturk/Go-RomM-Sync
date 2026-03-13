@@ -123,6 +123,16 @@ func (s *Service) DownloadRomToLibrary(ctx context.Context, id uint) error {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
+	var downloadSuccess bool
+	defer func() {
+		if !downloadSuccess {
+			if _, err := os.Stat(destPath); err == nil {
+				s.ui.LogInfof("DownloadRomToLibrary: Cleaning up partial/failed download at %s", destPath)
+				_ = os.Remove(destPath) // Ignore error as it's just cleanup
+			}
+		}
+	}()
+
 	out, err := os.Create(destPath)
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
@@ -135,16 +145,6 @@ func (s *Service) DownloadRomToLibrary(ctx context.Context, id uint) error {
 		UI:       s.ui,
 		LastEmit: time.Now(),
 	}
-
-	var downloadSuccess bool
-	defer func() {
-		if !downloadSuccess {
-			if _, err := os.Stat(destPath); err == nil {
-				s.ui.LogInfof("DownloadRomToLibrary: Cleaning up partial/failed download at %s", destPath)
-				_ = os.Remove(destPath) // Ignore error as it's just cleanup
-			}
-		}
-	}()
 
 	s.ui.LogInfof("DownloadRomToLibrary: Starting download for ID %d, Size: %d", id, game.FileSize)
 	if _, err := io.Copy(io.MultiWriter(out, pw), reader); err != nil {
