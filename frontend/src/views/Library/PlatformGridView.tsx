@@ -18,7 +18,8 @@ interface PlatformGridViewProps {
     columns: number;
     syncTrigger: number;
     lastViewedPlatformId: number | null;
-    gridRef: React.RefObject<HTMLDivElement | null>;
+    gridRef: React.RefObject<HTMLDivElement>;
+    isActive: boolean;
 }
 
 export function PlatformGridView({
@@ -33,7 +34,8 @@ export function PlatformGridView({
     columns,
     syncTrigger,
     lastViewedPlatformId,
-    gridRef
+    gridRef,
+    isActive
 }: PlatformGridViewProps) {
 
     const { ref } = useFocusable({
@@ -52,6 +54,8 @@ export function PlatformGridView({
     });
 
     useEffect(() => {
+        if (!isActive) return;
+
         if (platforms.length > 0) {
             setTimeout(() => {
                 if (lastViewedPlatformId && platforms.some(p => p.id === lastViewedPlatformId)) {
@@ -65,7 +69,7 @@ export function PlatformGridView({
                 focusConfig();
             }, 100);
         }
-    }, [platforms.length, lastViewedPlatformId, isLoading, focusConfig]);
+    }, [platforms.length, lastViewedPlatformId, isLoading, focusConfig, isActive]);
 
     return (
         <div className="platform-grid-view" ref={ref}>

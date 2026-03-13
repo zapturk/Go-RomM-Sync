@@ -262,12 +262,19 @@ function SettingsForm({
     useEffect(() => {
         if (isActive) {
             setTimeout(() => {
-                setFocus('save-button');
+                setFocus('browse-ra-button');
             }, 100);
         }
     }, [isActive]);
 
     // Focus management handled by components
+
+    const handleTopArrowPress = (direction: string) => {
+        if (direction === 'up') {
+            return false;
+        }
+        return true;
+    };
 
     return (
         <div id="settings-page" className="settings-page">
@@ -290,12 +297,14 @@ function SettingsForm({
                                     readOnly
                                     placeholder="Not configured"
                                     focusKey="ra-path-input"
+                                    onArrowPress={handleTopArrowPress}
                                 />
                                 <FocusableButton
                                     focusKey="browse-ra-button"
                                     className={`btn ${isSaving ? 'disabled' : ''}`}
                                     onClick={handleBrowseRA}
                                     onEnterPress={handleBrowseRA}
+                                    onArrowPress={handleTopArrowPress}
                                     disabled={isSaving}
                                     onMouseEnter={() => getMouseActive() && !isSaving && setFocus('browse-ra-button')}
                                 >

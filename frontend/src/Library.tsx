@@ -217,6 +217,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
                         <PlatformGridView
                             platforms={sortedPlatforms}
                             isLoading={isLoading}
+                            isActive={isActive}
                             offset={platformOffset}
                             totalPlatforms={totalPlatforms}
                             pageSize={PAGE_SIZE}
@@ -236,6 +237,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
                             platform={currentPlatformObj}
                             games={games}
                             isLoading={isLoading}
+                            isActive={isActive}
                             offset={offset}
                             totalGames={totalGames}
                             pageSize={PAGE_SIZE}
