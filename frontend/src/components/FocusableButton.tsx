@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
+import { getMouseActive } from '../inputMode';
 
 interface FocusableButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
     focusKey?: string;
@@ -28,7 +29,7 @@ export function FocusableButton({
     });
 
     useEffect(() => {
-        if (focused && ref.current) {
+        if (focused && ref.current && !getMouseActive()) {
             const element = ref.current;
             // Use setTimeout to ensure focus state is fully applied before scrolling
             setTimeout(() => {

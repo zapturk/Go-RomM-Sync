@@ -19,6 +19,7 @@ interface GameGridViewProps {
     searchTerm: string;
     onSearchChange: (value: string) => void;
     gridRef: React.RefObject<HTMLDivElement | null>;
+    isActive: boolean;
 }
 
 export function GameGridView({
@@ -34,7 +35,8 @@ export function GameGridView({
     onPageChange,
     searchTerm,
     onSearchChange,
-    gridRef
+    gridRef,
+    isActive
 }: GameGridViewProps) {
     const [localSearch, setLocalSearch] = useState(searchTerm);
     const searchInputRef = useRef<HTMLInputElement>(null);
@@ -58,6 +60,8 @@ export function GameGridView({
     }, [localSearch]);
 
     useEffect(() => {
+        if (!isActive) return;
+
         if (!isLoading && games.length > 0) {
             setTimeout(() => {
                 if (lastViewedGameId && games.some(g => g.id === lastViewedGameId)) {
@@ -71,7 +75,7 @@ export function GameGridView({
                 }
             }, 100);
         }
-    }, [games.length, isLoading, lastViewedGameId]);
+    }, [games.length, isLoading, lastViewedGameId, isActive]);
 
     return (
         <div className="game-grid-view" ref={ref}>

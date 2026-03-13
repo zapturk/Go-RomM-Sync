@@ -28,7 +28,7 @@ export function GameCard({ game, onClick, onEnterPress, isLeftmost = false, isTo
     });
 
     useEffect(() => {
-        if (focused && ref.current) {
+        if (focused && ref.current && !getMouseActive()) {
             ref.current.scrollIntoView({
                 behavior: 'smooth',
                 block: 'center',

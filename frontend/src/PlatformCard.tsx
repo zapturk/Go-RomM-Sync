@@ -68,7 +68,7 @@ export function PlatformCard({ platform, onClick, onEnterPress, syncTrigger = 0,
     }, [platform.id, platform.slug, syncTrigger]);
 
     useEffect(() => {
-        if (focused && ref.current) {
+        if (focused && ref.current && !getMouseActive()) {
             ref.current.scrollIntoView({
                 behavior: 'smooth',
                 block: 'center',

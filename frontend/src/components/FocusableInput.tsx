@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
+import { getMouseActive } from '../inputMode';
 
 interface FocusableInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
     focusKey?: string;
@@ -29,14 +30,20 @@ export function FocusableInput({
     useEffect(() => {
         if (focused && ref.current) {
             const element = ref.current;
-            // Use setTimeout to ensure focus state is fully applied before scrolling
+            // If it's a mouse interaction, we focus the element so user can start typing
+            // but we suppress the automatic scrollIntoView which can be jarring on hover
+            if (getMouseActive()) {
+                element.focus();
+                return;
+            }
+
+            // For keyboard/gamepad, we want both focus and scroll
             setTimeout(() => {
                 element.scrollIntoView({
                     behavior: 'smooth',
                     block: 'center',
                     inline: 'nearest'
                 });
-                // Also focus the actual DOM element so user can start typing
                 element.focus();
             }, 50);
         }
