@@ -391,12 +391,14 @@ func (a *App) UploadState(id uint, core, filename string) error {
 	return a.syncSrv.UploadState(id, core, filename)
 }
 
-func (a *App) DownloadServerSave(gameID uint, filePath, core, filename, updatedAt string) error {
-	return a.syncSrv.DownloadServerSave(gameID, filePath, core, filename, updatedAt)
+// DownloadServerSave downloads a remote save file into the local library structure
+func (a *App) DownloadServerSave(gameID, serverID uint, core, filename, updatedAt string) error {
+	return a.syncSrv.DownloadServerSave(gameID, serverID, core, filename, updatedAt)
 }
 
-func (a *App) DownloadServerState(gameID uint, filePath, core, filename, updatedAt string) error {
-	return a.syncSrv.DownloadServerState(gameID, filePath, core, filename, updatedAt)
+// DownloadServerState downloads a remote state file into the local library structure
+func (a *App) DownloadServerState(gameID, serverID uint, core, filename, updatedAt string) error {
+	return a.syncSrv.DownloadServerState(gameID, serverID, core, filename, updatedAt)
 }
 
 func (a *App) ValidateAssetPath(core, filename string) (coreBase, fileBase string, err error) {
@@ -699,12 +701,12 @@ func (a *App) RomMUploadState(id uint, core, filename string, content []byte) er
 	return a.rommSrv.GetClient().UploadState(id, core, filename, content)
 }
 
-func (a *App) RomMDownloadSave(filePath string) (reader io.ReadCloser, filename string, err error) {
-	return a.rommSrv.GetClient().DownloadSave(filePath)
+func (a *App) RomMDownloadSave(id uint) (reader io.ReadCloser, filename string, err error) {
+	return a.rommSrv.GetClient().DownloadSave(id)
 }
 
-func (a *App) RomMDownloadState(filePath string) (reader io.ReadCloser, filename string, err error) {
-	return a.rommSrv.GetClient().DownloadState(filePath)
+func (a *App) RomMDownloadState(id uint) (reader io.ReadCloser, filename string, err error) {
+	return a.rommSrv.GetClient().DownloadState(id)
 }
 
 func (a *App) GetRomDir(game *types.Game) string {

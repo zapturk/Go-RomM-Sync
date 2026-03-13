@@ -25,8 +25,8 @@ type RomMProvider interface {
 	GetRom(id uint) (types.Game, error)
 	RomMUploadSave(id uint, core, filename string, content []byte) error
 	RomMUploadState(id uint, core, filename string, content []byte) error
-	RomMDownloadSave(filePath string) (io.ReadCloser, string, error)
-	RomMDownloadState(filePath string) (io.ReadCloser, string, error)
+	RomMDownloadSave(id uint) (io.ReadCloser, string, error)
+	RomMDownloadState(id uint) (io.ReadCloser, string, error)
 }
 
 // UIProvider defines logging and event emission.
@@ -235,16 +235,16 @@ func (s *Service) DeleteGameFile(id uint, subDir, core, filename string) error {
 }
 
 // DownloadServerSave downloads a save from RomM.
-func (s *Service) DownloadServerSave(gameID uint, filePath, core, filename, updatedAt string) error {
-	return s.downloadServerAsset(gameID, filePath, core, filename, updatedAt, constants.DirSaves)
+func (s *Service) DownloadServerSave(gameID, serverID uint, core, filename, updatedAt string) error {
+	return s.downloadServerAsset(gameID, serverID, core, filename, updatedAt, constants.DirSaves)
 }
 
 // DownloadServerState downloads a state from RomM.
-func (s *Service) DownloadServerState(gameID uint, filePath, core, filename, updatedAt string) error {
-	return s.downloadServerAsset(gameID, filePath, core, filename, updatedAt, constants.DirStates)
+func (s *Service) DownloadServerState(gameID, serverID uint, core, filename, updatedAt string) error {
+	return s.downloadServerAsset(gameID, serverID, core, filename, updatedAt, constants.DirStates)
 }
 
-func (s *Service) downloadServerAsset(gameID uint, filePath, core, filename, updatedAt, subDir string) error {
+func (s *Service) downloadServerAsset(gameID, serverID uint, core, filename, updatedAt, subDir string) error {
 	game, err := s.library.GetLocalGame(gameID)
 	if err != nil {
 		game, err = s.romm.GetRom(gameID)
@@ -256,9 +256,9 @@ func (s *Service) downloadServerAsset(gameID uint, filePath, core, filename, upd
 	var reader io.ReadCloser
 	var serverFilename string
 	if subDir == constants.DirSaves {
-		reader, serverFilename, err = s.romm.RomMDownloadSave(filePath)
+		reader, serverFilename, err = s.romm.RomMDownloadSave(serverID)
 	} else {
-		reader, serverFilename, err = s.romm.RomMDownloadState(filePath)
+		reader, serverFilename, err = s.romm.RomMDownloadState(serverID)
 	}
 
 	if err != nil {

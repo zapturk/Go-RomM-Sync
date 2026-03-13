@@ -23,9 +23,9 @@ export function DownloadRom(arg1:number):Promise<string>;
 
 export function DownloadRomToLibrary(arg1:number):Promise<void>;
 
-export function DownloadServerSave(arg1:number,arg2:string,arg3:string,arg4:string,arg5:string):Promise<void>;
+export function DownloadServerSave(arg1:number,arg2:number,arg3:string,arg4:string,arg5:string):Promise<void>;
 
-export function DownloadServerState(arg1:number,arg2:string,arg3:string,arg4:string,arg5:string):Promise<void>;
+export function DownloadServerState(arg1:number,arg2:number,arg3:string,arg4:string,arg5:string):Promise<void>;
 
 export function EventsEmit(arg1:string,arg2:Array<any>):Promise<void>;
 
@@ -99,9 +99,9 @@ export function PlayRomWithCore(arg1:number,arg2:string):Promise<void>;
 
 export function Quit():Promise<void>;
 
-export function RomMDownloadSave(arg1:string):Promise<io.ReadCloser>;
+export function RomMDownloadSave(arg1:number):Promise<io.ReadCloser>;
 
-export function RomMDownloadState(arg1:string):Promise<io.ReadCloser>;
+export function RomMDownloadState(arg1:number):Promise<io.ReadCloser>;
 
 export function RomMUploadSave(arg1:number,arg2:string,arg3:string,arg4:Array<number>):Promise<void>;
 

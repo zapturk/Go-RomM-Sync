@@ -476,22 +476,22 @@ func fetchAssets[T any](c *Client, urlStr, assetType string) ([]T, error) {
 	return items, nil
 }
 
-// DownloadSave fetches a save file from RomM
-func (c *Client) DownloadSave(filePath string) (reader io.ReadCloser, filename string, err error) {
-	return c.downloadAsset(filePath, "unknown.sav")
+// DownloadSave fetches a save file from RomM using its ID
+func (c *Client) DownloadSave(id uint) (reader io.ReadCloser, filename string, err error) {
+	return c.downloadAsset(id, "saves", "unknown.sav")
 }
 
-// DownloadState fetches a state file from RomM
-func (c *Client) DownloadState(filePath string) (reader io.ReadCloser, filename string, err error) {
-	return c.downloadAsset(filePath, "unknown.state")
+// DownloadState fetches a state file from RomM using its ID
+func (c *Client) DownloadState(id uint) (reader io.ReadCloser, filename string, err error) {
+	return c.downloadAsset(id, "states", "unknown.state")
 }
 
-func (c *Client) downloadAsset(filePath, fallbackFilename string) (reader io.ReadCloser, filename string, err error) {
+func (c *Client) downloadAsset(id uint, assetType, fallbackFilename string) (reader io.ReadCloser, filename string, err error) {
 	if c.Token == "" {
 		return nil, "", fmt.Errorf("not authenticated")
 	}
 
-	urlPath := fmt.Sprintf("%s/api/raw/assets/%s", c.BaseURL, strings.TrimPrefix(filePath, "/"))
+	urlPath := fmt.Sprintf("%s/api/%s/%d/content", c.BaseURL, assetType, id)
 	req, err := http.NewRequest("GET", urlPath, http.NoBody)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create download request: %w", err)

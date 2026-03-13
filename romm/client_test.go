@@ -314,7 +314,8 @@ func TestDownloadAsset(t *testing.T) {
 	client := NewClient(server.URL)
 	client.Token = "test-token"
 
-	reader, filename, err := client.DownloadSave("/some/path/save.srm")
+	// Test DownloadSave
+	reader, filename, err := client.DownloadSave(1)
 	if err != nil {
 		t.Fatalf("DownloadSave failed: %v", err)
 	}
@@ -323,7 +324,8 @@ func TestDownloadAsset(t *testing.T) {
 		t.Errorf("Expected test.sav, got %s", filename)
 	}
 
-	reader, filename, err = client.DownloadState("/some/path/state.st0")
+	// Test DownloadState
+	reader, filename, err = client.DownloadState(2)
 	if err != nil {
 		t.Fatalf("DownloadState failed: %v", err)
 	}
