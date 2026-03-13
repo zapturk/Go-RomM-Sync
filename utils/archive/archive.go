@@ -16,6 +16,9 @@ const (
 	formatZip = "zip"
 	format7z  = "7z"
 	formatRar = "rar"
+
+	extCue = ".cue"
+	extBin = ".bin"
 )
 
 // Extract extracts all files from an archive to the destination directory.
@@ -49,9 +52,9 @@ func ExtractCueBin(src, destDir string) (bool, error) {
 		hasBin := false
 		for _, e := range entries {
 			switch strings.ToLower(filepath.Ext(e.Name())) {
-			case ".cue":
+			case extCue:
 				hasCue = true
-			case ".bin":
+			case extBin:
 				hasBin = true
 			}
 		}
@@ -227,9 +230,9 @@ func processArchiveEntries(entries []archiveEntry, destDir string, cueBinOnly bo
 		hasBin := false
 		for _, e := range entries {
 			switch strings.ToLower(filepath.Ext(e.Name())) {
-			case ".cue":
+			case extCue:
 				hasCue = true
-			case ".bin":
+			case extBin:
 				hasBin = true
 			}
 		}
@@ -304,64 +307,10 @@ type rarEntry struct {
 	*rardecode.FileHeader
 }
 
-func (e rarEntry) Name() string                 { return e.FileHeader.Name }
-func (e rarEntry) IsDir() bool                  { return e.FileHeader.IsDir }
-func (e rarEntry) Open() (io.ReadCloser, error) { return nil, fmt.Errorf("rar entry open not implemented for condition check") }
-
-func extractRar(src, destDir string, cueBinOnly bool) (bool, error) {
-	// First pass: check for .cue and .bin if requested
-	f, err := os.Open(src)
-	if err != nil {
-		return false, fmt.Errorf("failed to open rar: %w", err)
-	}
-	defer func() { _ = f.Close() }()
-
-	rr, err := rardecode.NewReader(f)
-	if err != nil {
-		return false, fmt.Errorf("failed to create rar reader: %w", err)
-	}
-
-	if cueBinOnly {
-		if hasCue, hasBin, err := checkRarCueBin(rr); err != nil {
-			return false, err
-		} else if !hasCue || !hasBin {
-			return false, nil
-		}
-
-		// Re-open/seek for second pass
-		if _, err := f.Seek(0, io.SeekStart); err != nil {
-			return true, fmt.Errorf("failed to seek rar: %w", err)
-		}
-		rr, err = rardecode.NewReader(f)
-		if err != nil {
-			return true, fmt.Errorf("failed to recreate rar reader: %w", err)
-		}
-	}
-
-	err = performRarExtraction(rr, destDir)
-	return true, err
-}
-
-func checkRarCueBin(rr *rardecode.Reader) (hasCue, hasBin bool, err error) {
-	hasCue = false
-	hasBin = false
-	for {
-		header, err := rr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return false, false, fmt.Errorf("failed to read rar header: %w", err)
-		}
-
-		switch strings.ToLower(filepath.Ext(header.Name)) {
-		case ".cue":
-			hasCue = true
-		case ".bin":
-			hasBin = true
-		}
-	}
-	return hasCue, hasBin, nil
+func (e rarEntry) Name() string { return e.FileHeader.Name }
+func (e rarEntry) IsDir() bool  { return e.FileHeader.IsDir }
+func (e rarEntry) Open() (io.ReadCloser, error) {
+	return nil, fmt.Errorf("rar entry open not implemented for condition check")
 }
 
 func performRarExtraction(rr *rardecode.Reader, destDir string) error {

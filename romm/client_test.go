@@ -1,6 +1,7 @@
 package romm
 
 import (
+	"context"
 	"encoding/json"
 	"go-romm-sync/types"
 	"io"
@@ -234,7 +235,7 @@ func TestDownloadFile(t *testing.T) {
 	client.Token = "test-token"
 
 	game := &types.Game{ID: 1, FullPath: "SNES/Game.sfc"}
-	reader, filename, err := client.DownloadFile(game)
+	reader, filename, err := client.DownloadFile(context.Background(), game)
 	if err != nil {
 		t.Fatalf("DownloadFile failed: %v", err)
 	}
@@ -315,7 +316,7 @@ func TestDownloadAsset(t *testing.T) {
 	client.Token = "test-token"
 
 	// Test DownloadSave
-	reader, filename, err := client.DownloadSave(1)
+	reader, filename, err := client.DownloadSave(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("DownloadSave failed: %v", err)
 	}
@@ -325,7 +326,7 @@ func TestDownloadAsset(t *testing.T) {
 	}
 
 	// Test DownloadState
-	reader, filename, err = client.DownloadState(2)
+	reader, filename, err = client.DownloadState(context.Background(), 2)
 	if err != nil {
 		t.Fatalf("DownloadState failed: %v", err)
 	}

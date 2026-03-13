@@ -710,6 +710,15 @@ body.mouse-mode .game-card:hover,
     opacity: 0.7;
 }
 
+.download-btn.cancel-mode {
+    background-color: #ff9800; /* Orange for cancellation */
+}
+
+.download-btn.cancel-mode.focused {
+    background-color: #f57c00;
+    outline-color: #fff;
+}
+
 .status-display {
     margin-top: 10px;
     font-size: 0.9rem;

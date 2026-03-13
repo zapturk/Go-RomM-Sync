@@ -1,6 +1,7 @@
 package library
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"go-romm-sync/constants"
@@ -25,10 +26,11 @@ type ConfigProvider interface {
 
 // RomMProvider defines the RomM API interactions needed for library management.
 type RomMProvider interface {
-	DownloadFile(game *types.Game) (io.ReadCloser, string, error)
 	GetRom(id uint) (types.Game, error)
+	DownloadFile(ctx context.Context, game *types.Game) (io.ReadCloser, string, error)
+	GetRomDownloadStatus(id uint) (bool, error)
 	GetFirmware(platformID uint) ([]types.Firmware, error)
-	DownloadFirmwareContent(id uint, fileName string) (io.ReadCloser, string, error)
+	DownloadFirmwareContent(ctx context.Context, id uint, fileName string) (io.ReadCloser, string, error)
 }
 
 // UIProvider defines logging and event emission.
@@ -94,7 +96,7 @@ func (s *Service) GetBiosDir() string {
 }
 
 // DownloadRomToLibrary downloads a ROM directly to the configured library path.
-func (s *Service) DownloadRomToLibrary(id uint) error {
+func (s *Service) DownloadRomToLibrary(ctx context.Context, id uint) error {
 	libPath := s.config.GetLibraryPath()
 	if libPath == "" {
 		// This is a bit tricky as the original logic tried to get a default path.
@@ -107,7 +109,7 @@ func (s *Service) DownloadRomToLibrary(id uint) error {
 		return fmt.Errorf("failed to get ROM info: %w", err)
 	}
 
-	reader, _, err := s.romm.DownloadFile(&game)
+	reader, _, err := s.romm.DownloadFile(ctx, &game)
 	if err != nil {
 		return err
 	}
@@ -134,11 +136,26 @@ func (s *Service) DownloadRomToLibrary(id uint) error {
 		LastEmit: time.Now(),
 	}
 
+	var downloadSuccess bool
+	defer func() {
+		if !downloadSuccess {
+			if _, err := os.Stat(destPath); err == nil {
+				s.ui.LogInfof("DownloadRomToLibrary: Cleaning up partial/failed download at %s", destPath)
+				_ = os.Remove(destPath) // Ignore error as it's just cleanup
+			}
+		}
+	}()
+
 	s.ui.LogInfof("DownloadRomToLibrary: Starting download for ID %d, Size: %d", id, game.FileSize)
 	if _, err := io.Copy(io.MultiWriter(out, pw), reader); err != nil {
 		return fmt.Errorf("failed to save file: %w", err)
 	}
+	downloadSuccess = true
 
+	return s.postDownloadProcessing(id, &game, destPath, destDir)
+}
+
+func (s *Service) postDownloadProcessing(id uint, game *types.Game, destPath, destDir string) error {
 	// Archive check: Extract .cue/.bin if present
 	s.ui.EventsEmit("library-status", map[string]interface{}{"game_id": id, "status": "extracting"})
 	if extracted, err := archive.ExtractCueBin(destPath, destDir); err != nil {
@@ -146,22 +163,26 @@ func (s *Service) DownloadRomToLibrary(id uint) error {
 	} else if extracted {
 		s.ui.LogInfof("DownloadRomToLibrary: Extracted .cue/.bin files from archive: %s", destPath)
 		if err := os.Remove(destPath); err != nil {
-			s.ui.LogErrorf("DownloadRomToLibrary: Failed to remove original archive %s: %v", destPath, err)
+			s.ui.LogErrorf("DownloadRomToLibrary: Failed to remove archive after .cue/.bin extraction: %v", err)
 		}
-	} else if extracted, err := archive.ExtractGameCube(destPath, destDir); err != nil {
+	}
+
+	// Archive check: Extract GameCube files if present
+	if extracted, err := archive.ExtractGameCube(destPath, destDir); err != nil {
 		s.ui.LogErrorf("DownloadRomToLibrary: GameCube extraction failed for %s: %v", destPath, err)
 	} else if extracted {
-		s.ui.LogInfof("DownloadRomToLibrary: Extracted GameCube ROM from archive: %s", destPath)
+		s.ui.LogInfof("DownloadRomToLibrary: Extracted GameCube files from archive: %s", destPath)
 		if err := os.Remove(destPath); err != nil {
-			s.ui.LogErrorf("DownloadRomToLibrary: Failed to remove original archive %s: %v", destPath, err)
+			s.ui.LogErrorf("DownloadRomToLibrary: Failed to remove archive after GameCube extraction: %v", err)
 		}
 	}
 
-	// Save metadata for offline use
-	if err := s.SaveMetadata(&game); err != nil {
-		s.ui.LogErrorf("DownloadRomToLibrary: Failed to save metadata for ID %d: %v", id, err)
+	// Save metadata
+	if err := s.SaveMetadata(game); err != nil {
+		return fmt.Errorf("failed to save metadata: %w", err)
 	}
 
+	s.ui.EventsEmit("library-status", map[string]interface{}{"game_id": id, "status": "downloaded"})
 	return nil
 }
 
@@ -361,7 +382,8 @@ func (s *Service) DownloadFirmware(fw *types.Firmware) error {
 		return fmt.Errorf("failed to create bios directory: %w", err)
 	}
 
-	reader, filename, err := s.romm.DownloadFirmwareContent(fw.ID, fw.FileName)
+	ctx := context.Background()
+	reader, filename, err := s.romm.DownloadFirmwareContent(ctx, fw.ID, fw.FileName)
 	if err != nil {
 		return err
 	}

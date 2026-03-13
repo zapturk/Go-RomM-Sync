@@ -104,6 +104,7 @@ export namespace types {
 	    platform_slug: string;
 	    platform_display_name: string;
 	    platform: Platform;
+	    fs_name: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Game(source);
@@ -124,6 +125,7 @@ export namespace types {
 	        this.platform_slug = source["platform_slug"];
 	        this.platform_display_name = source["platform_display_name"];
 	        this.platform = this.convertValues(source["platform"], Platform);
+	        this.fs_name = source["fs_name"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

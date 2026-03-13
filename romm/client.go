@@ -2,6 +2,7 @@ package romm
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"go-romm-sync/types"
@@ -323,21 +324,24 @@ func (c *Client) GetRom(id uint) (types.Game, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
 		return types.Game{}, fmt.Errorf("failed to decode ROM response: %w", err)
 	}
-
 	return game, nil
 }
 
-// DownloadFile fetches a file from RomM and returns a reader and the filename
-func (c *Client) DownloadFile(game *types.Game) (reader io.ReadCloser, filename string, err error) {
+// DownloadFile downloads a ROM file from RomM
+func (c *Client) DownloadFile(ctx context.Context, game *types.Game) (reader io.ReadCloser, filename string, err error) {
 	if c.Token == "" {
 		return nil, "", fmt.Errorf("not authenticated")
 	}
 
-	filename = filepath.Base(game.FullPath)
-	escapedFilename := url.PathEscape(filename)
+	// RomM download endpoint for a specific ROM: /api/roms/{id}/content/{fs_name}
+	fsName := game.FSName
+	if fsName == "" {
+		// Fallback to filename from FullPath if FSName is missing
+		fsName = filepath.Base(game.FullPath)
+	}
 
-	urlPath := fmt.Sprintf("%s/api/roms/%d/content/%s", c.BaseURL, game.ID, escapedFilename)
-	req, err := http.NewRequest("GET", urlPath, http.NoBody)
+	urlPath := fmt.Sprintf("%s/api/roms/%d/content/%s", c.BaseURL, game.ID, url.PathEscape(fsName))
+	req, err := http.NewRequestWithContext(ctx, "GET", urlPath, http.NoBody)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create download request: %w", err)
 	}
@@ -364,6 +368,16 @@ func (c *Client) DownloadFile(game *types.Game) (reader io.ReadCloser, filename 
 		parts := strings.Split(cd, "filename=")
 		if len(parts) > 1 {
 			filename = strings.Trim(parts[1], "\"")
+		}
+	}
+
+	if filename == "" {
+		// Fallback to name from path if CD is missing
+		idx := strings.LastIndex(game.FullPath, "/")
+		if idx != -1 {
+			filename = game.FullPath[idx+1:]
+		} else {
+			filename = game.FullPath
 		}
 	}
 
@@ -481,22 +495,22 @@ func fetchAssets[T any](c *Client, urlStr, assetType string) ([]T, error) {
 }
 
 // DownloadSave fetches a save file from RomM using its ID
-func (c *Client) DownloadSave(id uint) (reader io.ReadCloser, filename string, err error) {
-	return c.downloadAsset(id, "saves", "unknown.sav")
+func (c *Client) DownloadSave(ctx context.Context, id uint) (reader io.ReadCloser, filename string, err error) {
+	return c.downloadAsset(ctx, id, "saves", "unknown.sav")
 }
 
 // DownloadState fetches a state file from RomM using its ID
-func (c *Client) DownloadState(id uint) (reader io.ReadCloser, filename string, err error) {
-	return c.downloadAsset(id, "states", "unknown.state")
+func (c *Client) DownloadState(ctx context.Context, id uint) (reader io.ReadCloser, filename string, err error) {
+	return c.downloadAsset(ctx, id, "states", "unknown.state")
 }
 
-func (c *Client) downloadAsset(id uint, assetType, fallbackFilename string) (reader io.ReadCloser, filename string, err error) {
+func (c *Client) downloadAsset(ctx context.Context, id uint, assetType, fallbackFilename string) (reader io.ReadCloser, filename string, err error) {
 	if c.Token == "" {
 		return nil, "", fmt.Errorf("not authenticated")
 	}
 
 	urlPath := fmt.Sprintf("%s/api/%s/%d/content", c.BaseURL, assetType, id)
-	req, err := http.NewRequest("GET", urlPath, http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, "GET", urlPath, http.NoBody)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create download request: %w", err)
 	}
@@ -560,13 +574,13 @@ func (c *Client) readAllWithLimit(r io.Reader, limit int64) ([]byte, error) {
 }
 
 // DownloadFirmwareContent fetches a firmware file from RomM
-func (c *Client) DownloadFirmwareContent(id uint, fileName string) (reader io.ReadCloser, filename string, err error) {
+func (c *Client) DownloadFirmwareContent(ctx context.Context, id uint, fileName string) (reader io.ReadCloser, filename string, err error) {
 	if c.Token == "" {
 		return nil, "", fmt.Errorf("not authenticated")
 	}
 
 	urlPath := fmt.Sprintf("%s/api/firmware/%d/content/%s", c.BaseURL, id, url.PathEscape(fileName))
-	req, err := http.NewRequest("GET", urlPath, http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, "GET", urlPath, http.NoBody)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create firmware download request: %w", err)
 	}

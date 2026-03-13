@@ -2,6 +2,7 @@ package sync
 
 import (
 	"bytes"
+	"context"
 	"go-romm-sync/types"
 	"io"
 	"os"
@@ -27,8 +28,8 @@ type MockRomMProvider struct {
 	Game              types.Game
 	UploadErr         error
 	DownloadCl        io.ReadCloser
-	downloadSaveFunc  func(id uint) (io.ReadCloser, string, error)
-	downloadStateFunc func(id uint) (io.ReadCloser, string, error)
+	downloadSaveFunc  func(ctx context.Context, id uint) (io.ReadCloser, string, error)
+	downloadStateFunc func(ctx context.Context, id uint) (io.ReadCloser, string, error)
 }
 
 func (m *MockRomMProvider) GetRom(id uint) (types.Game, error) { return m.Game, nil }
@@ -38,15 +39,15 @@ func (m *MockRomMProvider) RomMUploadSave(id uint, core, filename string, conten
 func (m *MockRomMProvider) RomMUploadState(id uint, core, filename string, content []byte) error {
 	return m.UploadErr
 }
-func (m *MockRomMProvider) RomMDownloadSave(id uint) (reader io.ReadCloser, filename string, err error) {
+func (m *MockRomMProvider) RomMDownloadSave(ctx context.Context, id uint) (reader io.ReadCloser, filename string, err error) {
 	if m.downloadSaveFunc != nil {
-		return m.downloadSaveFunc(id)
+		return m.downloadSaveFunc(ctx, id)
 	}
 	return m.DownloadCl, "save.srm", nil
 }
-func (m *MockRomMProvider) RomMDownloadState(id uint) (reader io.ReadCloser, filename string, err error) {
+func (m *MockRomMProvider) RomMDownloadState(ctx context.Context, id uint) (reader io.ReadCloser, filename string, err error) {
 	if m.downloadStateFunc != nil {
-		return m.downloadStateFunc(id)
+		return m.downloadStateFunc(ctx, id)
 	}
 	return m.DownloadCl, "state.st0", nil
 }
@@ -169,7 +170,7 @@ func TestDownloadServerAsset(t *testing.T) {
 	romm := &MockRomMProvider{
 		Game: types.Game{ID: 1},
 	}
-	romm.downloadSaveFunc = func(id uint) (io.ReadCloser, string, error) {
+	romm.downloadSaveFunc = func(ctx context.Context, id uint) (io.ReadCloser, string, error) {
 		return io.NopCloser(bytes.NewReader(fakeServerData)), "game.srm", nil
 	}
 	s := New(lib, romm, &MockUIProvider{})

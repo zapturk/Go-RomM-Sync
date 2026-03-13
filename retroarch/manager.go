@@ -16,6 +16,8 @@ import (
 	"go-romm-sync/utils/fileio"
 )
 
+var dsRegex = regexp.MustCompile(`\bds\b`)
+
 // UIProvider defines the UI and logging interactions needed for RetroArch.
 type UIProvider interface {
 	LogInfof(format string, args ...interface{})
@@ -318,39 +320,41 @@ func IdentifyPlatform(input string) string {
 
 	// 2. Fuzzy matching based on search patterns
 	for _, entry := range platformSearchPatterns {
-		matches := false
-		if entry.all {
-			matches = true
-			for _, p := range entry.patterns {
-				if !strings.Contains(lower, p) {
-					matches = false
-					break
-				}
-			}
-		} else {
-			for _, p := range entry.patterns {
-				// Special check for "ds" to ensure it's a word, not a substring
-				if p == "ds" {
-					if matched, _ := regexp.MatchString(`\bds\b`, lower); matched {
-						matches = true
-						break
-					}
-					continue
-				}
-
-				if strings.Contains(lower, p) {
-					matches = true
-					break
-				}
-			}
-		}
-
-		if matches {
+		if matchPattern(entry, lower) {
 			return entry.slug
 		}
 	}
-
 	return ""
+}
+
+func matchPattern(entry struct {
+	slug     string
+	patterns []string
+	all      bool
+}, lower string) bool {
+	if entry.all {
+		for _, p := range entry.patterns {
+			if !strings.Contains(lower, p) {
+				return false
+			}
+		}
+		return true
+	}
+
+	for _, p := range entry.patterns {
+		// Special check for "ds" to ensure it's a word, not a substring
+		if p == "ds" {
+			if dsRegex.MatchString(lower) {
+				return true
+			}
+			continue
+		}
+
+		if strings.Contains(lower, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // CoreMap is derived from ExtCoreMap for backward-compatible single-core lookups
