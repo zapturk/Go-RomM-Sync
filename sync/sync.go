@@ -19,6 +19,7 @@ import (
 type LibraryProvider interface {
 	GetRomDir(game *types.Game) string
 	GetLocalGame(id uint) (types.Game, error)
+	GetBiosDir() string
 }
 
 // RomMProvider defines the RomM API interactions needed for syncing.
@@ -75,20 +76,37 @@ func (s *Service) getGameFiles(id uint, subDir string) (items []types.FileItem, 
 	}
 
 	dirPath := filepath.Join(s.library.GetRomDir(&game), subDir)
-	entries, err := os.ReadDir(dirPath)
-	if err != nil {
-		return s.handleGetFilesError(err)
+	
+	var entries []os.DirEntry
+	if e, err := os.ReadDir(dirPath); err == nil {
+		entries = e
+	} else if !os.IsNotExist(err) {
+		return nil, err
 	}
 
-	return s.collectCoreFiles(dirPath, entries), nil
+	items = s.collectCoreFiles(dirPath, entries)
+
+	if subDir == constants.DirSaves && getPlatformSlug(&game) == "ps2" {
+		pcsx2Dir := filepath.Join(s.library.GetBiosDir(), "pcsx2", "memcards")
+		if pcsx2Items := s.scanFlatCoreFiles("pcsx2_libretro", pcsx2Dir); len(pcsx2Items) > 0 {
+			items = append(items, pcsx2Items...)
+		}
+	}
+
+	return items, nil
 }
 
-func (s *Service) handleGetFilesError(err error) ([]types.FileItem, error) {
-	if os.IsNotExist(err) {
-		return []types.FileItem{}, nil
+func getPlatformSlug(game *types.Game) string {
+	if game.Platform.Slug != "" {
+		return game.Platform.Slug
 	}
-	return nil, err
+	if game.PlatformSlug != "" {
+		return game.PlatformSlug
+	}
+	return ""
 }
+
+// (Deprecated/Removed handleGetFilesError logically)
 
 func (s *Service) collectCoreFiles(dirPath string, entries []os.DirEntry) []types.FileItem {
 	var items []types.FileItem
@@ -163,8 +181,15 @@ func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) erro
 	}
 
 	romDir := s.library.GetRomDir(&game)
-	baseDir := filepath.Join(romDir, subDir)
-	filePath := filepath.Join(baseDir, core, filename)
+	var baseDir, filePath string
+
+	if core == "pcsx2_libretro" && subDir == constants.DirSaves {
+		baseDir = filepath.Join(s.library.GetBiosDir(), "pcsx2", "memcards")
+		filePath = filepath.Join(baseDir, filename)
+	} else {
+		baseDir = filepath.Join(romDir, subDir)
+		filePath = filepath.Join(baseDir, core, filename)
+	}
 
 	cleanPath := filepath.Clean(filePath)
 	cleanBase := filepath.Clean(baseDir)
@@ -209,8 +234,15 @@ func (s *Service) DeleteGameFile(id uint, subDir, core, filename string) error {
 	}
 
 	romDir := s.library.GetRomDir(&game)
-	baseDir := filepath.Join(romDir, subDir)
-	filePath := filepath.Join(baseDir, core, filename)
+	var baseDir, filePath string
+
+	if core == "pcsx2_libretro" && subDir == constants.DirSaves {
+		baseDir = filepath.Join(s.library.GetBiosDir(), "pcsx2", "memcards")
+		filePath = filepath.Join(baseDir, filename)
+	} else {
+		baseDir = filepath.Join(romDir, subDir)
+		filePath = filepath.Join(baseDir, core, filename)
+	}
 
 	cleanPath := filepath.Clean(filePath)
 	cleanBase := filepath.Clean(baseDir)
@@ -298,6 +330,14 @@ func (s *Service) prepareAssetPath(game *types.Game, core, filename, subDir stri
 	core, filename, err := s.ValidateAssetPath(core, filename)
 	if err != nil {
 		return "", err
+	}
+
+	if core == "pcsx2_libretro" && subDir == constants.DirSaves {
+		destDir := filepath.Join(s.library.GetBiosDir(), "pcsx2", "memcards")
+		if err := os.MkdirAll(destDir, 0o755); err != nil {
+			return "", fmt.Errorf("failed to create destination directory: %w", err)
+		}
+		return filepath.Join(destDir, filename), nil
 	}
 
 	romDir := s.library.GetRomDir(game)

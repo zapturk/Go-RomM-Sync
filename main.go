@@ -27,7 +27,7 @@ func main() {
 		Title:      "Go RomM Sync",
 		Width:      1920,
 		Height:     1080,
-		Fullscreen: true,
+		Fullscreen: false,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

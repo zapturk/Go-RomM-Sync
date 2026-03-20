@@ -215,7 +215,7 @@ func TestDownloadFirmware(t *testing.T) {
 	ui := &MockUIProvider{}
 	s := New(cfg, romm, ui)
 
-	err := s.DownloadFirmware(fw)
+	err := s.DownloadFirmware("segacd", fw)
 	if err != nil {
 		t.Fatalf("DownloadFirmware failed: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestDownloadFirmware_Compressed(t *testing.T) {
 	ui := &MockUIProvider{}
 	s := New(cfg, romm, ui)
 
-	err := s.DownloadFirmware(fw)
+	err := s.DownloadFirmware("nds", fw)
 	if err != nil {
 		t.Fatalf("DownloadFirmware failed: %v", err)
 	}

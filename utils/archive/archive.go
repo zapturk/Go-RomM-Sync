@@ -76,6 +76,20 @@ func ExtractGameCube(src, destDir string) (bool, error) {
 	})
 }
 
+// ExtractPS2 checks if an archive contains .iso, .chd, or .cso files and extracts them if it does.
+// Returns true if files were extracted, false if not an archive or no PS2 ROM found.
+func ExtractPS2(src, destDir string) (bool, error) {
+	return extractByCondition(src, destDir, func(entries []archiveEntry) bool {
+		for _, e := range entries {
+			ext := strings.ToLower(filepath.Ext(e.Name()))
+			if ext == ".iso" || ext == ".chd" || ext == ".cso" {
+				return true
+			}
+		}
+		return false
+	})
+}
+
 func extractByCondition(src, destDir string, condition func([]archiveEntry) bool) (bool, error) {
 	format := sniffFormat(src)
 	if format == "" {

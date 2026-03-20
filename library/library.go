@@ -152,6 +152,9 @@ func (s *Service) DownloadRomToLibrary(ctx context.Context, id uint) error {
 	}
 	downloadSuccess = true
 
+	// Explicitly close the file handle so Windows allows extraction and deletion
+	_ = out.Close()
+
 	return s.postDownloadProcessing(id, &game, destPath, destDir)
 }
 
@@ -177,6 +180,16 @@ func (s *Service) postDownloadProcessing(id uint, game *types.Game, destPath, de
 			s.ui.LogErrorf("DownloadRomToLibrary: GameCube extraction failed for %s: %v", destPath, err)
 		} else if extracted {
 			s.ui.LogInfof("DownloadRomToLibrary: Extracted GameCube files from archive: %s", destPath)
+		}
+	}
+
+	// Try extracting PS2 files if not already extracted
+	if !extracted {
+		extracted, err = archive.ExtractPS2(destPath, destDir)
+		if err != nil {
+			s.ui.LogErrorf("DownloadRomToLibrary: PS2 extraction failed for %s: %v", destPath, err)
+		} else if extracted {
+			s.ui.LogInfof("DownloadRomToLibrary: Extracted PS2 files from archive: %s", destPath)
 		}
 	}
 
@@ -386,7 +399,7 @@ func (s *Service) FindRomPath(romDir string) string {
 }
 
 // DownloadFirmware downloads a firmware file to the library's bios directory.
-func (s *Service) DownloadFirmware(fw *types.Firmware) error {
+func (s *Service) DownloadFirmware(platformSlug string, fw *types.Firmware) error {
 	biosDir := s.GetBiosDir()
 	if err := os.MkdirAll(biosDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create bios directory: %w", err)
@@ -439,7 +452,17 @@ func (s *Service) DownloadFirmware(fw *types.Firmware) error {
 				destFilename = mappedName
 			}
 
-			destPath := filepath.Join(biosDir, destFilename)
+			subDir := ""
+			if platformSlug == "ps2" {
+				subDir = filepath.Join("pcsx2", "bios")
+			}
+
+			targetDir := filepath.Join(biosDir, subDir)
+			if err := os.MkdirAll(targetDir, 0o755); err != nil {
+				s.ui.LogErrorf("DownloadFirmware: Failed to create target dir %s: %v", targetDir, err)
+			}
+
+			destPath := filepath.Join(targetDir, destFilename)
 			// Move file to final destination
 			return os.Rename(path, destPath)
 		})
@@ -461,7 +484,17 @@ func (s *Service) DownloadFirmware(fw *types.Firmware) error {
 		finalFilename = mappedName
 	}
 
-	destPath := filepath.Join(biosDir, finalFilename)
+	subDir := ""
+	if platformSlug == "ps2" {
+		subDir = filepath.Join("pcsx2", "bios")
+	}
+
+	targetDir := filepath.Join(biosDir, subDir)
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		s.ui.LogErrorf("DownloadFirmware: Failed to create target dir %s: %v", targetDir, err)
+	}
+
+	destPath := filepath.Join(targetDir, finalFilename)
 	return os.Rename(tempFile, destPath)
 }
 
@@ -472,7 +505,11 @@ func (s *Service) CleanupFirmware(platformSlug string) error {
 	biosNames := retroarch.GetBiosFilenamesForPlatform(platformSlug)
 
 	for _, name := range biosNames {
-		path := filepath.Join(biosDir, name)
+		subDir := ""
+		if platformSlug == "ps2" {
+			subDir = filepath.Join("pcsx2", "bios")
+		}
+		path := filepath.Join(biosDir, subDir, name)
 		if _, err := os.Stat(path); err == nil {
 			s.ui.LogInfof("CleanupFirmware: Removing canonical BIOS file %s for platform %s", name, platformSlug)
 			fileio.Remove(path, s.ui.LogErrorf)

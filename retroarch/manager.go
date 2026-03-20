@@ -97,7 +97,7 @@ var ExtCoreMap = map[string][]string{
 	".bin": {"pcsx_rearmed_libretro", "beetle_psx_libretro"},
 
 	// Sony – PSP
-	".cso": {"ppsspp_libretro", "pcsx2_libretro", "play_libretro", "lrps2_libretro"},
+	".cso": {"ppsspp_libretro", "pcsx2_libretro", "play_libretro"},
 
 	// Atari
 	".a26": {"stella_libretro"},
@@ -117,8 +117,8 @@ var ExtCoreMap = map[string][]string{
 	".do":  {"apple2enh_libretro"},
 
 	// Others
-	".iso": {"pcsx2_libretro", "play_libretro", "lrps2_libretro", "pcsx_rearmed_libretro", "beetle_psx_libretro", "opera_libretro"},
-	".chd": {"pcsx2_libretro", "play_libretro", "lrps2_libretro", "pcsx_rearmed_libretro", "beetle_psx_libretro", "opera_libretro", "flycast_libretro"},
+	".iso": {"pcsx2_libretro", "play_libretro", "pcsx_rearmed_libretro", "beetle_psx_libretro", "opera_libretro"},
+	".chd": {"pcsx2_libretro", "play_libretro", "pcsx_rearmed_libretro", "beetle_psx_libretro", "opera_libretro", "flycast_libretro"},
 	".sg":  {"smsplus_libretro"},
 	".col": {"gearcoleco_libretro"},
 	".mx1": {"bluemsx_libretro"},
@@ -206,7 +206,7 @@ var PlatformCoreMap = map[string][]string{
 	"arcade":       {"fbneo_libretro", "mame2003_plus_libretro"},
 	"coleco":       {"gearcoleco_libretro"},
 	"msx":          {"bluemsx_libretro"},
-	"ps2":          {"pcsx2_libretro", "play_libretro", "lrps2_libretro"},
+	"ps2":          {"pcsx2_libretro", "play_libretro"},
 	"sg1000":       {"smsplus_libretro"},
 	"neogeo":       {"fbneo_libretro"},
 	"a26":          {"stella_libretro"},
@@ -627,6 +627,28 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 				return fmt.Errorf("core not supported: %s", coreFile)
 			}
 			return fmt.Errorf("emulator core not found at %s and auto-download failed: %w", corePath, err)
+		}
+	}
+
+	if coreBaseName == "pcsx2_libretro" && biosDir != "" {
+		resourcesDir := filepath.Join(biosDir, "pcsx2", "resources")
+		yamlPath := filepath.Join(resourcesDir, "GameIndex.yaml")
+		
+		if _, err := os.Stat(yamlPath); os.IsNotExist(err) {
+			fileio.MkdirAll(resourcesDir, 0o755, ui.LogErrorf)
+			ui.EventsEmit(constants.EventPlayStatus, "Downloading PCSX2 GameIndex.yaml...")
+			resp, err := http.Get("https://raw.githubusercontent.com/libretro/ps2/refs/heads/libretroization/bin/resources/GameIndex.yaml")
+			if err == nil {
+				if resp.StatusCode == http.StatusOK {
+					if out, err := os.Create(yamlPath); err == nil {
+						_, _ = io.Copy(out, resp.Body)
+						fileio.Close(out, ui.LogErrorf, "Launch: Failed to close GameIndex.yaml")
+					}
+				}
+				fileio.Close(resp.Body, nil, "Launch: Failed to close GameIndex response")
+			} else {
+				ui.LogErrorf("Launch: Failed to download GameIndex.yaml: %v", err)
+			}
 		}
 	}
 

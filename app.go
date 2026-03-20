@@ -294,7 +294,7 @@ func (a *App) SetPlatformFirmware(platformSlug string, firmware *types.Firmware)
 	}
 
 	// Trigger download
-	return a.librarySrv.DownloadFirmware(firmware)
+	return a.librarySrv.DownloadFirmware(platformSlug, firmware)
 }
 
 func (a *App) DownloadRom(id uint) (string, error) {
