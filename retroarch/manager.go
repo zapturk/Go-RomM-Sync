@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"go-romm-sync/constants"
 	"go-romm-sync/utils/fileio"
@@ -425,55 +427,12 @@ func GetCoresFromZip(zipPath string) []string {
 //
 //nolint:gocognit,gocyclo // See above
 func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platform, biosDir string) error {
-	// If exePath is a directory, try to find the actual executable inside it
-	if info, err := os.Stat(exePath); err == nil && info.IsDir() {
-		found := false
-		target := filepath.Join(exePath, "retroarch.exe")
-		if runtime.GOOS != constants.OSWindows && runtime.GOOS != constants.OSDarwin {
-			target = filepath.Join(exePath, "retroarch")
-		}
-
-		if runtime.GOOS == constants.OSDarwin {
-			if strings.HasSuffix(exePath, ".app") {
-				found = true
-			} else {
-				appPath := filepath.Join(exePath, "RetroArch.app")
-				if _, err := os.Stat(appPath); err == nil {
-					exePath = appPath
-					found = true
-				} else {
-					target = filepath.Join(exePath, "RetroArch")
-					if _, err := os.Stat(target); err == nil {
-						exePath = target
-						found = true
-					}
-				}
-			}
-		} else {
-			if _, err := os.Stat(target); err == nil {
-				exePath = target
-				found = true
-			}
-		}
-
-		if !found {
-			return fmt.Errorf("retroarch executable not found in directory: %s", exePath)
-		}
-	} else if err != nil {
-		return fmt.Errorf("retroarch executable not found: %s", exePath)
+	baseDir, resolvedExePath, err := resolveRetroArchPaths(exePath)
+	if err != nil {
+		return err
 	}
+	exePath = resolvedExePath
 
-	baseDir := filepath.Dir(exePath)
-	if runtime.GOOS == constants.OSDarwin {
-		if strings.HasSuffix(exePath, ".app") {
-			// If they selected the macOS .app bundle, use it as baseDir and find actual binary
-			baseDir = exePath
-			exePath = filepath.Join(exePath, "Contents", "MacOS", "RetroArch")
-		} else if strings.Contains(exePath, ".app/Contents/MacOS") {
-			// If they selected the binary inside the .app bundle
-			baseDir = filepath.Dir(filepath.Dir(filepath.Dir(exePath)))
-		}
-	}
 	coresDir := getCoresDir(baseDir)
 
 	// Store original ROM base directory for saves/states early, before we potentially move romPath to a temp file
@@ -978,4 +937,109 @@ func coreArchMatches(corePath, arch string) bool {
 	default:
 		return true
 	}
+}
+
+// UpdateAllCores scans the local cores directory and re-downloads all existing cores
+// to ensure they are up-to-date.
+func UpdateAllCores(ui UIProvider, exePath string) error {
+	baseDir, binaryPath, err := resolveRetroArchPaths(exePath)
+	if err != nil {
+		return err
+	}
+	coresDir := getCoresDir(baseDir)
+
+	entries, err := os.ReadDir(coresDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			ui.EventsEmit(constants.EventPlayStatus, "No cores found to update.")
+			return nil
+		}
+		return fmt.Errorf("failed to read cores directory: %w", err)
+	}
+
+	arch := detectRetroArchArch(ui, binaryPath)
+	var updatedCount atomic.Int32
+	var wg sync.WaitGroup
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		ext := strings.ToLower(filepath.Ext(entry.Name()))
+		if ext == ".dll" || ext == ".so" || ext == ".dylib" {
+			coreFile := entry.Name()
+			wg.Add(1)
+			go func(cf string) {
+				defer wg.Done()
+				ui.LogInfof("Updating core: %s", cf)
+				err := DownloadCore(ui, cf, coresDir, arch)
+				if err != nil {
+					ui.LogErrorf("Failed to update core %s: %v", cf, err)
+				} else {
+					updatedCount.Add(1)
+				}
+			}(coreFile)
+		}
+	}
+
+	wg.Wait()
+	ui.EventsEmit(constants.EventPlayStatus, fmt.Sprintf("Finished updating %d cores.", updatedCount.Load()))
+	return nil
+}
+
+// resolveRetroArchPaths attempts to find the actual executable and its base
+// directory given a user-provided file or directory path.
+func resolveRetroArchPaths(exePath string) (baseDir, binaryPath string, err error) {
+	// If exePath is a directory, try to find the actual executable inside it
+	if info, statErr := os.Stat(exePath); statErr == nil && info.IsDir() {
+		found := false
+		target := filepath.Join(exePath, "retroarch.exe")
+		if runtime.GOOS != constants.OSWindows && runtime.GOOS != constants.OSDarwin {
+			target = filepath.Join(exePath, "retroarch")
+		}
+
+		if runtime.GOOS == constants.OSDarwin {
+			if strings.HasSuffix(exePath, ".app") {
+				found = true
+			} else {
+				appPath := filepath.Join(exePath, "RetroArch.app")
+				if _, statErr := os.Stat(appPath); statErr == nil {
+					exePath = appPath
+					found = true
+				} else {
+					target = filepath.Join(exePath, "RetroArch")
+					if _, statErr := os.Stat(target); statErr == nil {
+						exePath = target
+						found = true
+					}
+				}
+			}
+		} else {
+			if _, statErr := os.Stat(target); statErr == nil {
+				exePath = target
+				found = true
+			}
+		}
+
+		if !found {
+			return "", "", fmt.Errorf("retroarch executable not found in directory: %s", exePath)
+		}
+	} else if statErr != nil {
+		return "", "", fmt.Errorf("retroarch executable not found: %s", exePath)
+	}
+
+	binaryPath = exePath
+	baseDir = filepath.Dir(exePath)
+	if runtime.GOOS == constants.OSDarwin {
+		if strings.HasSuffix(exePath, ".app") {
+			// If they selected the macOS .app bundle, use it as baseDir and find actual binary
+			baseDir = exePath
+			binaryPath = filepath.Join(exePath, "Contents", "MacOS", "RetroArch")
+		} else if strings.Contains(exePath, ".app/Contents/MacOS") {
+			// If they selected the binary inside the .app bundle
+			baseDir = filepath.Dir(filepath.Dir(filepath.Dir(exePath)))
+		}
+	}
+	return baseDir, binaryPath, nil
 }

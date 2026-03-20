@@ -126,6 +126,8 @@ export function SyncOfflineMetadata():Promise<void>;
 
 export function ToggleOfflineMode():Promise<boolean>;
 
+export function UpdateRetroArchCores():Promise<void>;
+
 export function UploadSave(arg1:number,arg2:string,arg3:string):Promise<void>;
 
 export function UploadState(arg1:number,arg2:string,arg3:string):Promise<void>;
