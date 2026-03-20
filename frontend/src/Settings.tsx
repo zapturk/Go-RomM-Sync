@@ -76,11 +76,11 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                         setStatus("Library path set to default and saved.");
                     })
                     .catch((err: any) => {
-                        setStatus("Error saving default path: " + err);
+                        setStatus(`Error saving default path: ${String(err)}`);
                     });
             }
         }).catch((err: any) => {
-            setStatus("Error getting default path: " + err);
+            setStatus(`Error getting default path: ${String(err)}`);
         });
     };
 
@@ -103,7 +103,7 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                 setStatus("Settings saved successfully!");
             })
             .catch((err) => {
-                setStatus("Error: " + err);
+                setStatus(`Error: ${String(err)}`);
             })
             .finally(() => {
                 setIsSaving(false);
@@ -122,7 +122,7 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                 if (onLogout) onLogout();
             })
             .catch((err: any) => {
-                setStatus("Error during logout: " + err);
+                setStatus(`Error during logout: ${String(err)}`);
                 setIsSaving(false);
             });
     };
@@ -136,7 +136,7 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                 setStatus("Image cache cleared successfully!");
             })
             .catch((err: any) => {
-                setStatus("Error clearing cache: " + err);
+                setStatus(`Error clearing cache: ${String(err)}`);
             })
             .finally(() => {
                 setIsSaving(false);
@@ -158,7 +158,7 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                 setStatus("Metadata sync complete!");
             })
             .catch((err: any) => {
-                setStatus("Error syncing metadata: " + err);
+                setStatus(`Error syncing metadata: ${String(err)}`);
             })
             .finally(() => {
                 setIsSyncing(false);
@@ -173,7 +173,7 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                 setStatus("Cores updated successfully!");
             })
             .catch((err: any) => {
-                setStatus("Error updating cores: " + err);
+                setStatus(`Error updating cores: ${String(err)}`);
             })
             .finally(() => {
                 setIsUpdatingCores(false);
