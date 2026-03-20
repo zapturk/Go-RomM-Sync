@@ -402,7 +402,7 @@ func TestOpenGameFolder(t *testing.T) {
 	// 2. Success Path (Logic up to command execution)
 	// Create the expected folder
 	romDir := app.librarySrv.GetRomDir(&game)
-	if err := os.MkdirAll(romDir, 0755); err != nil {
+	if err := os.MkdirAll(romDir, 0o755); err != nil {
 		t.Fatalf("Failed to create rom directory: %v", err)
 	}
 

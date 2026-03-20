@@ -174,7 +174,7 @@ func TestExtractCueBin_7z(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	szPath := filepath.Join(tmpDir, "test.7z")
-	if err := os.WriteFile(szPath, data, 0644); err != nil {
+	if err := os.WriteFile(szPath, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -204,7 +204,7 @@ func TestExtractCueBin_Rar_Negative(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	rarPath := filepath.Join(tmpDir, "test.rar")
-	if err := os.WriteFile(rarPath, data, 0644); err != nil {
+	if err := os.WriteFile(rarPath, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
 

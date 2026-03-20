@@ -640,10 +640,17 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 			resp, err := http.Get("https://raw.githubusercontent.com/libretro/ps2/refs/heads/libretroization/bin/resources/GameIndex.yaml") //nolint:bodyclose // body is closed below
 			if err == nil {
 				if resp.StatusCode == http.StatusOK {
-					if out, err := os.Create(yamlPath); err == nil {
-						_, _ = io.Copy(out, resp.Body)
+					out, createErr := os.Create(yamlPath)
+					if createErr != nil {
+						ui.LogErrorf("Launch: Failed to create GameIndex.yaml: %v", createErr)
+					} else {
+						if _, copyErr := io.Copy(out, resp.Body); copyErr != nil {
+							ui.LogErrorf("Launch: Failed to write to GameIndex.yaml: %v", copyErr)
+						}
 						fileio.Close(out, ui.LogErrorf, "Launch: Failed to close GameIndex.yaml")
 					}
+				} else {
+					ui.LogErrorf("Launch: Failed to download GameIndex.yaml, status code: %d", resp.StatusCode)
 				}
 				fileio.Close(resp.Body, nil, "Launch: Failed to close GameIndex response")
 			} else {

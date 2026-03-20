@@ -23,7 +23,7 @@ func (m *MockConfigProvider) GetRetroArchPath() string {
 	return m.RetroArchPath
 }
 
-func (m *MockConfigProvider) GetCheevosCredentials() (string, string) {
+func (m *MockConfigProvider) GetCheevosCredentials() (username, password string) {
 	return "user", "pass"
 }
 
