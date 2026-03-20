@@ -553,3 +553,59 @@ Loop:
 		t.Log("Warning: EventGameStarted not detected in time via channel. This may happen if Launch returns before triggering the goroutine.")
 	}
 }
+
+func TestUpdateAllCores(t *testing.T) {
+	ui := &MockUI{}
+	
+	// Create a mock server that returns a valid dummy zip file
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/zip")
+		
+		// Create a small valid zip in memory
+		buf := new(bytes.Buffer)
+		zw := zip.NewWriter(buf)
+		// We use a dummy name inside the zip for testing
+		f, _ := zw.Create("dummy_core.info")
+		f.Write([]byte("info data"))
+		zw.Close()
+		
+		w.Write(buf.Bytes())
+	}))
+	defer server.Close()
+
+	oldURL := buildbotBaseURL
+	buildbotBaseURL = server.URL
+	defer func() { buildbotBaseURL = oldURL }()
+
+	tempDir, err := os.MkdirTemp("", "update_all_cores")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	exePath := filepath.Join(tempDir, "retroarch")
+	os.WriteFile(exePath, []byte("fake"), 0o755)
+
+	coresDir := filepath.Join(tempDir, "cores")
+	os.MkdirAll(coresDir, 0o755)
+	
+	overrideCoresDir = coresDir
+	defer func() { overrideCoresDir = "" }()
+
+	// Create a couple of mock core files
+	ext := getCoreExt()
+	os.WriteFile(filepath.Join(coresDir, "core1"+ext), []byte("dummy data"), 0o644)
+	os.WriteFile(filepath.Join(coresDir, "core2"+ext), []byte("dummy data"), 0o644)
+	os.WriteFile(filepath.Join(coresDir, "notacore.txt"), []byte("dummy data"), 0o644)
+
+	err = UpdateAllCores(ui, exePath)
+	if err != nil {
+		t.Fatalf("UpdateAllCores failed: %v", err)
+	}
+
+	// We expect EventPlayStatus to be emitted indicating success
+	if ui.GetEventCount(constants.EventPlayStatus) == 0 {
+		t.Error("Expected EventPlayStatus to be emitted")
+	}
+}
+

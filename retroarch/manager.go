@@ -1009,7 +1009,7 @@ func UpdateAllCores(ui UIProvider, exePath string) error {
 		if entry.IsDir() {
 			continue
 		}
-		
+
 		ext := strings.ToLower(filepath.Ext(entry.Name()))
 		if ext == ".dll" || ext == ".so" || ext == ".dylib" {
 			coreFile := entry.Name()
@@ -1026,4 +1026,3 @@ func UpdateAllCores(ui UIProvider, exePath string) error {
 	ui.EventsEmit(constants.EventPlayStatus, fmt.Sprintf("Finished updating %d cores.", updatedCount))
 	return nil
 }
-
