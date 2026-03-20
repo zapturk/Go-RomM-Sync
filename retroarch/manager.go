@@ -979,3 +979,51 @@ func coreArchMatches(corePath, arch string) bool {
 		return true
 	}
 }
+
+// UpdateAllCores scans the local cores directory and re-downloads all existing cores
+// to ensure they are up-to-date.
+func UpdateAllCores(ui UIProvider, exePath string) error {
+	baseDir := filepath.Dir(exePath)
+	if runtime.GOOS == constants.OSDarwin {
+		if strings.HasSuffix(exePath, ".app") {
+			baseDir = exePath
+		} else if strings.Contains(exePath, ".app/Contents/MacOS") {
+			baseDir = filepath.Dir(filepath.Dir(filepath.Dir(exePath)))
+		}
+	}
+	coresDir := getCoresDir(baseDir)
+
+	entries, err := os.ReadDir(coresDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			ui.EventsEmit(constants.EventPlayStatus, "No cores found to update.")
+			return nil
+		}
+		return fmt.Errorf("failed to read cores directory: %w", err)
+	}
+
+	arch := detectRetroArchArch(ui, exePath)
+	updatedCount := 0
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		
+		ext := strings.ToLower(filepath.Ext(entry.Name()))
+		if ext == ".dll" || ext == ".so" || ext == ".dylib" {
+			coreFile := entry.Name()
+			ui.LogInfof("Updating core: %s", coreFile)
+			err := DownloadCore(ui, coreFile, coresDir, arch)
+			if err != nil {
+				ui.LogErrorf("Failed to update core %s: %v", coreFile, err)
+			} else {
+				updatedCount++
+			}
+		}
+	}
+
+	ui.EventsEmit(constants.EventPlayStatus, fmt.Sprintf("Finished updating %d cores.", updatedCount))
+	return nil
+}
+

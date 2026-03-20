@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath, Logout, ClearImageCache, ToggleOfflineMode, SyncOfflineMetadata } from "../wailsjs/go/main/App";
+import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath, Logout, ClearImageCache, ToggleOfflineMode, SyncOfflineMetadata, UpdateRetroArchCores } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
@@ -24,6 +24,7 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [cheevosPass, setCheevosPass] = useState('');
     const [offlineMode, setOfflineMode] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [isUpdatingCores, setIsUpdatingCores] = useState(false);
 
     useEffect(() => {
         GetConfig().then((cfg) => {
@@ -164,6 +165,21 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             });
     };
 
+    const handleUpdateCores = () => {
+        setIsUpdatingCores(true);
+        setStatus("Updating RetroArch cores...");
+        UpdateRetroArchCores()
+            .then(() => {
+                setStatus("Cores updated successfully!");
+            })
+            .catch((err: any) => {
+                setStatus("Error updating cores: " + err);
+            })
+            .finally(() => {
+                setIsUpdatingCores(false);
+            });
+    };
+
     const handleInputKeyDown = (e: React.KeyboardEvent) => {
         if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
             e.stopPropagation();
@@ -198,6 +214,8 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             handleToggleOffline={handleToggleOffline}
             handleSyncMetadata={handleSyncMetadata}
             isSyncing={isSyncing}
+            handleUpdateCores={handleUpdateCores}
+            isUpdatingCores={isUpdatingCores}
         />
     );
 }
@@ -227,6 +245,8 @@ interface SettingsFormProps {
     handleToggleOffline: () => void;
     handleSyncMetadata: () => void;
     isSyncing: boolean;
+    handleUpdateCores: () => void;
+    isUpdatingCores: boolean;
 }
 
 function SettingsForm({
@@ -252,7 +272,9 @@ function SettingsForm({
     offlineMode,
     handleToggleOffline,
     handleSyncMetadata,
-    isSyncing
+    isSyncing,
+    handleUpdateCores,
+    isUpdatingCores
 }: SettingsFormProps) {
     const { ref: containerRef } = useFocusable({
         trackChildren: true,
@@ -365,6 +387,22 @@ function SettingsForm({
                                 Clear Cache
                             </FocusableButton>
                         </div>
+                        <div className="settings-row">
+                            <div className="settings-row-info">
+                                <span className="settings-row-label">Update Cores</span>
+                                <span className="settings-row-desc">Re-download all downloaded cores for the latest updates</span>
+                            </div>
+                            <FocusableButton
+                                focusKey="update-cores-button"
+                                className={`btn ${isSaving || isUpdatingCores ? 'disabled' : ''}`}
+                                onClick={handleUpdateCores}
+                                onEnterPress={handleUpdateCores}
+                                disabled={isSaving || isUpdatingCores}
+                                onMouseEnter={() => getMouseActive() && !isSaving && !isUpdatingCores && setFocus('update-cores-button')}
+                            >
+                                {isUpdatingCores ? "Updating..." : "Update Cores"}
+                            </FocusableButton>
+                        </div>
                     </div>
 
                     {/* Offline Support Section */}
@@ -384,6 +422,13 @@ function SettingsForm({
                                 }}
                                 onClick={handleToggleOffline}
                                 onEnterPress={handleToggleOffline}
+                                onArrowPress={(direction) => {
+                                    if (direction === 'up') {
+                                        setFocus('update-cores-button');
+                                        return false;
+                                    }
+                                    return true;
+                                }}
                                 disabled={isSaving}
                                 onMouseEnter={() => getMouseActive() && !isSaving && setFocus('offline-toggle-button')}
                             >
