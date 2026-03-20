@@ -3,6 +3,7 @@ package retroarch
 import (
 	"archive/zip"
 	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -141,9 +142,10 @@ func TestClearCheevosToken(t *testing.T) {
 }
 
 type MockUI struct {
-	mu            sync.Mutex
-	EmittedEvents map[string]int
-	EventChan     chan string
+	mu               sync.Mutex
+	EmittedEvents    map[string]int
+	EmittedEventMsgs map[string][]string
+	EventChan        chan string
 }
 
 func (m *MockUI) LogInfof(format string, args ...interface{})  {}
@@ -154,7 +156,17 @@ func (m *MockUI) EventsEmit(eventName string, args ...interface{}) {
 	if m.EmittedEvents == nil {
 		m.EmittedEvents = make(map[string]int)
 	}
+	if m.EmittedEventMsgs == nil {
+		m.EmittedEventMsgs = make(map[string][]string)
+	}
 	m.EmittedEvents[eventName]++
+	
+	if len(args) > 0 {
+		m.EmittedEventMsgs[eventName] = append(m.EmittedEventMsgs[eventName], fmt.Sprintf("%v", args[0]))
+	} else {
+		m.EmittedEventMsgs[eventName] = append(m.EmittedEventMsgs[eventName], "")
+	}
+
 	if m.EventChan != nil {
 		select {
 		case m.EventChan <- eventName:
@@ -170,6 +182,18 @@ func (m *MockUI) GetEventCount(eventName string) int {
 		return 0
 	}
 	return m.EmittedEvents[eventName]
+}
+
+func (m *MockUI) GetEventMsgs(eventName string) []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.EmittedEventMsgs == nil {
+		return nil
+	}
+	// Return a copy to avoid race conditions if caller iterates over it while test is still emitting events
+	msgs := make([]string, len(m.EmittedEventMsgs[eventName]))
+	copy(msgs, m.EmittedEventMsgs[eventName])
+	return msgs
 }
 
 func (m *MockUI) WindowHide()       {}
@@ -604,8 +628,16 @@ func TestUpdateAllCores(t *testing.T) {
 	}
 
 	// We expect EventPlayStatus to be emitted indicating success
-	if ui.GetEventCount(constants.EventPlayStatus) == 0 {
-		t.Error("Expected EventPlayStatus to be emitted")
+	msgs := ui.GetEventMsgs(constants.EventPlayStatus)
+	foundSuccess := false
+	for _, msg := range msgs {
+		if msg == "Finished updating 2 cores." {
+			foundSuccess = true
+			break
+		}
+	}
+	if !foundSuccess {
+		t.Errorf("Expected 'Finished updating 2 cores.', got messages: %v", msgs)
 	}
 }
 
