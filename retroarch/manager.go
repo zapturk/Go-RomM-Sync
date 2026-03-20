@@ -633,11 +633,11 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 	if coreBaseName == "pcsx2_libretro" && biosDir != "" {
 		resourcesDir := filepath.Join(biosDir, "pcsx2", "resources")
 		yamlPath := filepath.Join(resourcesDir, "GameIndex.yaml")
-		
+
 		if _, err := os.Stat(yamlPath); os.IsNotExist(err) {
 			fileio.MkdirAll(resourcesDir, 0o755, ui.LogErrorf)
 			ui.EventsEmit(constants.EventPlayStatus, "Downloading PCSX2 GameIndex.yaml...")
-			resp, err := http.Get("https://raw.githubusercontent.com/libretro/ps2/refs/heads/libretroization/bin/resources/GameIndex.yaml")
+			resp, err := http.Get("https://raw.githubusercontent.com/libretro/ps2/refs/heads/libretroization/bin/resources/GameIndex.yaml") //nolint:bodyclose // body is closed below
 			if err == nil {
 				if resp.StatusCode == http.StatusOK {
 					if out, err := os.Create(yamlPath); err == nil {

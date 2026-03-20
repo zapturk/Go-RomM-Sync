@@ -443,13 +443,69 @@ func (a *App) ValidateAssetPath(core, filename string) (coreBase, fileBase strin
 }
 
 // Launch
+func (a *App) checkAndDownloadFirmware(id uint) error {
+	game, err := a.GetRom(id)
+	if err != nil {
+		return err
+	}
+
+	platformSlug := a.GetResolvedPlatformSlug(&game)
+	if platformSlug == "" {
+		return nil
+	}
+
+	cfg := a.configManager.GetConfig()
+	firmwareID, ok := cfg.PlatformFirmware[platformSlug]
+	if !ok || firmwareID == 0 {
+		return nil
+	}
+
+	firmwares, err := a.GetFirmware(game.PlatformID)
+	if err != nil {
+		a.LogErrorf("Failed to get firmwares from server: %v", err)
+		return nil
+	}
+
+	var selectedFw *types.Firmware
+	for i := range firmwares {
+		if firmwares[i].ID == firmwareID {
+			selectedFw = &firmwares[i]
+			break
+		}
+	}
+
+	if selectedFw == nil {
+		a.LogErrorf("Selected firmware ID %d not found in available firmwares", firmwareID)
+		return nil
+	}
+
+	if !a.librarySrv.IsFirmwareDownloaded(platformSlug, selectedFw) {
+		a.LogInfof("Firmware %s is missing locally. Attempting to download...", selectedFw.FileName)
+		a.EventsEmit(constants.EventPlayStatus, "Downloading missing firmware for platform...")
+		err = a.librarySrv.DownloadFirmware(platformSlug, selectedFw)
+		if err != nil {
+			a.LogErrorf("Failed to auto-download firmware: %v", err)
+			return err
+		}
+		a.LogInfof("Successfully auto-downloaded firmware %s", selectedFw.FileName)
+	}
+
+	return nil
+}
+
 func (a *App) PlayRom(id uint) error {
+	if err := a.checkAndDownloadFirmware(id); err != nil {
+		a.LogErrorf("Firmware check failed: %v", err)
+	}
 	return a.launcher.PlayRom(id)
 }
 
 // PlayRomWithCore launches the ROM using the specified libretro core base name
 // (e.g. "snes9x_libretro"). Allows the user to override the default core.
 func (a *App) PlayRomWithCore(id uint, coreName string) error {
+	if err := a.checkAndDownloadFirmware(id); err != nil {
+		a.LogErrorf("Firmware check failed: %v", err)
+	}
 	return a.launcher.PlayRomWithCore(id, coreName)
 }
 

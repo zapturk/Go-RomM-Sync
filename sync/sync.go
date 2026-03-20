@@ -15,6 +15,8 @@ import (
 	"go-romm-sync/utils/fileio"
 )
 
+const corePCSX2 = "pcsx2_libretro"
+
 // LibraryProvider defines the local library interactions needed for syncing.
 type LibraryProvider interface {
 	GetRomDir(game *types.Game) string
@@ -76,7 +78,7 @@ func (s *Service) getGameFiles(id uint, subDir string) (items []types.FileItem, 
 	}
 
 	dirPath := filepath.Join(s.library.GetRomDir(&game), subDir)
-	
+
 	var entries []os.DirEntry
 	if e, err := os.ReadDir(dirPath); err == nil {
 		entries = e
@@ -88,7 +90,7 @@ func (s *Service) getGameFiles(id uint, subDir string) (items []types.FileItem, 
 
 	if subDir == constants.DirSaves && getPlatformSlug(&game) == "ps2" {
 		pcsx2Dir := filepath.Join(s.library.GetBiosDir(), "pcsx2", "memcards")
-		if pcsx2Items := s.scanFlatCoreFiles("pcsx2_libretro", pcsx2Dir); len(pcsx2Items) > 0 {
+		if pcsx2Items := s.scanFlatCoreFiles(corePCSX2, pcsx2Dir); len(pcsx2Items) > 0 {
 			items = append(items, pcsx2Items...)
 		}
 	}
@@ -183,7 +185,7 @@ func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) erro
 	romDir := s.library.GetRomDir(&game)
 	var baseDir, filePath string
 
-	if core == "pcsx2_libretro" && subDir == constants.DirSaves {
+	if core == corePCSX2 && subDir == constants.DirSaves {
 		baseDir = filepath.Join(s.library.GetBiosDir(), "pcsx2", "memcards")
 		filePath = filepath.Join(baseDir, filename)
 	} else {
@@ -236,7 +238,7 @@ func (s *Service) DeleteGameFile(id uint, subDir, core, filename string) error {
 	romDir := s.library.GetRomDir(&game)
 	var baseDir, filePath string
 
-	if core == "pcsx2_libretro" && subDir == constants.DirSaves {
+	if core == corePCSX2 && subDir == constants.DirSaves {
 		baseDir = filepath.Join(s.library.GetBiosDir(), "pcsx2", "memcards")
 		filePath = filepath.Join(baseDir, filename)
 	} else {
@@ -332,7 +334,7 @@ func (s *Service) prepareAssetPath(game *types.Game, core, filename, subDir stri
 		return "", err
 	}
 
-	if core == "pcsx2_libretro" && subDir == constants.DirSaves {
+	if core == corePCSX2 && subDir == constants.DirSaves {
 		destDir := filepath.Join(s.library.GetBiosDir(), "pcsx2", "memcards")
 		if err := os.MkdirAll(destDir, 0o755); err != nil {
 			return "", fmt.Errorf("failed to create destination directory: %w", err)
