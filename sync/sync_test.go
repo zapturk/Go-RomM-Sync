@@ -23,6 +23,10 @@ func (m *MockLibraryProvider) GetLocalGame(id uint) (types.Game, error) {
 	return types.Game{ID: id}, nil
 }
 
+func (m *MockLibraryProvider) GetBiosDir() string {
+	return m.RomDir // Use RomDir or a dummy path since we just need it to compile
+}
+
 // MockRomMProvider implements RomMProvider
 type MockRomMProvider struct {
 	Game              types.Game

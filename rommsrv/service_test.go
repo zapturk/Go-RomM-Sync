@@ -408,13 +408,14 @@ func TestTryGetPlatformCoverFromCache(t *testing.T) {
 
 func TestTryDownloadPlatformCover(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "snes.png") {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "snes.png"):
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("snes-png"))
-		} else if strings.HasSuffix(r.URL.Path, "snes_alt.svg") {
+		case strings.HasSuffix(r.URL.Path, "snes_alt.svg"):
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("snes-alt-svg"))
-		} else {
+		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))

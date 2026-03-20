@@ -75,7 +75,7 @@ func TestGetCoresDir(t *testing.T) {
 			t.Errorf("Expected Flatpak core dir %s, got %s", expectedFlatpak, dir)
 		}
 	case constants.OSWindows:
-		expectedWin := filepath.Join("C:\\RetroArch", "cores")
+		expectedWin := filepath.Join("C:", string(filepath.Separator), "RetroArch", "cores")
 		if dir := getCoresDir("C:\\RetroArch"); dir != expectedWin {
 			t.Errorf("Expected Windows core dir %s, got %s", expectedWin, dir)
 		}

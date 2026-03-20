@@ -103,7 +103,7 @@ func TestGetRomDir(t *testing.T) {
 	game := &types.Game{ID: 1, FullPath: "SNES/Game.sfc"}
 
 	dir := s.GetRomDir(game)
-	expected := filepath.Join("/base", "SNES", "1")
+	expected := filepath.Join(cfg.GetLibraryPath(), "SNES", "1")
 	if dir != expected {
 		t.Errorf("Expected %s, got %s", expected, dir)
 	}
@@ -215,7 +215,7 @@ func TestDownloadFirmware(t *testing.T) {
 	ui := &MockUIProvider{}
 	s := New(cfg, romm, ui)
 
-	err := s.DownloadFirmware(fw)
+	err := s.DownloadFirmware("segacd", fw)
 	if err != nil {
 		t.Fatalf("DownloadFirmware failed: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestDownloadFirmware_Compressed(t *testing.T) {
 	ui := &MockUIProvider{}
 	s := New(cfg, romm, ui)
 
-	err := s.DownloadFirmware(fw)
+	err := s.DownloadFirmware("nds", fw)
 	if err != nil {
 		t.Fatalf("DownloadFirmware failed: %v", err)
 	}

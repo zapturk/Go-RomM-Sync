@@ -18,6 +18,8 @@ import (
 	"time"
 )
 
+const platformPS2 = "ps2"
+
 // ConfigProvider defines the configuration needed for library management.
 type ConfigProvider interface {
 	GetLibraryPath() string
@@ -152,6 +154,9 @@ func (s *Service) DownloadRomToLibrary(ctx context.Context, id uint) error {
 	}
 	downloadSuccess = true
 
+	// Explicitly close the file handle so Windows allows extraction and deletion
+	_ = out.Close()
+
 	return s.postDownloadProcessing(id, &game, destPath, destDir)
 }
 
@@ -177,6 +182,16 @@ func (s *Service) postDownloadProcessing(id uint, game *types.Game, destPath, de
 			s.ui.LogErrorf("DownloadRomToLibrary: GameCube extraction failed for %s: %v", destPath, err)
 		} else if extracted {
 			s.ui.LogInfof("DownloadRomToLibrary: Extracted GameCube files from archive: %s", destPath)
+		}
+	}
+
+	// Try extracting PS2 files if not already extracted
+	if !extracted {
+		extracted, err = archive.ExtractPS2(destPath, destDir)
+		if err != nil {
+			s.ui.LogErrorf("DownloadRomToLibrary: PS2 extraction failed for %s: %v", destPath, err)
+		} else if extracted {
+			s.ui.LogInfof("DownloadRomToLibrary: Extracted PS2 files from archive: %s", destPath)
 		}
 	}
 
@@ -385,8 +400,39 @@ func (s *Service) FindRomPath(romDir string) string {
 	return s.findRomPath(romDir)
 }
 
+// IsFirmwareDownloaded checks if the firmware files are already locally available.
+func (s *Service) IsFirmwareDownloaded(platformSlug string, fw *types.Firmware) bool {
+	biosDir := s.GetBiosDir()
+	subDir := ""
+	if platformSlug == platformPS2 {
+		subDir = filepath.Join("pcsx2", "bios")
+	}
+	targetDir := filepath.Join(biosDir, subDir)
+
+	canonicalNames := retroarch.GetBiosFilenamesForPlatform(platformSlug)
+	for _, name := range canonicalNames {
+		if _, err := os.Stat(filepath.Join(targetDir, name)); err == nil {
+			return true
+		}
+	}
+
+	expectedName := fw.FileName
+	if md5 := fw.MD5Hash; md5 != "" {
+		if mapped := retroarch.GetBiosFilename(md5); mapped != "" {
+			expectedName = mapped
+		}
+	}
+	if expectedName != "" {
+		if _, err := os.Stat(filepath.Join(targetDir, expectedName)); err == nil {
+			return true
+		}
+	}
+
+	return false
+}
+
 // DownloadFirmware downloads a firmware file to the library's bios directory.
-func (s *Service) DownloadFirmware(fw *types.Firmware) error {
+func (s *Service) DownloadFirmware(platformSlug string, fw *types.Firmware) error {
 	biosDir := s.GetBiosDir()
 	if err := os.MkdirAll(biosDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create bios directory: %w", err)
@@ -426,43 +472,47 @@ func (s *Service) DownloadFirmware(fw *types.Firmware) error {
 			if err != nil || info.IsDir() || path == tempFile {
 				return nil
 			}
-
-			md5, err := fileio.GetMD5(path)
-			if err != nil {
-				s.ui.LogErrorf("DownloadFirmware: Failed to calculate MD5 for %s: %v", path, err)
-				return nil
-			}
-
-			destFilename := filepath.Base(path)
-			if mappedName := retroarch.GetBiosFilename(md5); mappedName != "" {
-				s.ui.LogInfof("DownloadFirmware: Mapping extracted BIOS MD5 %s to canonical name %s (orig: %s)", md5, mappedName, destFilename)
-				destFilename = mappedName
-			}
-
-			destPath := filepath.Join(biosDir, destFilename)
-			// Move file to final destination
-			return os.Rename(path, destPath)
+			return s.processBiosFile(path, biosDir, platformSlug, "", "")
 		})
 	}
 
 	// Not an archive, process single file
-	md5 := fw.MD5Hash
+	return s.processBiosFile(tempFile, biosDir, platformSlug, filename, fw.MD5Hash)
+}
+
+func (s *Service) processBiosFile(sourcePath, biosDir, platformSlug, origFilename, providedMD5 string) error {
+	md5 := providedMD5
 	if md5 == "" {
 		var err error
-		md5, err = fileio.GetMD5(tempFile)
+		md5, err = fileio.GetMD5(sourcePath)
 		if err != nil {
-			s.ui.LogErrorf("DownloadFirmware: Failed to calculate MD5 for %s: %v", filename, err)
+			s.ui.LogErrorf("processBiosFile: Failed to calculate MD5 for %s: %v", sourcePath, err)
 		}
 	}
 
-	finalFilename := filename
-	if mappedName := retroarch.GetBiosFilename(md5); mappedName != "" {
-		s.ui.LogInfof("DownloadFirmware: Mapping BIOS MD5 %s to canonical name %s (orig: %s)", md5, mappedName, filename)
-		finalFilename = mappedName
+	destFilename := filepath.Base(sourcePath)
+	if origFilename != "" {
+		destFilename = origFilename
 	}
 
-	destPath := filepath.Join(biosDir, finalFilename)
-	return os.Rename(tempFile, destPath)
+	if mappedName := retroarch.GetBiosFilename(md5); mappedName != "" {
+		s.ui.LogInfof("processBiosFile: Mapping BIOS MD5 %s to canonical name %s (orig: %s)", md5, mappedName, destFilename)
+		destFilename = mappedName
+	}
+
+	subDir := ""
+	if platformSlug == platformPS2 {
+		subDir = filepath.Join("pcsx2", "bios")
+	}
+
+	targetDir := filepath.Join(biosDir, subDir)
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		s.ui.LogErrorf("processBiosFile: Failed to create target dir %s: %v", targetDir, err)
+	}
+
+	destPath := filepath.Join(targetDir, destFilename)
+	// Move file to final destination
+	return os.Rename(sourcePath, destPath)
 }
 
 // CleanupFirmware removes known canonical BIOS files from the bios directory for a specific platform.
@@ -472,7 +522,11 @@ func (s *Service) CleanupFirmware(platformSlug string) error {
 	biosNames := retroarch.GetBiosFilenamesForPlatform(platformSlug)
 
 	for _, name := range biosNames {
-		path := filepath.Join(biosDir, name)
+		subDir := ""
+		if platformSlug == platformPS2 {
+			subDir = filepath.Join("pcsx2", "bios")
+		}
+		path := filepath.Join(biosDir, subDir, name)
 		if _, err := os.Stat(path); err == nil {
 			s.ui.LogInfof("CleanupFirmware: Removing canonical BIOS file %s for platform %s", name, platformSlug)
 			fileio.Remove(path, s.ui.LogErrorf)
