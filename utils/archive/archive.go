@@ -2,6 +2,7 @@ package archive
 
 import (
 	"archive/zip"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -20,6 +21,45 @@ const (
 	extCue = ".cue"
 	extBin = ".bin"
 )
+
+// ZipDirToBuffer zips a directory and returns its content as a byte slice.
+func ZipDirToBuffer(dirPath string) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	zw := zip.NewWriter(buf)
+
+	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		relPath, err := filepath.Rel(dirPath, path)
+		if err != nil {
+			return err
+		}
+		f, err := zw.Create(relPath)
+		if err != nil {
+			return err
+		}
+		src, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer src.Close()
+		_, err = io.Copy(f, src)
+		return err
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
 
 // Extract extracts all files from an archive to the destination directory.
 // Returns true if files were extracted, false if not a recognized archive.
