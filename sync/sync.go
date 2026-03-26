@@ -346,7 +346,9 @@ func (s *Service) downloadServerAsset(gameID, serverID uint, core, filename, upd
 		if _, err := io.Copy(tmpFile, reader); err != nil {
 			return fmt.Errorf("failed to download directory zip: %w", err)
 		}
-		_ = tmpFile.Close()
+		if err := tmpFile.Close(); err != nil {
+			return fmt.Errorf("failed to close temporary zip file: %w", err)
+		}
 
 		_ = os.RemoveAll(destPath)
 		if _, err := archive.Extract(tmpFile.Name(), destPath); err != nil {
