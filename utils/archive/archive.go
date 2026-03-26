@@ -46,7 +46,7 @@ func ZipDirToBuffer(dirPath string) ([]byte, error) {
 		if err != nil {
 			return err
 		}
-		defer src.Close()
+		defer func() { _ = src.Close() }()
 		_, err = io.Copy(f, src)
 		return err
 	})
