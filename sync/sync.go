@@ -334,6 +334,18 @@ func (s *Service) downloadServerAsset(gameID, serverID uint, core, filename, upd
 		return err
 	}
 
+	if err := s.saveDownloadedAsset(reader, destPath, core, filename, subDir); err != nil {
+		return err
+	}
+
+	if updatedAt != "" {
+		s.setFileTime(destPath, updatedAt)
+	}
+
+	return nil
+}
+
+func (s *Service) saveDownloadedAsset(reader io.Reader, destPath, core, filename, subDir string) error {
 	if core == constants.CoreAzahar && filename == azaharDirName {
 		tmpFile, err := os.CreateTemp("", "romm_dl_*.zip")
 		if err != nil {
@@ -354,22 +366,18 @@ func (s *Service) downloadServerAsset(gameID, serverID uint, core, filename, upd
 		if _, err := archive.Extract(tmpFile.Name(), destPath); err != nil {
 			return fmt.Errorf("failed to extract zip to %s: %w", destPath, err)
 		}
-	} else {
-		out, err := os.Create(destPath)
-		if err != nil {
-			return fmt.Errorf("failed to create local %s file: %w", subDir, err)
-		}
-		defer fileio.Close(out, nil, "downloadServerAsset: Failed to close output file")
-
-		if _, err := io.Copy(out, reader); err != nil {
-			return fmt.Errorf("failed to write local %s file: %w", subDir, err)
-		}
+		return nil
 	}
 
-	if updatedAt != "" {
-		s.setFileTime(destPath, updatedAt)
+	out, err := os.Create(destPath)
+	if err != nil {
+		return fmt.Errorf("failed to create local %s file: %w", subDir, err)
 	}
+	defer fileio.Close(out, nil, "saveDownloadedAsset: Failed to close output file")
 
+	if _, err := io.Copy(out, reader); err != nil {
+		return fmt.Errorf("failed to write local %s file: %w", subDir, err)
+	}
 	return nil
 }
 
