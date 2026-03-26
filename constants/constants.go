@@ -41,4 +41,5 @@ const (
 const (
 	CoreRetro8 = "retro8_libretro"
 	CoreCitra  = "citra_libretro"
+	CoreAzahar = "azahar_libretro"
 )

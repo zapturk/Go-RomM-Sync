@@ -69,13 +69,13 @@ var ExtCoreMap = map[string][]string{
 	".wia":  {"dolphin_libretro"},
 
 	// Nintendo – 3DS
-	".3ds":  {constants.CoreCitra},
-	".3dsx": {constants.CoreCitra},
-	".elf":  {constants.CoreCitra},
-	".axf":  {constants.CoreCitra},
-	".cci":  {constants.CoreCitra},
-	".cxi":  {constants.CoreCitra},
-	".app":  {constants.CoreCitra},
+	".3ds":  {constants.CoreAzahar, constants.CoreCitra},
+	".3dsx": {constants.CoreAzahar, constants.CoreCitra},
+	".elf":  {constants.CoreAzahar, constants.CoreCitra},
+	".axf":  {constants.CoreAzahar, constants.CoreCitra},
+	".cci":  {constants.CoreAzahar, constants.CoreCitra},
+	".cxi":  {constants.CoreAzahar, constants.CoreCitra},
+	".app":  {constants.CoreAzahar, constants.CoreCitra},
 
 	// Sega – Mega Drive / Genesis
 	".md":  {"genesis_plus_gx_libretro", "picodrive_libretro", "blastem_libretro"},
@@ -193,7 +193,7 @@ var PlatformCoreMap = map[string][]string{
 	"pce":          {"mednafen_pce_fast_libretro", "mednafen_pce_libretro"},
 	"gamecube":     {"dolphin_libretro"},
 	"wii":          {"dolphin_libretro"},
-	"3ds":          {constants.CoreCitra},
+	"3ds":          {constants.CoreAzahar, constants.CoreCitra},
 	"pico8":        {"retro8_libretro"},
 	"wsc":          {"mednafen_wswan_libretro"},
 	"ngp":          {"mednafen_ngp_libretro"},
