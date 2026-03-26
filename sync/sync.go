@@ -12,10 +12,14 @@ import (
 	"time"
 
 	"go-romm-sync/constants"
+	"go-romm-sync/utils/archive"
 	"go-romm-sync/utils/fileio"
 )
 
-const corePCSX2 = "pcsx2_libretro"
+const (
+	corePCSX2     = "pcsx2_libretro"
+	azaharDirName = "Azahar"
+)
 
 // LibraryProvider defines the local library interactions needed for syncing.
 type LibraryProvider interface {
@@ -114,7 +118,20 @@ func (s *Service) collectCoreFiles(dirPath string, entries []os.DirEntry) []type
 	var items []types.FileItem
 	for _, entry := range entries {
 		if entry.IsDir() {
-			items = append(items, s.scanCoreDir(dirPath, entry.Name())...)
+			if entry.Name() == azaharDirName {
+				info, err := entry.Info()
+				updatedAt := ""
+				if err == nil {
+					updatedAt = info.ModTime().UTC().Format(time.RFC3339)
+				}
+				items = append(items, types.FileItem{
+					Name:      entry.Name(),
+					Core:      constants.CoreAzahar,
+					UpdatedAt: updatedAt,
+				})
+			} else {
+				items = append(items, s.scanCoreDir(dirPath, entry.Name())...)
+			}
 		}
 	}
 	return items
@@ -173,6 +190,18 @@ func (s *Service) UploadState(id uint, core, filename string) error {
 	return s.uploadServerAsset(id, core, filename, constants.DirStates)
 }
 
+func getLocalAssetPaths(romDir, biosDir, subDir, core, filename string) (baseDir, filePath string) {
+	if core == corePCSX2 && subDir == constants.DirSaves {
+		base := filepath.Join(biosDir, "pcsx2", "memcards")
+		return base, filepath.Join(base, filename)
+	}
+	base := filepath.Join(romDir, subDir)
+	if core == constants.CoreAzahar && filename == azaharDirName {
+		return base, filepath.Join(base, filename)
+	}
+	return base, filepath.Join(base, core, filename)
+}
+
 func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) error {
 	game, err := s.library.GetLocalGame(id)
 	if err != nil {
@@ -183,15 +212,7 @@ func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) erro
 	}
 
 	romDir := s.library.GetRomDir(&game)
-	var baseDir, filePath string
-
-	if core == corePCSX2 && subDir == constants.DirSaves {
-		baseDir = filepath.Join(s.library.GetBiosDir(), "pcsx2", "memcards")
-		filePath = filepath.Join(baseDir, filename)
-	} else {
-		baseDir = filepath.Join(romDir, subDir)
-		filePath = filepath.Join(baseDir, core, filename)
-	}
+	baseDir, filePath := getLocalAssetPaths(romDir, s.library.GetBiosDir(), subDir, core, filename)
 
 	cleanPath := filepath.Clean(filePath)
 	cleanBase := filepath.Clean(baseDir)
@@ -201,9 +222,19 @@ func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) erro
 		return fmt.Errorf("invalid path traversal detected")
 	}
 
-	content, err := os.ReadFile(cleanPath)
-	if err != nil {
-		return fmt.Errorf("failed to read local %s file: %w", subDir, err)
+	var content []byte
+	info, statErr := os.Stat(cleanPath)
+	if statErr == nil && info.IsDir() {
+		var err error
+		content, err = archive.ZipDirToBuffer(cleanPath)
+		if err != nil {
+			return fmt.Errorf("failed to zip directory %s: %w", cleanPath, err)
+		}
+	} else {
+		content, err = os.ReadFile(cleanPath)
+		if err != nil {
+			return fmt.Errorf("failed to read local %s file: %w", subDir, err)
+		}
 	}
 
 	if subDir == constants.DirSaves {
@@ -236,15 +267,7 @@ func (s *Service) DeleteGameFile(id uint, subDir, core, filename string) error {
 	}
 
 	romDir := s.library.GetRomDir(&game)
-	var baseDir, filePath string
-
-	if core == corePCSX2 && subDir == constants.DirSaves {
-		baseDir = filepath.Join(s.library.GetBiosDir(), "pcsx2", "memcards")
-		filePath = filepath.Join(baseDir, filename)
-	} else {
-		baseDir = filepath.Join(romDir, subDir)
-		filePath = filepath.Join(baseDir, core, filename)
-	}
+	baseDir, filePath := getLocalAssetPaths(romDir, s.library.GetBiosDir(), subDir, core, filename)
 
 	cleanPath := filepath.Clean(filePath)
 	cleanBase := filepath.Clean(baseDir)
@@ -262,9 +285,9 @@ func (s *Service) DeleteGameFile(id uint, subDir, core, filename string) error {
 		return fmt.Errorf("failed to access file %s: %w", cleanPath, err)
 	}
 
-	err = os.Remove(cleanPath)
+	err = os.RemoveAll(cleanPath)
 	if err != nil {
-		return fmt.Errorf("failed to delete file %s: %w", cleanPath, err)
+		return fmt.Errorf("failed to delete file or directory %s: %w", cleanPath, err)
 	}
 	return nil
 }
@@ -311,20 +334,50 @@ func (s *Service) downloadServerAsset(gameID, serverID uint, core, filename, upd
 		return err
 	}
 
-	out, err := os.Create(destPath)
-	if err != nil {
-		return fmt.Errorf("failed to create local %s file: %w", subDir, err)
-	}
-	defer fileio.Close(out, nil, "downloadServerAsset: Failed to close output file")
-
-	if _, err := io.Copy(out, reader); err != nil {
-		return fmt.Errorf("failed to write local %s file: %w", subDir, err)
+	if err := s.saveDownloadedAsset(reader, destPath, core, filename, subDir); err != nil {
+		return err
 	}
 
 	if updatedAt != "" {
 		s.setFileTime(destPath, updatedAt)
 	}
 
+	return nil
+}
+
+func (s *Service) saveDownloadedAsset(reader io.Reader, destPath, core, filename, subDir string) error {
+	if core == constants.CoreAzahar && filename == azaharDirName {
+		tmpFile, err := os.CreateTemp("", "romm_dl_*.zip")
+		if err != nil {
+			return fmt.Errorf("failed to create temp file: %w", err)
+		}
+		defer func() {
+			_ = tmpFile.Close()
+			_ = os.Remove(tmpFile.Name())
+		}()
+		if _, err := io.Copy(tmpFile, reader); err != nil {
+			return fmt.Errorf("failed to download directory zip: %w", err)
+		}
+		if err := tmpFile.Close(); err != nil {
+			return fmt.Errorf("failed to close temporary zip file: %w", err)
+		}
+
+		_ = os.RemoveAll(destPath)
+		if _, err := archive.Extract(tmpFile.Name(), destPath); err != nil {
+			return fmt.Errorf("failed to extract zip to %s: %w", destPath, err)
+		}
+		return nil
+	}
+
+	out, err := os.Create(destPath)
+	if err != nil {
+		return fmt.Errorf("failed to create local %s file: %w", subDir, err)
+	}
+	defer fileio.Close(out, nil, "saveDownloadedAsset: Failed to close output file")
+
+	if _, err := io.Copy(out, reader); err != nil {
+		return fmt.Errorf("failed to write local %s file: %w", subDir, err)
+	}
 	return nil
 }
 
@@ -339,6 +392,11 @@ func (s *Service) prepareAssetPath(game *types.Game, core, filename, subDir stri
 		if err := os.MkdirAll(destDir, 0o755); err != nil {
 			return "", fmt.Errorf("failed to create destination directory: %w", err)
 		}
+		return filepath.Join(destDir, filename), nil
+	}
+
+	if core == constants.CoreAzahar && filename == azaharDirName {
+		destDir := filepath.Join(s.library.GetRomDir(game), subDir)
 		return filepath.Join(destDir, filename), nil
 	}
 

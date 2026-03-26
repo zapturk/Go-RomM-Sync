@@ -531,12 +531,6 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         return () => window.removeEventListener('keydown', handleKeyDown, true);
     }, [saves, serverSaves, states, serverStates, gameId, isPickerOpen, isFirmwarePickerOpen, closePicker, closeFirmwarePicker]);
 
-    const isMac = navigator.userAgent.includes('Mac');
-    const is3DS = (game?.platform_slug?.toLowerCase() === '3ds') ||
-        (game?.platform_display_name?.toLowerCase().includes('3ds')) ||
-        (game?.full_path?.toLowerCase().includes('/3ds/'));
-    const isUnsupported = isMac && is3DS;
-
 
     return (
         <div id="game-page" ref={ref}>
@@ -619,30 +613,20 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                             )}
                             {statusChecked && (
                                 !isDownloaded ? (
-                                    isUnsupported ? (
-                                        <button
-                                            className="btn download-btn disabled"
-                                            disabled={true}
-                                            style={{ opacity: 0.5, cursor: 'not-allowed' }}
-                                        >
-                                            Not Supported on macOS
-                                        </button>
+                                    !offlineMode ? (
+                                        <InnerDownloadButton
+                                            isDisabled={downloading || isPlaying}
+                                            isDownloading={downloading}
+                                            isExtracting={isExtracting}
+                                            hasSaves={hasSavesOrStates}
+                                            onDownload={handleDownload}
+                                            onCancel={handleCancel}
+                                            onFocusSaves={focusFirstAvailableSaveState}
+                                        />
                                     ) : (
-                                        !offlineMode ? (
-                                            <InnerDownloadButton
-                                                isDisabled={downloading || isPlaying}
-                                                isDownloading={downloading}
-                                                isExtracting={isExtracting}
-                                                hasSaves={hasSavesOrStates}
-                                                onDownload={handleDownload}
-                                                onCancel={handleCancel}
-                                                onFocusSaves={focusFirstAvailableSaveState}
-                                            />
-                                        ) : (
-                                            <div className="offline-notice">
-                                                Download unavailable in offline mode
-                                            </div>
-                                        )
+                                        <div className="offline-notice">
+                                            Download unavailable in offline mode
+                                        </div>
                                     )
                                 ) : (
                                     <div className="game-actions-vertical">
