@@ -151,15 +151,6 @@ func (s *Service) scanCoreDir(platformSlug, dirPath, coreName string) []types.Fi
 func (s *Service) scanDolphinFiles(platformSlug, coreDir string) []types.FileItem {
 	items := make([]types.FileItem, 0, 4) // USA, EUR, JPN, Wii
 
-	if platformSlug != platformWii {
-		gcDir := filepath.Join(coreDir, "User", "GC")
-		for _, region := range []string{"USA", "EUR", "JPN"} {
-			cardDir := filepath.Join(gcDir, region, "Card A")
-			relCore := filepath.Join("dolphin-emu", "User", "GC", region, "Card A")
-			items = append(items, s.scanFlatCoreFiles(relCore, cardDir)...)
-		}
-	}
-
 	if platformSlug == platformWii {
 		wiiDir := filepath.Join(coreDir, "User", wiiDirName)
 		if info, err := os.Stat(wiiDir); err == nil && info.IsDir() {
@@ -169,6 +160,13 @@ func (s *Service) scanDolphinFiles(platformSlug, coreDir string) []types.FileIte
 				Core:      coreDolphin,
 				UpdatedAt: updatedAt,
 			})
+		}
+	} else {
+		gcDir := filepath.Join(coreDir, "User", "GC")
+		for _, region := range []string{"USA", "EUR", "JPN"} {
+			cardDir := filepath.Join(gcDir, region, "Card A")
+			relCore := filepath.Join(coreDolphin, "User", "GC", region, "Card A")
+			items = append(items, s.scanFlatCoreFiles(relCore, cardDir)...)
 		}
 	}
 
