@@ -5,7 +5,7 @@
     "license": "GPL-3.0-only",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/zapturk/Go-RomM-Sync/releases/download/v0.3.0/go-romm-sync-windows-amd64.zip",
+            "url": "https://github.com/zapturk/Go-RomM-Sync/releases/download/v0.3.1/go-romm-sync-windows-amd64.zip",
             "bin": "go-romm-sync.exe",
             "hash": "sha256:e77caf3c0eae31956936dc11e8288b5988cead741330dedcadf5232603fc81fb",
             "shortcuts": [
