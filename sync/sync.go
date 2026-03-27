@@ -19,6 +19,9 @@ import (
 const (
 	corePCSX2     = "pcsx2_libretro"
 	azaharDirName = "Azahar"
+	coreDolphin   = "dolphin-emu"
+	wiiDirName    = "Wii"
+	platformWii   = "wii"
 )
 
 // LibraryProvider defines the local library interactions needed for syncing.
@@ -90,7 +93,7 @@ func (s *Service) getGameFiles(id uint, subDir string) (items []types.FileItem, 
 		return nil, err
 	}
 
-	items = s.collectCoreFiles(dirPath, entries)
+	items = s.collectCoreFiles(getPlatformSlug(&game), dirPath, entries)
 
 	if subDir == constants.DirSaves && getPlatformSlug(&game) == "ps2" {
 		pcsx2Dir := filepath.Join(s.library.GetBiosDir(), "pcsx2", "memcards")
@@ -114,7 +117,7 @@ func getPlatformSlug(game *types.Game) string {
 
 // (Deprecated/Removed handleGetFilesError logically)
 
-func (s *Service) collectCoreFiles(dirPath string, entries []os.DirEntry) []types.FileItem {
+func (s *Service) collectCoreFiles(platformSlug, dirPath string, entries []os.DirEntry) []types.FileItem {
 	var items []types.FileItem
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -130,29 +133,43 @@ func (s *Service) collectCoreFiles(dirPath string, entries []os.DirEntry) []type
 					UpdatedAt: updatedAt,
 				})
 			} else {
-				items = append(items, s.scanCoreDir(dirPath, entry.Name())...)
+				items = append(items, s.scanCoreDir(platformSlug, dirPath, entry.Name())...)
 			}
 		}
 	}
 	return items
 }
 
-func (s *Service) scanCoreDir(dirPath, coreName string) []types.FileItem {
+func (s *Service) scanCoreDir(platformSlug, dirPath, coreName string) []types.FileItem {
 	coreDir := filepath.Join(dirPath, coreName)
-	if coreName == "dolphin-emu" {
-		return s.scanDolphinFiles(coreDir)
+	if coreName == coreDolphin {
+		return s.scanDolphinFiles(platformSlug, coreDir)
 	}
 	return s.scanFlatCoreFiles(coreName, coreDir)
 }
 
-func (s *Service) scanDolphinFiles(coreDir string) []types.FileItem {
-	items := make([]types.FileItem, 0, 3) // USA, EUR, JPN
-	gcDir := filepath.Join(coreDir, "User", "GC")
-	for _, region := range []string{"USA", "EUR", "JPN"} {
-		cardDir := filepath.Join(gcDir, region, "Card A")
-		relCore := filepath.Join("dolphin-emu", "User", "GC", region, "Card A")
-		items = append(items, s.scanFlatCoreFiles(relCore, cardDir)...)
+func (s *Service) scanDolphinFiles(platformSlug, coreDir string) []types.FileItem {
+	items := make([]types.FileItem, 0, 4) // USA, EUR, JPN, Wii
+
+	if platformSlug == platformWii {
+		wiiDir := filepath.Join(coreDir, "User", wiiDirName)
+		if info, err := os.Stat(wiiDir); err == nil && info.IsDir() {
+			updatedAt := info.ModTime().UTC().Format(time.RFC3339)
+			items = append(items, types.FileItem{
+				Name:      wiiDirName,
+				Core:      coreDolphin,
+				UpdatedAt: updatedAt,
+			})
+		}
+	} else {
+		gcDir := filepath.Join(coreDir, "User", "GC")
+		for _, region := range []string{"USA", "EUR", "JPN"} {
+			cardDir := filepath.Join(gcDir, region, "Card A")
+			relCore := filepath.Join(coreDolphin, "User", "GC", region, "Card A")
+			items = append(items, s.scanFlatCoreFiles(relCore, cardDir)...)
+		}
 	}
+
 	return items
 }
 
@@ -198,6 +215,10 @@ func getLocalAssetPaths(romDir, biosDir, subDir, core, filename string) (baseDir
 	base := filepath.Join(romDir, subDir)
 	if core == constants.CoreAzahar && filename == azaharDirName {
 		return base, filepath.Join(base, filename)
+	}
+	if core == coreDolphin && filename == wiiDirName {
+		base = filepath.Join(base, coreDolphin, "User")
+		return base, filepath.Join(base, wiiDirName)
 	}
 	return base, filepath.Join(base, core, filename)
 }
@@ -346,7 +367,10 @@ func (s *Service) downloadServerAsset(gameID, serverID uint, core, filename, upd
 }
 
 func (s *Service) saveDownloadedAsset(reader io.Reader, destPath, core, filename, subDir string) error {
-	if core == constants.CoreAzahar && filename == azaharDirName {
+	isDirAsset := (core == constants.CoreAzahar && filename == azaharDirName) ||
+		(core == coreDolphin && filename == wiiDirName)
+
+	if isDirAsset {
 		tmpFile, err := os.CreateTemp("", "romm_dl_*.zip")
 		if err != nil {
 			return fmt.Errorf("failed to create temp file: %w", err)
@@ -397,6 +421,11 @@ func (s *Service) prepareAssetPath(game *types.Game, core, filename, subDir stri
 
 	if core == constants.CoreAzahar && filename == azaharDirName {
 		destDir := filepath.Join(s.library.GetRomDir(game), subDir)
+		return filepath.Join(destDir, filename), nil
+	}
+
+	if core == coreDolphin && filename == wiiDirName {
+		destDir := filepath.Join(s.library.GetRomDir(game), subDir, coreDolphin, "User")
 		return filepath.Join(destDir, filename), nil
 	}
 

@@ -13,6 +13,7 @@ import (
 // MockLibraryProvider implements LibraryProvider
 type MockLibraryProvider struct {
 	RomDir string
+	Game   types.Game
 }
 
 func (m *MockLibraryProvider) GetRomDir(game *types.Game) string {
@@ -20,6 +21,9 @@ func (m *MockLibraryProvider) GetRomDir(game *types.Game) string {
 }
 
 func (m *MockLibraryProvider) GetLocalGame(id uint) (types.Game, error) {
+	if m.Game.ID != 0 {
+		return m.Game, nil
+	}
 	return types.Game{ID: id}, nil
 }
 
@@ -90,7 +94,10 @@ func TestValidateAssetPath(t *testing.T) {
 }
 
 func TestGetSaves_Empty(t *testing.T) {
-	tempDir, _ := os.MkdirTemp("", "sync_test")
+	tempDir, err := os.MkdirTemp("", "sync_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
 	defer os.RemoveAll(tempDir)
 
 	lib := &MockLibraryProvider{RomDir: tempDir}
@@ -107,33 +114,43 @@ func TestGetSaves_Empty(t *testing.T) {
 }
 
 func TestUploadSave_PathTraversal(t *testing.T) {
-	tempDir, _ := os.MkdirTemp("", "sync_test")
+	tempDir, err := os.MkdirTemp("", "sync_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
 	defer os.RemoveAll(tempDir)
 
 	lib := &MockLibraryProvider{RomDir: tempDir}
 	romm := &MockRomMProvider{Game: types.Game{ID: 1}}
 	s := New(lib, romm, &MockUIProvider{})
 
-	err := s.UploadSave(1, "../../etc", "passwd")
+	err = s.UploadSave(1, "../../etc", "passwd")
 	if err == nil {
 		t.Errorf("Expected path traversal error")
 	}
 }
 
 func TestDeleteGameFile(t *testing.T) {
-	tempDir, _ := os.MkdirTemp("", "sync_test")
+	tempDir, err := os.MkdirTemp("", "sync_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
 	defer os.RemoveAll(tempDir)
 
 	savesDir := filepath.Join(tempDir, "saves", "snes")
-	os.MkdirAll(savesDir, 0o755)
+	if err := os.MkdirAll(savesDir, 0o755); err != nil {
+		t.Fatalf("failed to create saves dir: %v", err)
+	}
 	saveFile := filepath.Join(savesDir, "game.srm")
-	os.WriteFile(saveFile, []byte("data"), 0o644)
+	if err := os.WriteFile(saveFile, []byte("data"), 0o644); err != nil {
+		t.Fatalf("failed to write save file: %v", err)
+	}
 
 	lib := &MockLibraryProvider{RomDir: tempDir}
 	romm := &MockRomMProvider{Game: types.Game{ID: 1}}
 	s := New(lib, romm, &MockUIProvider{})
 
-	err := s.DeleteGameFile(1, "saves", "snes", "game.srm")
+	err = s.DeleteGameFile(1, "saves", "snes", "game.srm")
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -144,12 +161,19 @@ func TestDeleteGameFile(t *testing.T) {
 }
 
 func TestGetSaves_WithFiles(t *testing.T) {
-	tempDir, _ := os.MkdirTemp("", "sync_test")
+	tempDir, err := os.MkdirTemp("", "sync_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
 	defer os.RemoveAll(tempDir)
 
 	savesDir := filepath.Join(tempDir, "saves", "snes")
-	os.MkdirAll(savesDir, 0o755)
-	os.WriteFile(filepath.Join(savesDir, "game.srm"), []byte("data"), 0o644)
+	if err := os.MkdirAll(savesDir, 0o755); err != nil {
+		t.Fatalf("failed to create saves dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(savesDir, "game.srm"), []byte("data"), 0o644); err != nil {
+		t.Fatalf("failed to write save file: %v", err)
+	}
 
 	lib := &MockLibraryProvider{RomDir: tempDir}
 	romm := &MockRomMProvider{Game: types.Game{ID: 1}}
@@ -165,7 +189,10 @@ func TestGetSaves_WithFiles(t *testing.T) {
 }
 
 func TestDownloadServerAsset(t *testing.T) {
-	tempDir, _ := os.MkdirTemp("", "sync_test_dl")
+	tempDir, err := os.MkdirTemp("", "sync_test_dl")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
 	defer os.RemoveAll(tempDir)
 
 	fakeServerData := []byte("server data")
@@ -179,7 +206,7 @@ func TestDownloadServerAsset(t *testing.T) {
 	}
 	s := New(lib, romm, &MockUIProvider{})
 
-	err := s.DownloadServerSave(1, 123, "snes", "game.srm", "")
+	err = s.DownloadServerSave(1, 123, "snes", "game.srm", "")
 	if err != nil {
 		t.Fatalf("DownloadServerSave failed: %v", err)
 	}
@@ -191,20 +218,76 @@ func TestDownloadServerAsset(t *testing.T) {
 }
 
 func TestUploadSave_Success(t *testing.T) {
-	tempDir, _ := os.MkdirTemp("", "sync_test_up")
+	tempDir, err := os.MkdirTemp("", "sync_test_up")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
 	defer os.RemoveAll(tempDir)
 
 	savesDir := filepath.Join(tempDir, "saves", "snes")
-	os.MkdirAll(savesDir, 0o755)
+	if err := os.MkdirAll(savesDir, 0o755); err != nil {
+		t.Fatalf("failed to create saves dir: %v", err)
+	}
 	saveFile := filepath.Join(savesDir, "game.srm")
-	os.WriteFile(saveFile, []byte("data"), 0o644)
+	if err := os.WriteFile(saveFile, []byte("data"), 0o644); err != nil {
+		t.Fatalf("failed to write save file: %v", err)
+	}
 
 	lib := &MockLibraryProvider{RomDir: tempDir}
 	romm := &MockRomMProvider{Game: types.Game{ID: 1}}
 	s := New(lib, romm, &MockUIProvider{})
 
-	err := s.UploadSave(1, "snes", "game.srm")
+	err = s.UploadSave(1, "snes", "game.srm")
 	if err != nil {
 		t.Fatalf("UploadSave failed: %v", err)
+	}
+}
+
+func TestGetSaves_DolphinPlatformFilter(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "sync_test_dolphin")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	savesDir := filepath.Join(tempDir, "saves", "dolphin-emu")
+
+	// Create GameCube save
+	gcDir := filepath.Join(savesDir, "User", "GC", "USA", "Card A")
+	if err := os.MkdirAll(gcDir, 0o755); err != nil {
+		t.Fatalf("failed to create GC saves dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gcDir, "MemoryCardA.USA.raw"), []byte("gc_data"), 0o644); err != nil {
+		t.Fatalf("failed to write GC save file: %v", err)
+	}
+
+	// Create Wii save dir
+	wiiDir := filepath.Join(savesDir, "User", "Wii")
+	if err := os.MkdirAll(filepath.Join(wiiDir, "title"), 0o755); err != nil {
+		t.Fatalf("failed to create Wii title dir: %v", err)
+	}
+
+	lib := &MockLibraryProvider{RomDir: tempDir}
+	romm := &MockRomMProvider{}
+	s := New(lib, romm, &MockUIProvider{})
+
+	// Test GameCube game (doesn't trigger 'wii' matching)
+	lib.Game = types.Game{ID: 1, PlatformSlug: "gamecube"}
+	savesGC, err := s.GetSaves(1)
+	if err != nil {
+		t.Fatalf("Unexpected error for GC check: %v", err)
+	}
+	if len(savesGC) != 1 || savesGC[0].Name != "MemoryCardA.USA.raw" {
+		t.Errorf("Expected 1 GC save, got %v", savesGC)
+	}
+
+	// Test Wii game
+	lib.Game = types.Game{ID: 2, PlatformSlug: "wii"}
+	savesWii, err := s.GetSaves(2)
+	if err != nil {
+		t.Fatalf("Unexpected error for Wii check: %v", err)
+	}
+	if len(savesWii) != 1 || savesWii[0].Name != "Wii" {
+		t.Errorf("Expected 1 Wii save, got %v", savesWii)
 	}
 }
