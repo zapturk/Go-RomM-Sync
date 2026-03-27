@@ -13,6 +13,7 @@ import (
 // MockLibraryProvider implements LibraryProvider
 type MockLibraryProvider struct {
 	RomDir string
+	Game   types.Game
 }
 
 func (m *MockLibraryProvider) GetRomDir(game *types.Game) string {
@@ -20,6 +21,9 @@ func (m *MockLibraryProvider) GetRomDir(game *types.Game) string {
 }
 
 func (m *MockLibraryProvider) GetLocalGame(id uint) (types.Game, error) {
+	if m.Game.ID != 0 {
+		return m.Game, nil
+	}
 	return types.Game{ID: id}, nil
 }
 
@@ -206,5 +210,45 @@ func TestUploadSave_Success(t *testing.T) {
 	err := s.UploadSave(1, "snes", "game.srm")
 	if err != nil {
 		t.Fatalf("UploadSave failed: %v", err)
+	}
+}
+
+func TestGetSaves_DolphinPlatformFilter(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "sync_test_dolphin")
+	defer os.RemoveAll(tempDir)
+
+	savesDir := filepath.Join(tempDir, "saves", "dolphin-emu")
+
+	// Create GameCube save
+	gcDir := filepath.Join(savesDir, "User", "GC", "USA", "Card A")
+	os.MkdirAll(gcDir, 0o755)
+	os.WriteFile(filepath.Join(gcDir, "MemoryCardA.USA.raw"), []byte("gc_data"), 0o644)
+
+	// Create Wii save dir
+	wiiDir := filepath.Join(savesDir, "User", "Wii")
+	os.MkdirAll(filepath.Join(wiiDir, "title"), 0o755)
+
+	lib := &MockLibraryProvider{RomDir: tempDir}
+	romm := &MockRomMProvider{}
+	s := New(lib, romm, &MockUIProvider{})
+
+	// Test GameCube game (doesn't trigger 'wii' matching)
+	lib.Game = types.Game{ID: 1, PlatformSlug: "gamecube"}
+	savesGC, err := s.GetSaves(1)
+	if err != nil {
+		t.Fatalf("Unexpected error for GC check: %v", err)
+	}
+	if len(savesGC) != 1 || savesGC[0].Name != "MemoryCardA.USA.raw" {
+		t.Errorf("Expected 1 GC save, got %v", savesGC)
+	}
+
+	// Test Wii game
+	lib.Game = types.Game{ID: 2, PlatformSlug: "wii"}
+	savesWii, err := s.GetSaves(2)
+	if err != nil {
+		t.Fatalf("Unexpected error for Wii check: %v", err)
+	}
+	if len(savesWii) != 1 || savesWii[0].Name != "Wii" {
+		t.Errorf("Expected 1 Wii save, got %v", savesWii)
 	}
 }
