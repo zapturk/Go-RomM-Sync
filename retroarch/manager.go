@@ -2,6 +2,7 @@ package retroarch
 
 import (
 	"archive/zip"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -426,7 +427,7 @@ func GetCoresFromZip(zipPath string) []string {
 // to preserve readability and avoid scattering related logic across many small functions.
 //
 //nolint:gocognit,gocyclo // See above
-func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platform, biosDir string) error {
+func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platform, customBiosDir string) error {
 	baseDir, resolvedExePath, err := resolveRetroArchPaths(exePath)
 	if err != nil {
 		return err
@@ -589,8 +590,9 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 		}
 	}
 
-	if coreBaseName == "pcsx2_libretro" && biosDir != "" {
-		resourcesDir := filepath.Join(biosDir, "pcsx2", "resources")
+	if coreBaseName == "pcsx2_libretro" {
+		systemDir := GetSystemDir(baseDir)
+		resourcesDir := filepath.Join(systemDir, "pcsx2", "resources")
 		yamlPath := filepath.Join(resourcesDir, "GameIndex.yaml")
 
 		if _, err := os.Stat(yamlPath); os.IsNotExist(err) {
@@ -638,10 +640,26 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 
 	// Ensure directories exist
 	fileio.MkdirAll(savesDir, 0o755, ui.LogErrorf)
-	fileio.MkdirAll(statesDir, 0o755, ui.LogErrorf)
-	if biosDir != "" {
-		fileio.MkdirAll(biosDir, 0o755, ui.LogErrorf)
+	// Default to RetroArch's internal system folder
+	systemDir := GetSystemDir(baseDir)
+
+	// If a custom firmware exists for this platform, use it
+	if customBiosDir != "" && platform != "" {
+		canonicalNames := GetBiosFilenamesForPlatform(platform)
+		for _, name := range canonicalNames {
+			subDir := ""
+			if platform == "ps2" {
+				subDir = filepath.Join("pcsx2", "bios")
+			}
+			if _, err := os.Stat(filepath.Join(customBiosDir, subDir, name)); err == nil {
+				systemDir = customBiosDir
+				ui.LogInfof("Launch: Found custom platform firmware for %s, using custom BIOS dir: %s", platform, systemDir)
+				break
+			}
+		}
 	}
+
+	fileio.MkdirAll(systemDir, 0o755, ui.LogErrorf)
 
 	// Prepare temporary config for RetroAchievements and Directories.
 	// We use --appendconfig to pass these settings without modifying the user's main RetroArch config permanently.
@@ -650,10 +668,7 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 	tmpFile, err := os.CreateTemp(tmpDir, "retroarch_config_*.cfg")
 	if err == nil {
 		appendConfigPath = tmpFile.Name()
-		content := fmt.Sprintf("savefile_directory = %q\nsavestate_directory = %q\n", savesDir, statesDir)
-		if biosDir != "" {
-			content += fmt.Sprintf("system_directory = %q\n", biosDir)
-		}
+		content := fmt.Sprintf("savefile_directory = %q\nsavestate_directory = %q\nsystem_directory = %q\n", savesDir, statesDir, systemDir)
 		if cheevosUser != "" && cheevosPass != "" {
 			content += fmt.Sprintf("cheevos_enable = \"true\"\ncheevos_username = %q\ncheevos_password = %q\n",
 				cheevosUser, cheevosPass)
@@ -792,10 +807,10 @@ func unzipCore(src, dest string) error {
 			return fmt.Errorf("illegal file path: %s", fpath)
 		}
 		if f.FileInfo().IsDir() {
-			fileio.MkdirAll(fpath, os.ModePerm, nil)
+			fileio.MkdirAll(fpath, 0o755, nil)
 			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
+		if err := os.MkdirAll(filepath.Dir(fpath), 0o755); err != nil {
 			return err
 		}
 		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
@@ -1042,4 +1057,168 @@ func resolveRetroArchPaths(exePath string) (baseDir, binaryPath string, err erro
 		}
 	}
 	return baseDir, binaryPath, nil
+}
+
+type githubRelease struct {
+	Assets []struct {
+		Name               string `json:"name"`
+		BrowserDownloadURL string `json:"browser_download_url"`
+	} `json:"assets"`
+}
+
+func GetSystemDir(baseDir string) string {
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		switch runtime.GOOS {
+		case constants.OSDarwin:
+			return filepath.Join(homeDir, "Library", "Application Support", "RetroArch", "system")
+		case constants.OSLinux:
+			if strings.HasPrefix(baseDir, "/snap/") {
+				return filepath.Join(homeDir, "snap", "retroarch", "current", ".config", "retroarch", "system")
+			}
+			if strings.Contains(baseDir, "flatpak") {
+				return filepath.Join(homeDir, ".var", "app", "org.libretro.RetroArch", "config", "retroarch", "system")
+			}
+			return filepath.Join(homeDir, ".config", "retroarch", "system")
+		}
+	}
+	return filepath.Join(baseDir, "system")
+}
+
+func UpdateBios(ui UIProvider, exePath string) error {
+	baseDir, _, err := resolveRetroArchPaths(exePath)
+	if err != nil {
+		return err
+	}
+	systemDir := GetSystemDir(baseDir)
+	fileio.MkdirAll(systemDir, 0o755, ui.LogErrorf)
+
+	ui.EventsEmit(constants.EventPlayStatus, "Fetching latest BIOS release info...")
+
+	resp, err := http.Get("https://api.github.com/repos/Abdess/retrobios/releases/latest") //nolint:bodyclose // body closed in defer
+	if err != nil {
+		return fmt.Errorf("failed to fetch release info: %w", err)
+	}
+	defer fileio.Close(resp.Body, nil, "UpdateBios: Failed to close response body")
+
+	var release githubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return fmt.Errorf("failed to decode release info: %w", err)
+	}
+
+	downloadURL := ""
+	for _, asset := range release.Assets {
+		if strings.Contains(asset.Name, "RetroArch") && strings.HasSuffix(asset.Name, "_BIOS_Pack.zip") {
+			downloadURL = asset.BrowserDownloadURL
+			break
+		}
+	}
+
+	if downloadURL == "" {
+		return fmt.Errorf("no suitable RetroArch BIOS pack found in the latest release")
+	}
+
+	ui.EventsEmit(constants.EventPlayStatus, "Downloading BIOS pack...")
+
+	dlResp, err := http.Get(downloadURL) //nolint:bodyclose // body closed in defer
+	if err != nil {
+		return fmt.Errorf("failed to download BIOS pack: %w", err)
+	}
+	defer fileio.Close(dlResp.Body, nil, "UpdateBios: Failed to close download body")
+
+	if dlResp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download BIOS pack: HTTP %d", dlResp.StatusCode)
+	}
+
+	tmpZip, err := os.CreateTemp("", "retrobios_*.zip")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer fileio.Remove(tmpZip.Name(), ui.LogErrorf)
+
+	if _, err := io.Copy(tmpZip, dlResp.Body); err != nil {
+		fileio.Close(tmpZip, ui.LogErrorf, "UpdateBios: Failed to close temp zip")
+		return fmt.Errorf("failed to save BIOS pack: %w", err)
+	}
+	fileio.Close(tmpZip, ui.LogErrorf, "UpdateBios: Failed to close temp zip")
+
+	ui.EventsEmit(constants.EventPlayStatus, "Extracting BIOS pack...")
+
+	if err := unzipBios(ui, tmpZip.Name(), systemDir); err != nil {
+		return fmt.Errorf("failed to extract BIOS pack: %w", err)
+	}
+
+	ui.EventsEmit(constants.EventPlayStatus, "BIOS pack updated successfully!")
+	return nil
+}
+
+func unzipBios(ui UIProvider, src, dest string) error {
+	r, err := zip.OpenReader(src)
+	if err != nil {
+		return err
+	}
+	defer fileio.Close(r, nil, "unzipBios: Failed to close zip reader")
+
+	var lastErr error
+	errorCount := 0
+
+	for _, f := range r.File {
+		name := f.Name
+		name = strings.TrimPrefix(name, "system/")
+
+		if name == "" {
+			continue
+		}
+
+		fpath := filepath.Join(dest, name)
+		if !strings.HasPrefix(fpath, filepath.Clean(dest)+string(os.PathSeparator)) {
+			ui.LogErrorf("illegal file path skipped: %s", fpath)
+			lastErr = fmt.Errorf("illegal file path: %s", fpath)
+			errorCount++
+			continue
+		}
+		if f.FileInfo().IsDir() {
+			if err := os.MkdirAll(fpath, 0o755); err != nil {
+				ui.LogErrorf("failed to create directory %s: %v", name, err)
+				lastErr = err
+				errorCount++
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(fpath), 0o755); err != nil {
+			ui.LogErrorf("failed to create directory for %s: %v", name, err)
+			lastErr = err
+			errorCount++
+			continue
+		}
+		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+		if err != nil {
+			ui.LogErrorf("failed to open output file for %s: %v", name, err)
+			lastErr = err
+			errorCount++
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			fileio.Close(outFile, nil, "unzipBios: Failed to close output file")
+			ui.LogErrorf("failed to open zip member %s: %v", name, err)
+			lastErr = err
+			errorCount++
+			continue
+		}
+		_, err = io.Copy(outFile, rc)
+		fileio.Close(outFile, nil, "unzipBios: Failed to close output file")
+		fileio.Close(rc, nil, "unzipBios: Failed to close zip member")
+		if err != nil {
+			ui.LogErrorf("failed to extract file %s: %v", name, err)
+			lastErr = err
+			errorCount++
+			continue
+		}
+	}
+
+	if errorCount > 0 {
+		return fmt.Errorf("BIOS extraction finished with %d errors (last error: %w)", errorCount, lastErr)
+	}
+
+	return nil
 }

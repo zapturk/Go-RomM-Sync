@@ -546,6 +546,14 @@ func (a *App) UpdateRetroArchCores() error {
 	return retroarch.UpdateAllCores(a, cfg.RetroArchPath)
 }
 
+func (a *App) UpdateRetroArchBios() error {
+	cfg := a.configManager.GetConfig()
+	if cfg.RetroArchPath == "" {
+		return fmt.Errorf("retroarch executable not configured")
+	}
+	return retroarch.UpdateBios(a, cfg.RetroArchPath)
+}
+
 func (a *App) SyncOfflineMetadata() error {
 	// Fetches metadata from server for all currently downloaded games
 	// and saves it locally. This helps migrate existing libraries.
