@@ -807,10 +807,10 @@ func unzipCore(src, dest string) error {
 			return fmt.Errorf("illegal file path: %s", fpath)
 		}
 		if f.FileInfo().IsDir() {
-			fileio.MkdirAll(fpath, os.ModePerm, nil)
+			fileio.MkdirAll(fpath, 0o755, nil)
 			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
+		if err := os.MkdirAll(filepath.Dir(fpath), 0o755); err != nil {
 			return err
 		}
 		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
@@ -1158,6 +1158,9 @@ func unzipBios(ui UIProvider, src, dest string) error {
 	}
 	defer fileio.Close(r, nil, "unzipBios: Failed to close zip reader")
 
+	var lastErr error
+	errorCount := 0
+
 	for _, f := range r.File {
 		name := f.Name
 		name = strings.TrimPrefix(name, "system/")
@@ -1169,25 +1172,37 @@ func unzipBios(ui UIProvider, src, dest string) error {
 		fpath := filepath.Join(dest, name)
 		if !strings.HasPrefix(fpath, filepath.Clean(dest)+string(os.PathSeparator)) {
 			ui.LogErrorf("illegal file path skipped: %s", fpath)
+			lastErr = fmt.Errorf("illegal file path: %s", fpath)
+			errorCount++
 			continue
 		}
 		if f.FileInfo().IsDir() {
-			fileio.MkdirAll(fpath, os.ModePerm, nil)
+			if err := os.MkdirAll(fpath, 0o755); err != nil {
+				ui.LogErrorf("failed to create directory %s: %v", name, err)
+				lastErr = err
+				errorCount++
+			}
 			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
+		if err := os.MkdirAll(filepath.Dir(fpath), 0o755); err != nil {
 			ui.LogErrorf("failed to create directory for %s: %v", name, err)
+			lastErr = err
+			errorCount++
 			continue
 		}
 		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
 		if err != nil {
 			ui.LogErrorf("failed to open output file for %s: %v", name, err)
+			lastErr = err
+			errorCount++
 			continue
 		}
 		rc, err := f.Open()
 		if err != nil {
 			fileio.Close(outFile, nil, "unzipBios: Failed to close output file")
 			ui.LogErrorf("failed to open zip member %s: %v", name, err)
+			lastErr = err
+			errorCount++
 			continue
 		}
 		_, err = io.Copy(outFile, rc)
@@ -1195,8 +1210,15 @@ func unzipBios(ui UIProvider, src, dest string) error {
 		fileio.Close(rc, nil, "unzipBios: Failed to close zip member")
 		if err != nil {
 			ui.LogErrorf("failed to extract file %s: %v", name, err)
+			lastErr = err
+			errorCount++
 			continue
 		}
 	}
+
+	if errorCount > 0 {
+		return fmt.Errorf("BIOS extraction finished with %d errors (last error: %w)", errorCount, lastErr)
+	}
+
 	return nil
 }
