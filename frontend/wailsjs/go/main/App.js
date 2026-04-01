@@ -246,6 +246,10 @@ export function ToggleOfflineMode() {
   return window['go']['main']['App']['ToggleOfflineMode']();
 }
 
+export function UpdateRetroArchBios() {
+  return window['go']['main']['App']['UpdateRetroArchBios']();
+}
+
 export function UpdateRetroArchCores() {
   return window['go']['main']['App']['UpdateRetroArchCores']();
 }

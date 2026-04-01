@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath, Logout, ClearImageCache, ToggleOfflineMode, SyncOfflineMetadata, UpdateRetroArchCores } from "../wailsjs/go/main/App";
+import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath, Logout, ClearImageCache, ToggleOfflineMode, SyncOfflineMetadata, UpdateRetroArchCores, UpdateRetroArchBios } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
@@ -25,6 +25,7 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [offlineMode, setOfflineMode] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [isUpdatingCores, setIsUpdatingCores] = useState(false);
+    const [isUpdatingBios, setIsUpdatingBios] = useState(false);
 
     useEffect(() => {
         GetConfig().then((cfg) => {
@@ -180,6 +181,21 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             });
     };
 
+    const handleUpdateBios = () => {
+        setIsUpdatingBios(true);
+        setStatus("Downloading RetroArch BIOS pack...");
+        UpdateRetroArchBios()
+            .then(() => {
+                setStatus("BIOS pack updated successfully!");
+            })
+            .catch((err: any) => {
+                setStatus(`Error updating BIOS: ${String(err)}`);
+            })
+            .finally(() => {
+                setIsUpdatingBios(false);
+            });
+    };
+
     const handleInputKeyDown = (e: React.KeyboardEvent) => {
         if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
             e.stopPropagation();
@@ -216,6 +232,8 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             isSyncing={isSyncing}
             handleUpdateCores={handleUpdateCores}
             isUpdatingCores={isUpdatingCores}
+            handleUpdateBios={handleUpdateBios}
+            isUpdatingBios={isUpdatingBios}
         />
     );
 }
@@ -247,6 +265,8 @@ interface SettingsFormProps {
     isSyncing: boolean;
     handleUpdateCores: () => void;
     isUpdatingCores: boolean;
+    handleUpdateBios: () => void;
+    isUpdatingBios: boolean;
 }
 
 function SettingsForm({
@@ -274,7 +294,9 @@ function SettingsForm({
     handleSyncMetadata,
     isSyncing,
     handleUpdateCores,
-    isUpdatingCores
+    isUpdatingCores,
+    handleUpdateBios,
+    isUpdatingBios
 }: SettingsFormProps) {
     const { ref: containerRef } = useFocusable({
         trackChildren: true,
@@ -401,6 +423,22 @@ function SettingsForm({
                                 onMouseEnter={() => getMouseActive() && !isSaving && !isUpdatingCores && setFocus('update-cores-button')}
                             >
                                 {isUpdatingCores ? "Updating..." : "Update Cores"}
+                            </FocusableButton>
+                        </div>
+                        <div className="settings-row">
+                            <div className="settings-row-info">
+                                <span className="settings-row-label">Download BIOS</span>
+                                <span className="settings-row-desc">Download latest RetroArch BIOS pack from Abdess/retrobios</span>
+                            </div>
+                            <FocusableButton
+                                focusKey="update-bios-button"
+                                className={`btn ${isSaving || isUpdatingBios ? 'disabled' : ''}`}
+                                onClick={handleUpdateBios}
+                                onEnterPress={handleUpdateBios}
+                                disabled={isSaving || isUpdatingBios}
+                                onMouseEnter={() => getMouseActive() && !isSaving && !isUpdatingBios && setFocus('update-bios-button')}
+                            >
+                                {isUpdatingBios ? "Downloading..." : "Download BIOS"}
                             </FocusableButton>
                         </div>
                     </div>
