@@ -42,6 +42,8 @@ const (
 	CoreRetro8    = "retro8_libretro"
 	CoreCitra     = "citra_libretro"
 	CoreAzahar    = "azahar_libretro"
+	CoreMelonDS   = "melonds_libretro"
+	CoreDeSmuME   = "desmume_libretro"
 	CoreMelonDSDS = "melondsds_libretro"
 	CoreNooDS     = "noods_libretro"
 )
