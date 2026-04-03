@@ -56,8 +56,8 @@ var ExtCoreMap = map[string][]string{
 	".gba": {"mgba_libretro", "vba_next_libretro"},
 
 	// Nintendo – DS
-	".nds": {"melonds_libretro", "desmume_libretro"},
-	".dsi": {"melonds_libretro", "desmume_libretro"},
+	".nds": {constants.CoreMelonDSDS, constants.CoreNooDS, "melonds_libretro", "desmume_libretro"},
+	".dsi": {constants.CoreMelonDSDS, constants.CoreNooDS, "melonds_libretro", "desmume_libretro"},
 
 	// Nintendo – Virtual Boy
 	".vb": {"beetle_vb_libretro"},
@@ -183,8 +183,8 @@ var PlatformCoreMap = map[string][]string{
 	"nes":          {"nestopia_libretro", "fceumm_libretro", "mesen_libretro"},
 	"snes":         {"snes9x_libretro", "bsnes_libretro"},
 	"n64":          {"mupen64plus_next_libretro", "parallel_n64_libretro"},
-	"nds":          {"melonds_libretro", "desmume_libretro"},
-	"dsi":          {"melonds_libretro", "desmume_libretro"},
+	"nds":          {constants.CoreMelonDSDS, constants.CoreNooDS, "melonds_libretro", "desmume_libretro"},
+	"dsi":          {constants.CoreMelonDSDS, constants.CoreNooDS, "melonds_libretro", "desmume_libretro"},
 	"genesis":      {"genesis_plus_gx_libretro", "picodrive_libretro", "blastem_libretro"},
 	"mastersystem": {"genesis_plus_gx_libretro", "picodrive_libretro"},
 	"gamegear":     {"genesis_plus_gx_libretro"},

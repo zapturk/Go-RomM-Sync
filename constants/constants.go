@@ -39,7 +39,9 @@ const (
 
 // Known Cores
 const (
-	CoreRetro8 = "retro8_libretro"
-	CoreCitra  = "citra_libretro"
-	CoreAzahar = "azahar_libretro"
+	CoreRetro8    = "retro8_libretro"
+	CoreCitra     = "citra_libretro"
+	CoreAzahar    = "azahar_libretro"
+	CoreMelonDSDS = "melondsds_libretro"
+	CoreNooDS     = "noods_libretro"
 )
