@@ -111,7 +111,7 @@ func (c *Client) CreateClientToken(name string, scopes []string) (string, error)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.APIClient.Do(req)
+	resp, err := c.APIClient.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
 	if err != nil {
 		return "", fmt.Errorf("failed to perform token request: %w", err)
 	}

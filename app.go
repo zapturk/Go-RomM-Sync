@@ -139,14 +139,14 @@ func (a *App) Login() (string, error) {
 	if cfg.ClientToken != "" && strings.HasPrefix(cfg.ClientToken, "rmm_") {
 		// Use the persistent token
 		a.rommSrv.GetClient().Token = cfg.ClientToken
-		
+
 		// Verify the token works with a simple ping (GetPlatforms)
 		_, _, err := a.rommSrv.GetPlatforms(1, 0)
 		if err == nil {
 			a.LogInfof("Using persistent RomM Client Token for session")
 			return "persistent_token", nil
 		}
-		
+
 		a.LogErrorf("Persistent Client Token failed validation: %v. Falling back to password login.", err)
 		// If verification fails, we fall back to traditional login to refresh/re-upgrade
 	}
@@ -185,7 +185,7 @@ func (a *App) Login() (string, error) {
 			tokenSnippet = clientToken[:4] + "..." + clientToken[len(clientToken)-4:]
 		}
 		a.LogInfof("Successfully upgraded to persistent RomM Client Token: %s (%s)", tokenName, tokenSnippet)
-		
+
 		// Update the active client's token to the new persistent one
 		a.rommSrv.GetClient().Token = clientToken
 
