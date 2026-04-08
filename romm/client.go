@@ -50,7 +50,7 @@ func (c *Client) Login(username, password string) (string, error) {
 	data := url.Values{}
 	data.Set("username", username)
 	data.Set("password", password)
-	data.Set("scope", "roms.read platforms.read assets.read assets.write firmware.read firmware.write")
+	data.Set("scope", "me.read me.write roms.read platforms.read assets.read assets.write firmware.read firmware.write")
 
 	req, err := http.NewRequest("POST", c.BaseURL+"/api/token", strings.NewReader(data.Encode()))
 	if err != nil {
@@ -81,6 +81,62 @@ func (c *Client) Login(username, password string) (string, error) {
 
 	c.Token = result.AccessToken
 	return c.Token, nil
+}
+
+// CreateClientToken creates a persistent client token
+func (c *Client) CreateClientToken(name string, scopes []string) (string, error) {
+	if c.Token == "" {
+		return "", fmt.Errorf("not authenticated to create client token")
+	}
+
+	payload := struct {
+		Name      string   `json:"name"`
+		Scopes    []string `json:"scopes"`
+		ExpiresIn *string  `json:"expires_in"`
+	}{
+		Name:   name,
+		Scopes: scopes,
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal token payload: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", c.BaseURL+"/api/client-tokens", bytes.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("failed to create token request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	resp, err := c.APIClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to perform token request: %w", err)
+	}
+	defer fileio.Close(resp.Body, nil, "CreateClientToken: Failed to close response body")
+
+	if resp.StatusCode != http.StatusCreated {
+		respBody, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
+		return "", fmt.Errorf("token creation failed with status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var result struct {
+		ID    int    `json:"id"`
+		Name  string `json:"name"`
+		Token string `json:"raw_token"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("failed to decode token response: %w", err)
+	}
+
+	if result.Token == "" {
+		return "", fmt.Errorf("received empty token from RomM")
+	}
+
+	return result.Token, nil
 }
 
 // GetLibrary fetches the list of games (ROMs) from the library

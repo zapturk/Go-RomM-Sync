@@ -66,6 +66,10 @@ export function GetCheevosCredentials() {
   return window['go']['main']['App']['GetCheevosCredentials']();
 }
 
+export function GetClientToken() {
+  return window['go']['main']['App']['GetClientToken']();
+}
+
 export function GetConfig() {
   return window['go']['main']['App']['GetConfig']();
 }

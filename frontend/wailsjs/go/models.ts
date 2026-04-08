@@ -12,6 +12,7 @@ export namespace types {
 	    last_used_cores: Record<string, string>;
 	    platform_firmware: Record<string, number>;
 	    offline_mode: boolean;
+	    client_token: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppConfig(source);
@@ -30,6 +31,7 @@ export namespace types {
 	        this.last_used_cores = source["last_used_cores"];
 	        this.platform_firmware = source["platform_firmware"];
 	        this.offline_mode = source["offline_mode"];
+	        this.client_token = source["client_token"];
 	    }
 	}
 	export class FileItem {

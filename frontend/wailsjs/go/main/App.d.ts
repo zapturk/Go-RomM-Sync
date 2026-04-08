@@ -36,6 +36,8 @@ export function GetBiosDir():Promise<string>;
 
 export function GetCheevosCredentials():Promise<string|string>;
 
+export function GetClientToken():Promise<string>;
+
 export function GetConfig():Promise<types.AppConfig>;
 
 export function GetCoresForGame(arg1:number):Promise<Array<string>>;

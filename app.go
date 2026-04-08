@@ -34,9 +34,10 @@ type App struct {
 	syncSrv       *syncSrvPkg.Service
 	launcher      *launcher.Launcher
 
-	// Download cancellation support
+	// Download/Auth protection
 	downloadCancels map[uint]context.CancelFunc
 	downloadMu      sync.Mutex
+	loginMu         sync.Mutex
 }
 
 // NewApp creates a new App application struct
@@ -83,6 +84,7 @@ func (a *App) SaveConfig(cfg *types.AppConfig) string {
 		updateIfNotEmpty(&current.RetroArchExecutable, cfg.RetroArchExecutable)
 		updateIfNotEmpty(&current.CheevosUsername, cfg.CheevosUsername)
 		updateIfNotEmpty(&current.CheevosPassword, cfg.CheevosPassword)
+		updateIfNotEmpty(&current.ClientToken, cfg.ClientToken)
 
 		if current.RommHost != oldHost || current.Username != oldUser || current.Password != oldPass {
 			hostOrCredsChanged = true
@@ -129,16 +131,79 @@ func (a *App) GetDefaultLibraryPath() (string, error) {
 
 // RomM
 func (a *App) Login() (string, error) {
-	return a.rommSrv.Login()
+	a.loginMu.Lock()
+	defer a.loginMu.Unlock()
+
+	// 1. Check if we already have a persistent client token
+	cfg := a.configManager.GetConfig()
+	if cfg.ClientToken != "" && strings.HasPrefix(cfg.ClientToken, "rmm_") {
+		// Use the persistent token
+		a.rommSrv.GetClient().Token = cfg.ClientToken
+		
+		// Verify the token works with a simple ping (GetPlatforms)
+		_, _, err := a.rommSrv.GetPlatforms(1, 0)
+		if err == nil {
+			a.LogInfof("Using persistent RomM Client Token for session")
+			return "persistent_token", nil
+		}
+		
+		a.LogErrorf("Persistent Client Token failed validation: %v. Falling back to password login.", err)
+		// If verification fails, we fall back to traditional login to refresh/re-upgrade
+	}
+
+	// 2. Perform traditional login
+	token, err := a.rommSrv.Login()
+	if err != nil {
+		return "", err
+	}
+
+	// 3. Attempt to "upgrade" to a persistent Client Token
+	hostname, _ := os.Hostname()
+	if hostname == "" {
+		hostname = "Go-RomM-Sync Client"
+	}
+	tokenName := fmt.Sprintf("Go-RomM-Sync (%s)", hostname)
+	scopes := []string{"me.read", "roms.read", "platforms.read", "assets.read", "assets.write", "firmware.read"}
+
+	a.LogInfof("Attempting to auto-upgrade to persistent RomM Client Token: %s", tokenName)
+	clientToken, err := a.rommSrv.GetClient().CreateClientToken(tokenName, scopes)
+	if err != nil {
+		a.LogErrorf("Failed to auto-upgrade to Client Token: %v. Continuing with current session.", err)
+		return token, nil
+	}
+
+	// 4. Save the new persistent token
+	err = a.configManager.Update(func(c *types.AppConfig) {
+		c.ClientToken = clientToken
+	})
+	if err != nil {
+		a.LogErrorf("Failed to save Client Token to config: %v", err)
+	} else {
+		// Log a snippet of the token for verification (safely)
+		tokenSnippet := "none"
+		if len(clientToken) > 8 {
+			tokenSnippet = clientToken[:4] + "..." + clientToken[len(clientToken)-4:]
+		}
+		a.LogInfof("Successfully upgraded to persistent RomM Client Token: %s (%s)", tokenName, tokenSnippet)
+		
+		// Update the active client's token to the new persistent one
+		a.rommSrv.GetClient().Token = clientToken
+
+		// Notify frontend that config has changed
+		wailsRuntime.EventsEmit(a.ctx, "config-updated", "client_token")
+	}
+
+	return "persistent_token", nil
 }
 
 func (a *App) Logout() error {
 	// 1. Atomic update to clear credentials
-	if err := a.configManager.Update(func(cfg *types.AppConfig) {
-		cfg.Username = ""
-		cfg.Password = ""
-		cfg.CheevosUsername = ""
-		cfg.CheevosPassword = ""
+	if err := a.configManager.Update(func(c *types.AppConfig) {
+		c.Username = ""
+		c.Password = ""
+		c.ClientToken = ""
+		c.CheevosUsername = ""
+		c.CheevosPassword = ""
 	}); err != nil {
 		return err
 	}
@@ -751,6 +816,10 @@ func (a *App) GetUsername() string {
 
 func (a *App) GetPassword() string {
 	return a.configManager.GetConfig().Password
+}
+
+func (a *App) GetClientToken() string {
+	return a.configManager.GetConfig().ClientToken
 }
 
 func (a *App) GetLibraryPath() string {

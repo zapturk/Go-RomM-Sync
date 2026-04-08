@@ -23,6 +23,7 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [cheevosUser, setCheevosUser] = useState('');
     const [cheevosPass, setCheevosPass] = useState('');
     const [offlineMode, setOfflineMode] = useState(false);
+    const [clientToken, setClientToken] = useState('');
     const [isSyncing, setIsSyncing] = useState(false);
     const [isUpdatingCores, setIsUpdatingCores] = useState(false);
     const [isUpdatingBios, setIsUpdatingBios] = useState(false);
@@ -35,14 +36,25 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             setCheevosUser(cfg.cheevos_username || '');
             setCheevosPass(cfg.cheevos_password || '');
             setOfflineMode(cfg.offline_mode || false);
+            setClientToken(cfg.client_token || '');
         });
     }, []);
 
     useEffect(() => {
-        const unsubscribe = EventsOn("offline-mode-changed", (newOfflineMode: boolean) => {
+        const unsubscribeOffline = EventsOn("offline-mode-changed", (newOfflineMode: boolean) => {
             setOfflineMode(newOfflineMode);
         });
-        return () => unsubscribe();
+
+        const unsubscribeConfig = EventsOn("config-updated", () => {
+            GetConfig().then((cfg) => {
+                setClientToken(cfg.client_token || '');
+            });
+        });
+
+        return () => {
+            unsubscribeOffline();
+            unsubscribeConfig();
+        };
     }, []);
 
     const handleBrowseRA = () => {
@@ -96,7 +108,8 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             retroarch_path: raPath,
             library_path: libPath,
             cheevos_username: cheevosUser,
-            cheevos_password: cheevosPass
+            cheevos_password: cheevosPass,
+            client_token: clientToken
         });
 
         SaveConfig(updatedConfig)
@@ -120,6 +133,7 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                 setStatus("Logged out successfully.");
                 setCheevosUser('');
                 setCheevosPass('');
+                setClientToken('');
                 if (onLogout) onLogout();
             })
             .catch((err: any) => {
@@ -217,6 +231,8 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             setCheevosUser={setCheevosUser}
             cheevosPass={cheevosPass}
             setCheevosPass={setCheevosPass}
+            clientToken={clientToken}
+            setClientToken={setClientToken}
             status={status}
             setStatus={setStatus}
             isSaving={isSaving}
@@ -250,6 +266,8 @@ interface SettingsFormProps {
     setCheevosUser: (v: string) => void;
     cheevosPass: string;
     setCheevosPass: (v: string) => void;
+    clientToken: string;
+    setClientToken: (v: string) => void;
     status: string;
     setStatus: (v: string) => void;
     isSaving: boolean;
@@ -280,6 +298,8 @@ function SettingsForm({
     setCheevosUser,
     cheevosPass,
     setCheevosPass,
+    clientToken,
+    setClientToken,
     status,
     setStatus,
     isSaving,
@@ -516,6 +536,26 @@ function SettingsForm({
                                 onChange={(e) => setCheevosPass(e.target.value)}
                                 autoComplete="off"
                             />
+                        </div>
+                    </div>
+
+                    {/* RomM Connection Section */}
+                    <div className="settings-card">
+                        <div className="settings-section-title">RomM Connection</div>
+                        <div className="input-group">
+                            <label htmlFor="clientToken">Client Token</label>
+                            <FocusableInput
+                                id="clientToken"
+                                focusKey="client-token-input"
+                                className="input"
+                                value={clientToken}
+                                onChange={(e) => setClientToken(e.target.value)}
+                                autoComplete="off"
+                                placeholder="rmm_..."
+                            />
+                            <div className="input-help-text" style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: '0.5rem' }}>
+                                A persistent token for stable connection. The app can auto-generate this if you login normally, or you can paste one from RomM Settings.
+                            </div>
                         </div>
                     </div>
 
