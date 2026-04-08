@@ -13,6 +13,7 @@ function Login({ onLoginSuccess }: LoginProps) {
     const [server, setServer] = useState('');
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [clientToken, setClientToken] = useState('');
 
     // UI state
     const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -26,6 +27,7 @@ function Login({ onLoginSuccess }: LoginProps) {
             if (config.romm_host) setServer(config.romm_host);
             if (config.username) setUsername(config.username);
             if (config.password) setPassword(config.password);
+            if (config.client_token) setClientToken(config.client_token);
         });
     }, []);
 
@@ -37,8 +39,8 @@ function Login({ onLoginSuccess }: LoginProps) {
     }, []);
 
     function handleConnect() {
-        if (!server || !username || !password) {
-            setResultText("Please fill in all server details");
+        if (!server || (!clientToken && (!username || !password))) {
+            setResultText("Please enter server URL and either login credentials or a client token");
             return;
         }
 
@@ -48,7 +50,8 @@ function Login({ onLoginSuccess }: LoginProps) {
         const config = new types.AppConfig({
             romm_host: server,
             username: username,
-            password: password
+            password: password,
+            client_token: clientToken
         });
 
         // First save the config (backend handles merging)
@@ -139,6 +142,24 @@ function Login({ onLoginSuccess }: LoginProps) {
                                 onKeyDown={handleInputKeyDown}
                                 autoComplete="off"
                             />
+                        </div>
+
+                        <div className="input-divider" style={{ textAlign: 'center', margin: '1rem 0', opacity: 0.5 }}>- OR -</div>
+
+                        <div className="input-group">
+                            <label htmlFor="token">Client Token (Persistent)</label>
+                            <input
+                                id="token"
+                                className="input"
+                                value={clientToken}
+                                onChange={(e) => setClientToken(e.target.value)}
+                                onKeyDown={handleInputKeyDown}
+                                autoComplete="off"
+                                placeholder="rmm_..."
+                            />
+                            <div className="input-help-text" style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: '0.5rem' }}>
+                                Found in RomM Settings → Client Tokens. This provides a more stable connection.
+                            </div>
                         </div>
 
                         <button

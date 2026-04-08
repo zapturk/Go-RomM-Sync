@@ -160,7 +160,7 @@ func (m *MockUI) EventsEmit(eventName string, args ...interface{}) {
 		m.EmittedEventMsgs = make(map[string][]string)
 	}
 	m.EmittedEvents[eventName]++
-	
+
 	if len(args) > 0 {
 		m.EmittedEventMsgs[eventName] = append(m.EmittedEventMsgs[eventName], fmt.Sprintf("%v", args[0]))
 	} else {
@@ -580,11 +580,11 @@ Loop:
 
 func TestUpdateAllCores(t *testing.T) {
 	ui := &MockUI{}
-	
+
 	// Create a mock server that returns a valid dummy zip file
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/zip")
-		
+
 		// Create a small valid zip in memory
 		buf := new(bytes.Buffer)
 		zw := zip.NewWriter(buf)
@@ -592,7 +592,7 @@ func TestUpdateAllCores(t *testing.T) {
 		f, _ := zw.Create("dummy_core.info")
 		f.Write([]byte("info data"))
 		zw.Close()
-		
+
 		w.Write(buf.Bytes())
 	}))
 	defer server.Close()
@@ -612,7 +612,7 @@ func TestUpdateAllCores(t *testing.T) {
 
 	coresDir := filepath.Join(tempDir, "cores")
 	os.MkdirAll(coresDir, 0o755)
-	
+
 	overrideCoresDir = coresDir
 	defer func() { overrideCoresDir = "" }()
 
@@ -646,10 +646,9 @@ func TestDSDefaultCore(t *testing.T) {
 	if len(cores) < 2 || cores[0] != constants.CoreMelonDSDS || cores[1] != constants.CoreNooDS {
 		t.Errorf("Expected default cores [%s, %s] for .nds, got %v", constants.CoreMelonDSDS, constants.CoreNooDS, cores)
 	}
-	
+
 	cores = GetCoresForPlatform("nds")
 	if len(cores) < 2 || cores[0] != constants.CoreMelonDSDS || cores[1] != constants.CoreNooDS {
 		t.Errorf("Expected default cores [%s, %s] for platform nds, got %v", constants.CoreMelonDSDS, constants.CoreNooDS, cores)
 	}
 }
-

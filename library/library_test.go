@@ -366,18 +366,18 @@ func TestPostDownloadProcessing_ExtractionInterference(t *testing.T) {
 	archivePath := filepath.Join(tempDir, "game.zip")
 	zipFile, _ := os.Create(archivePath)
 	zw := zip.NewWriter(zipFile)
-	
+
 	// Add files that satisfy ExtractCueBin
 	f1, _ := zw.Create("game.cue")
 	f1.Write([]byte("FILE \"game.bin\" BINARY\n  TRACK 01 MODE1/2352\n    INDEX 01 00:00:00"))
 	f2, _ := zw.Create("game.bin")
 	f2.Write([]byte("fake bin content"))
-	
+
 	// Add a file that satisfies ExtractGameCube (though normally it's one or the other,
 	// we want to test that the logic doesn't crash if both are checked)
 	f3, _ := zw.Create("game.rvz")
 	f3.Write([]byte("fake rvz content"))
-	
+
 	zw.Close()
 	zipFile.Close()
 

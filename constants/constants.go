@@ -47,3 +47,25 @@ const (
 	CoreMelonDSDS = "melondsds_libretro"
 	CoreNooDS     = "noods_libretro"
 )
+
+// RomM Scopes
+const (
+	ScopeMeRead        = "me.read"
+	ScopeMeWrite       = "me.write"
+	ScopeRomsRead      = "roms.read"
+	ScopePlatformsRead = "platforms.read"
+	ScopeAssetsRead    = "assets.read"
+	ScopeAssetsWrite   = "assets.write"
+	ScopeFirmwareRead  = "firmware.read"
+	ScopeFirmwareWrite = "firmware.write"
+)
+
+// RomMDefaultScopes are the scopes requested for persistent client tokens.
+var RomMDefaultScopes = []string{
+	ScopeMeRead,
+	ScopeRomsRead,
+	ScopePlatformsRead,
+	ScopeAssetsRead,
+	ScopeAssetsWrite,
+	ScopeFirmwareRead,
+}

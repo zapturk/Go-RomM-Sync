@@ -30,6 +30,10 @@ func (m *MockConfigProvider) GetPassword() string {
 	return "pass"
 }
 
+func (m *MockConfigProvider) GetClientToken() string {
+	return ""
+}
+
 func TestNew(t *testing.T) {
 	cfg := &MockConfigProvider{Host: "http://localhost"}
 	s := New(cfg)

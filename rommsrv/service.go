@@ -17,6 +17,7 @@ type ConfigProvider interface {
 	GetRomMHost() string
 	GetUsername() string
 	GetPassword() string
+	GetClientToken() string
 }
 
 // Service handles interactions with the RomM server and manages local caches for assets.
@@ -28,9 +29,11 @@ type Service struct {
 // New creates a new RomM service.
 func New(cfg ConfigProvider) *Service {
 	host := cfg.GetRomMHost()
+	client := romm.NewClient(host)
+	client.Token = cfg.GetClientToken()
 	return &Service{
 		config: cfg,
-		client: romm.NewClient(host),
+		client: client,
 	}
 }
 
