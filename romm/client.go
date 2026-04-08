@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"go-romm-sync/constants"
 	"go-romm-sync/utils/fileio"
 )
 
@@ -50,7 +51,16 @@ func (c *Client) Login(username, password string) (string, error) {
 	data := url.Values{}
 	data.Set("username", username)
 	data.Set("password", password)
-	data.Set("scope", "me.read me.write roms.read platforms.read assets.read assets.write firmware.read firmware.write")
+	data.Set("scope", strings.Join([]string{
+		constants.ScopeMeRead,
+		constants.ScopeMeWrite,
+		constants.ScopeRomsRead,
+		constants.ScopePlatformsRead,
+		constants.ScopeAssetsRead,
+		constants.ScopeAssetsWrite,
+		constants.ScopeFirmwareRead,
+		constants.ScopeFirmwareWrite,
+	}, " "))
 
 	req, err := http.NewRequest("POST", c.BaseURL+"/api/token", strings.NewReader(data.Encode()))
 	if err != nil {

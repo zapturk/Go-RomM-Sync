@@ -163,7 +163,7 @@ func (a *App) Login() (string, error) {
 		hostname = "Go-RomM-Sync Client"
 	}
 	tokenName := fmt.Sprintf("Go-RomM-Sync (%s)", hostname)
-	scopes := []string{"me.read", "roms.read", "platforms.read", "assets.read", "assets.write", "firmware.read"}
+	scopes := constants.RomMDefaultScopes
 
 	a.LogInfof("Attempting to auto-upgrade to persistent RomM Client Token: %s", tokenName)
 	clientToken, err := a.rommSrv.GetClient().CreateClientToken(tokenName, scopes)
@@ -177,21 +177,22 @@ func (a *App) Login() (string, error) {
 		c.ClientToken = clientToken
 	})
 	if err != nil {
-		a.LogErrorf("Failed to save Client Token to config: %v", err)
-	} else {
-		// Log a snippet of the token for verification (safely)
-		tokenSnippet := "none"
-		if len(clientToken) > 8 {
-			tokenSnippet = clientToken[:4] + "..." + clientToken[len(clientToken)-4:]
-		}
-		a.LogInfof("Successfully upgraded to persistent RomM Client Token: %s (%s)", tokenName, tokenSnippet)
-
-		// Update the active client's token to the new persistent one
-		a.rommSrv.GetClient().Token = clientToken
-
-		// Notify frontend that config has changed
-		wailsRuntime.EventsEmit(a.ctx, "config-updated", "client_token")
+		a.LogErrorf("Failed to save Client Token to config: %v. Continuing with current session.", err)
+		return token, nil
 	}
+
+	// Log a snippet of the token for verification (safely)
+	tokenSnippet := "none"
+	if len(clientToken) > 8 {
+		tokenSnippet = clientToken[:4] + "..." + clientToken[len(clientToken)-4:]
+	}
+	a.LogInfof("Successfully upgraded to persistent RomM Client Token: %s (%s)", tokenName, tokenSnippet)
+
+	// Update the active client's token to the new persistent one
+	a.rommSrv.GetClient().Token = clientToken
+
+	// Notify frontend that config has changed
+	wailsRuntime.EventsEmit(a.ctx, "config-updated", "client_token")
 
 	return "persistent_token", nil
 }
