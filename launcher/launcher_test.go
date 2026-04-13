@@ -144,7 +144,7 @@ func contains(s, substr string) bool {
 	return strings.Contains(s, substr)
 }
 
-// Re-implementing contains because I don't want to import strings just for one test line if I can avoid it in this quick mock, but okay, let's just use it.
+// Re-implementing contains to avoid importing strings just for one test line.
 
 func TestPlayRom_RetroArchNotConfigured(t *testing.T) {
 	tempDir, _ := os.MkdirTemp("", "library")

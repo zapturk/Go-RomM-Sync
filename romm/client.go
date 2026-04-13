@@ -51,16 +51,7 @@ func (c *Client) Login(username, password string) (string, error) {
 	data := url.Values{}
 	data.Set("username", username)
 	data.Set("password", password)
-	data.Set("scope", strings.Join([]string{
-		constants.ScopeMeRead,
-		constants.ScopeMeWrite,
-		constants.ScopeRomsRead,
-		constants.ScopePlatformsRead,
-		constants.ScopeAssetsRead,
-		constants.ScopeAssetsWrite,
-		constants.ScopeFirmwareRead,
-		constants.ScopeFirmwareWrite,
-	}, " "))
+	data.Set("scope", constants.RomMLoginScopes)
 
 	req, err := http.NewRequest("POST", c.BaseURL+"/api/token", strings.NewReader(data.Encode()))
 	if err != nil {

@@ -145,7 +145,7 @@ func UpdateBios(ui UIProvider, exePath string) error {
 
 	ui.EventsEmit(constants.EventPlayStatus, "Fetching latest BIOS release info...")
 
-	resp, err := http.Get("https://api.github.com/repos/Abdess/retrobios/releases/latest") //nolint:bodyclose // body closed in defer
+	resp, err := http.Get(constants.URLRetroBiosLatestRelease) //nolint:bodyclose // body closed in defer
 	if err != nil {
 		return fmt.Errorf("failed to fetch release info: %w", err)
 	}
@@ -273,4 +273,3 @@ func unzipBios(ui UIProvider, src, dest string) error {
 
 	return nil
 }
-

@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRomWithCore, GetCoresForGame, GetSaves, GetStates, DeleteSave, DeleteState, UploadSave, UploadState, GetServerSaves, GetServerStates, DownloadServerSave, DownloadServerState, OpenGameFolder, GetFirmware, SetPlatformFirmware, GetConfig, CancelDownload } from "../wailsjs/go/main/App";
+import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRomWithCore, GetCoresForGame,
+    GetSaves, GetStates, DeleteSave, DeleteState, UploadSave, UploadState,
+    GetServerSaves, GetServerStates, DownloadServerSave, DownloadServerState,
+    OpenGameFolder, GetFirmware, SetPlatformFirmware, GetConfig, CancelDownload,
+} from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { GameCover } from "./GameCover";
@@ -831,7 +835,15 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     );
 }
 
-function InnerDownloadButton({ isDisabled, isDownloading, isExtracting, hasSaves, onDownload, onCancel, onFocusSaves }: { isDisabled: boolean; isDownloading: boolean; isExtracting: boolean; hasSaves: boolean; onDownload: () => void; onCancel: () => void; onFocusSaves: () => void }) {
+function InnerDownloadButton({ isDisabled, isDownloading, isExtracting, hasSaves, onDownload, onCancel, onFocusSaves }: {
+    isDisabled: boolean;
+    isDownloading: boolean;
+    isExtracting: boolean;
+    hasSaves: boolean;
+    onDownload: () => void;
+    onCancel: () => void;
+    onFocusSaves: () => void;
+}) {
     const { ref, focused } = useFocusable({
         focusKey: 'download-button',
         onArrowPress: (direction: string) => {
@@ -867,7 +879,15 @@ function InnerDownloadButton({ isDisabled, isDownloading, isExtracting, hasSaves
     );
 }
 
-function InnerCoreSelector({ currentCore, isDisabled, hasFirmware, hasSaves, onClick, onFocusRequest, onFocusSaves }: { currentCore: string; isDisabled: boolean; hasFirmware: boolean; hasSaves: boolean; onClick: () => void; onFocusRequest: () => void; onFocusSaves: () => void }) {
+function InnerCoreSelector({ currentCore, isDisabled, hasFirmware, hasSaves, onClick, onFocusRequest, onFocusSaves }: {
+    currentCore: string;
+    isDisabled: boolean;
+    hasFirmware: boolean;
+    hasSaves: boolean;
+    onClick: () => void;
+    onFocusRequest: () => void;
+    onFocusSaves: () => void;
+}) {
     const { ref, focused } = useFocusable({
         focusKey: 'core-selector',
         onArrowPress: (direction: string) => {
@@ -915,7 +935,14 @@ function InnerCoreSelector({ currentCore, isDisabled, hasFirmware, hasSaves, onC
     );
 }
 
-function InnerPlayButton({ isDisabled, hasCore, hasFirmware, hasSaves, onPlay, onFocusSaves }: { isDisabled: boolean; hasCore: boolean; hasFirmware: boolean; hasSaves: boolean; onPlay: () => void; onFocusSaves: () => void }) {
+function InnerPlayButton({ isDisabled, hasCore, hasFirmware, hasSaves, onPlay, onFocusSaves }: {
+    isDisabled: boolean;
+    hasCore: boolean;
+    hasFirmware: boolean;
+    hasSaves: boolean;
+    onPlay: () => void;
+    onFocusSaves: () => void;
+}) {
     const { ref, focused } = useFocusable({
         focusKey: 'play-button',
         onArrowPress: (direction: string) => {
@@ -961,7 +988,11 @@ function InnerPlayButton({ isDisabled, hasCore, hasFirmware, hasSaves, onPlay, o
     );
 }
 
-function InnerOpenFolderButton({ hasSaves, onOpenFolder, onFocusSaves }: { hasSaves: boolean; onOpenFolder: () => void; onFocusSaves: () => void }) {
+function InnerOpenFolderButton({ hasSaves, onOpenFolder, onFocusSaves }: {
+    hasSaves: boolean;
+    onOpenFolder: () => void;
+    onFocusSaves: () => void;
+}) {
     const { ref, focused } = useFocusable({
         focusKey: 'open-folder-button',
         onArrowPress: (direction: string) => {
@@ -1002,7 +1033,13 @@ function InnerOpenFolderButton({ hasSaves, onOpenFolder, onFocusSaves }: { hasSa
     );
 }
 
-function InnerDeleteButton({ isDisabled, hasSaves, onDelete, onFocusDownload, onFocusSaves }: { isDisabled: boolean; hasSaves: boolean; onDelete: () => void; onFocusDownload: () => void; onFocusSaves: () => void }) {
+function InnerDeleteButton({ isDisabled, hasSaves, onDelete, onFocusDownload, onFocusSaves }: {
+    isDisabled: boolean;
+    hasSaves: boolean;
+    onDelete: () => void;
+    onFocusDownload: () => void;
+    onFocusSaves: () => void;
+}) {
     const { ref, focused } = useFocusable({
         focusKey: 'delete-button',
         onArrowPress: (direction: string) => {
@@ -1041,7 +1078,13 @@ function InnerDeleteButton({ isDisabled, hasSaves, onDelete, onFocusDownload, on
     );
 }
 
-function CoreOption({ core, isSelected, onSelect, focusKey, isFirst }: { core: string; isSelected: boolean; onSelect: () => void; focusKey: string; isFirst: boolean }) {
+function CoreOption({ core, isSelected, onSelect, focusKey, isFirst }: {
+    core: string;
+    isSelected: boolean;
+    onSelect: () => void;
+    focusKey: string;
+    isFirst: boolean;
+}) {
     const { ref, focused } = useFocusable({
         focusKey,
         onEnterPress: onSelect,
@@ -1165,7 +1208,14 @@ function InnerFirmwareSelector({ firmwares, selectedId, isDownloading, status, h
     );
 }
 
-function FirmwareOption({ id, name, isSelected, onSelect, focusKey, isFirst }: { id: number; name: string; isSelected: boolean; onSelect: () => void; focusKey: string; isFirst: boolean }) {
+function FirmwareOption({ id, name, isSelected, onSelect, focusKey, isFirst }: {
+    id: number;
+    name: string;
+    isSelected: boolean;
+    onSelect: () => void;
+    focusKey: string;
+    isFirst: boolean;
+}) {
     const { ref, focused } = useFocusable({
         focusKey,
         onEnterPress: onSelect,

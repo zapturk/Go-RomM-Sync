@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
-import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath, Logout, ClearImageCache, ToggleOfflineMode, SyncOfflineMetadata, UpdateRetroArchCores, UpdateRetroArchBios } from "../wailsjs/go/main/App";
+import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath,
+    Logout, ClearImageCache, ToggleOfflineMode, SyncOfflineMetadata,
+    UpdateRetroArchCores, UpdateRetroArchBios,
+} from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
