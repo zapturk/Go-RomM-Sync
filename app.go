@@ -3,8 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"go-romm-sync/assets"
+	"go-romm-sync/authsrv"
 	"go-romm-sync/config"
 	"go-romm-sync/configsrv"
+	"go-romm-sync/constants"
+	"go-romm-sync/firmware"
 	"go-romm-sync/launcher"
 	"go-romm-sync/library"
 	"go-romm-sync/retroarch"
@@ -17,9 +21,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync" // Added for download cancellation map protection
-
-	"go-romm-sync/constants"
+	"sync"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -33,6 +35,10 @@ type App struct {
 	librarySrv    *library.Service
 	syncSrv       *syncSrvPkg.Service
 	launcher      *launcher.Launcher
+	authSrv       *authsrv.Service
+	coreResolver  *retroarch.CoreResolver
+	firmwareSrv   *firmware.Service
+	assetSrv      *assets.Service
 
 	// Download/Auth protection
 	downloadCancels map[uint]context.CancelFunc
@@ -51,6 +57,10 @@ func NewApp(cm *config.ConfigManager) *App {
 	app.librarySrv = library.New(app, app, app)
 	app.syncSrv = syncSrvPkg.New(app, app, app)
 	app.launcher = launcher.New(app, app, app, app)
+	app.authSrv = authsrv.New(app.configManager, app.rommSrv, app)
+	app.firmwareSrv = firmware.New(app, app, app)
+	app.assetSrv = assets.New(app, app.rommSrv.GetClient(), app)
+	app.coreResolver = retroarch.NewCoreResolver(app.librarySrv)
 	return app
 }
 
@@ -69,7 +79,6 @@ func (a *App) GetConfig() types.AppConfig {
 }
 
 func (a *App) SaveConfig(cfg *types.AppConfig) string {
-	// Use atomic update to prevent race conditions
 	var hostOrCredsChanged bool
 	err := a.configManager.Update(func(current *types.AppConfig) {
 		oldHost := current.RommHost
@@ -95,12 +104,11 @@ func (a *App) SaveConfig(cfg *types.AppConfig) string {
 		return fmt.Sprintf("Error saving config: %v", err)
 	}
 
-	// Re-initialize RomM service if host or credentials changed
 	if hostOrCredsChanged {
 		a.rommSrv = rommsrv.New(a)
+		a.authSrv = authsrv.New(a.configManager, a.rommSrv, a)
 	}
 
-	// Clear RetroArch cheevos token on save to ensure fresh login on credentials change
 	fullCfg := a.configManager.GetConfig()
 	if fullCfg.RetroArchPath != "" {
 		if err := retroarch.ClearCheevosToken(fullCfg.RetroArchPath); err != nil {
@@ -129,123 +137,19 @@ func (a *App) GetDefaultLibraryPath() (string, error) {
 	return a.configSrv.GetDefaultLibraryPath()
 }
 
-// RomM
+// RomM / Auth
 func (a *App) Login() (string, error) {
 	a.loginMu.Lock()
 	defer a.loginMu.Unlock()
-
-	// 1. Check if we already have a persistent client token
-	cfg := a.configManager.GetConfig()
-	if cfg.ClientToken != "" && strings.HasPrefix(cfg.ClientToken, "rmm_") {
-		// Use the persistent token
-		a.rommSrv.GetClient().Token = cfg.ClientToken
-
-		// Verify the token works with a simple ping (GetPlatforms)
-		_, _, err := a.rommSrv.GetPlatforms(1, 0)
-		if err == nil {
-			a.LogInfof("Using persistent RomM Client Token for session")
-			return "persistent_token", nil
-		}
-
-		a.LogErrorf("Persistent Client Token failed validation: %v. Falling back to password login.", err)
-		// If verification fails, we fall back to traditional login to refresh/re-upgrade
-	}
-
-	// 2. Perform traditional login
-	token, err := a.rommSrv.Login()
-	if err != nil {
-		return "", err
-	}
-
-	// 3. Attempt to "upgrade" to a persistent Client Token
-	hostname, _ := os.Hostname()
-	if hostname == "" {
-		hostname = "Go-RomM-Sync Client"
-	}
-	tokenName := fmt.Sprintf("Go-RomM-Sync (%s)", hostname)
-	scopes := constants.RomMDefaultScopes
-
-	a.LogInfof("Attempting to auto-upgrade to persistent RomM Client Token: %s", tokenName)
-	clientToken, err := a.rommSrv.GetClient().CreateClientToken(tokenName, scopes)
-	if err != nil {
-		a.LogErrorf("Failed to auto-upgrade to Client Token: %v. Continuing with current session.", err)
-		return token, nil
-	}
-
-	// 4. Save the new persistent token
-	err = a.configManager.Update(func(c *types.AppConfig) {
-		c.ClientToken = clientToken
-	})
-	if err != nil {
-		a.LogErrorf("Failed to save Client Token to config: %v. Continuing with current session.", err)
-		return token, nil
-	}
-
-	// Log a snippet of the token for verification (safely)
-	tokenSnippet := "none"
-	if len(clientToken) > 8 {
-		tokenSnippet = clientToken[:4] + "..." + clientToken[len(clientToken)-4:]
-	}
-	a.LogInfof("Successfully upgraded to persistent RomM Client Token: %s (%s)", tokenName, tokenSnippet)
-
-	// Update the active client's token to the new persistent one
-	a.rommSrv.GetClient().Token = clientToken
-
-	// Notify frontend that config has changed
-	wailsRuntime.EventsEmit(a.ctx, "config-updated", "client_token")
-
-	return "persistent_token", nil
+	return a.authSrv.Login()
 }
 
 func (a *App) Logout() error {
-	// 1. Atomic update to clear credentials
-	if err := a.configManager.Update(func(c *types.AppConfig) {
-		c.Username = ""
-		c.Password = ""
-		c.ClientToken = ""
-		c.CheevosUsername = ""
-		c.CheevosPassword = ""
-	}); err != nil {
-		return err
-	}
-
-	// 2. Clear RetroArch cheevos token
-	fullCfg := a.configManager.GetConfig()
-	if fullCfg.RetroArchPath != "" {
-		if err := retroarch.ClearCheevosToken(fullCfg.RetroArchPath); err != nil {
-			a.LogErrorf("Failed to clear RetroArch cheevos token: %v", err)
-		}
-	}
-
-	// 3. Reset RomM service to clear in-memory session/token
-	a.rommSrv = rommsrv.New(a)
-
-	return nil
+	return a.authSrv.Logout()
 }
 
 func (a *App) ClearImageCache() error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("failed to get user home dir: %w", err)
-	}
-
-	cacheDirs := []string{
-		filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.CoversDir),
-		filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.PlatformsDir),
-	}
-
-	for _, dir := range cacheDirs {
-		if err := os.RemoveAll(dir); err != nil {
-			a.LogErrorf("Failed to clear cache directory %s: %v", dir, err)
-			continue
-		}
-		// Re-create it so future operations don't fail if they expect it
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			a.LogErrorf("Failed to recreate cache directory %s: %v", dir, err)
-		}
-	}
-
-	return nil
+	return a.assetSrv.ClearCache()
 }
 
 func (a *App) GetLibrary(limit, offset, platformID int, search string) (types.LibraryResult[types.Game], error) {
@@ -256,10 +160,7 @@ func (a *App) GetLibrary(limit, offset, platformID int, search string) (types.Li
 			if err != nil {
 				return types.LibraryResult[types.Game]{}, err
 			}
-			return types.LibraryResult[types.Game]{
-				Items: items,
-				Total: total,
-			}, nil
+			return types.LibraryResult[types.Game]{Items: items, Total: total}, nil
 		}
 
 		items, total, err := a.rommSrv.GetLibrary(limit, offset, platformID, search)
@@ -267,10 +168,7 @@ func (a *App) GetLibrary(limit, offset, platformID int, search string) (types.Li
 			a.handleConnectionError(err)
 			continue
 		}
-		return types.LibraryResult[types.Game]{
-			Items: items,
-			Total: total,
-		}, nil
+		return types.LibraryResult[types.Game]{Items: items, Total: total}, nil
 	}
 }
 
@@ -286,16 +184,11 @@ func (a *App) GetPlatforms(limit, offset int) (types.LibraryResult[types.Platfor
 			a.handleConnectionError(err)
 			continue
 		}
-		return types.LibraryResult[types.Platform]{
-			Items: items,
-			Total: total,
-		}, nil
+		return types.LibraryResult[types.Platform]{Items: items, Total: total}, nil
 	}
 }
 
 func (a *App) getOfflinePlatforms(limit, offset int) (types.LibraryResult[types.Platform], error) {
-	// For now, simplicity: scan local library for platforms
-	// Alternatively, we could save platform metadata too, but scanning works for now.
 	items, _, err := a.librarySrv.GetLocalLibrary(1000, 0, 0, "")
 	if err != nil {
 		return types.LibraryResult[types.Platform]{}, err
@@ -307,7 +200,6 @@ func (a *App) getOfflinePlatforms(limit, offset int) (types.LibraryResult[types.
 			continue
 		}
 		platform := game.Platform
-		// Fill in missing fields from the game struct
 		if platform.ID == 0 {
 			platform.ID = game.PlatformID
 		}
@@ -323,7 +215,6 @@ func (a *App) getOfflinePlatforms(limit, offset int) (types.LibraryResult[types.
 	for _, p := range platformMap {
 		platforms = append(platforms, p)
 	}
-	// Basic paging for offline platforms
 	total := len(platforms)
 	start := offset
 	if start > total {
@@ -333,34 +224,26 @@ func (a *App) getOfflinePlatforms(limit, offset int) (types.LibraryResult[types.
 	if end > total {
 		end = total
 	}
-	return types.LibraryResult[types.Platform]{
-		Items: platforms[start:end],
-		Total: total,
-	}, nil
+	return types.LibraryResult[types.Platform]{Items: platforms[start:end], Total: total}, nil
 }
 
 func (a *App) GetFirmware(platformID uint) ([]types.Firmware, error) {
 	return a.rommSrv.GetFirmware(platformID)
 }
 
-func (a *App) SetPlatformFirmware(platformSlug string, firmware *types.Firmware) error {
+func (a *App) SetPlatformFirmware(platformSlug string, fw *types.Firmware) error {
 	cfg := a.configManager.GetConfig()
 	if cfg.PlatformFirmware == nil {
 		cfg.PlatformFirmware = make(map[string]uint)
 	}
-	cfg.PlatformFirmware[platformSlug] = firmware.ID
-	err := a.configManager.Save(&cfg)
-	if err != nil {
+	cfg.PlatformFirmware[platformSlug] = fw.ID
+	if err := a.configManager.Save(&cfg); err != nil {
 		return err
 	}
-
-	// If ID is 0, we are unsetting the firmware.
-	if firmware.ID == 0 {
-		return a.librarySrv.CleanupFirmware(platformSlug)
+	if fw.ID == 0 {
+		return a.firmwareSrv.CleanupFirmware(platformSlug)
 	}
-
-	// Trigger download
-	return a.librarySrv.DownloadFirmware(platformSlug, firmware)
+	return a.firmwareSrv.DownloadFirmware(platformSlug, fw)
 }
 
 func (a *App) DownloadRom(id uint) (string, error) {
@@ -372,11 +255,11 @@ func (a *App) DownloadRom(id uint) (string, error) {
 }
 
 func (a *App) GetCover(romID uint, coverURL string) (string, error) {
-	return a.rommSrv.GetCover(romID, coverURL)
+	return a.assetSrv.GetCover(romID, coverURL)
 }
 
 func (a *App) GetPlatformCover(platformID uint, slug string) (string, error) {
-	return a.rommSrv.GetPlatformCover(platformID, slug)
+	return a.assetSrv.GetPlatformCover(platformID, slug)
 }
 
 func (a *App) GetServerSaves(id uint) ([]types.ServerSave, error) {
@@ -389,7 +272,6 @@ func (a *App) GetServerStates(id uint) ([]types.ServerState, error) {
 
 // Library
 func (a *App) DownloadRomToLibrary(id uint) error {
-	// 1. Create a cancellable context
 	parentCtx := a.ctx
 	if parentCtx == nil {
 		parentCtx = context.Background()
@@ -397,12 +279,10 @@ func (a *App) DownloadRomToLibrary(id uint) error {
 	ctx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
 
-	// 2. Store the cancel function
 	a.downloadMu.Lock()
 	a.downloadCancels[id] = cancel
 	a.downloadMu.Unlock()
 
-	// 3. Ensure cleanup when done
 	defer func() {
 		a.downloadMu.Lock()
 		delete(a.downloadCancels, id)
@@ -450,22 +330,16 @@ func (a *App) OpenGameFolder(game *types.Game) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":
-		a.LogInfof("Opening folder on Windows: %s", absPath)
 		cmd = exec.Command("explorer", absPath)
 	case "darwin":
-		a.LogInfof("Opening folder on macOS: %s", absPath)
 		cmd = exec.Command("open", absPath)
 	case "linux":
-		a.LogInfof("Opening folder on Linux: %s", absPath)
 		cmd = exec.Command("xdg-open", absPath)
 	default:
-		// Fallback to cross-platform Wails helper for other OSs
-		a.LogInfof("Opening folder via BrowserOpenURL: %s", absPath)
-		fileURL := "file://" + absPath
-		wailsRuntime.BrowserOpenURL(a.ctx, fileURL)
+		wailsRuntime.BrowserOpenURL(a.ctx, "file://"+absPath)
 		return nil
 	}
-
+	a.LogInfof("Opening folder on %s: %s", runtime.GOOS, absPath)
 	return cmd.Start()
 }
 
@@ -494,12 +368,10 @@ func (a *App) UploadState(id uint, core, filename string) error {
 	return a.syncSrv.UploadState(id, core, filename)
 }
 
-// DownloadServerSave downloads a remote save file into the local library structure
 func (a *App) DownloadServerSave(gameID, serverID uint, core, filename, updatedAt string) error {
 	return a.syncSrv.DownloadServerSave(gameID, serverID, core, filename, updatedAt)
 }
 
-// DownloadServerState downloads a remote state file into the local library structure
 func (a *App) DownloadServerState(gameID, serverID uint, core, filename, updatedAt string) error {
 	return a.syncSrv.DownloadServerState(gameID, serverID, core, filename, updatedAt)
 }
@@ -539,17 +411,15 @@ func (a *App) checkAndDownloadFirmware(id uint) error {
 			break
 		}
 	}
-
 	if selectedFw == nil {
 		a.LogErrorf("Selected firmware ID %d not found in available firmwares", firmwareID)
 		return nil
 	}
 
-	if !a.librarySrv.IsFirmwareDownloaded(platformSlug, selectedFw) {
+	if !a.firmwareSrv.IsFirmwareDownloaded(platformSlug, selectedFw) {
 		a.LogInfof("Firmware %s is missing locally. Attempting to download...", selectedFw.FileName)
 		a.EventsEmit(constants.EventPlayStatus, "Downloading missing firmware for platform...")
-		err = a.librarySrv.DownloadFirmware(platformSlug, selectedFw)
-		if err != nil {
+		if err := a.firmwareSrv.DownloadFirmware(platformSlug, selectedFw); err != nil {
 			a.LogErrorf("Failed to auto-download firmware: %v", err)
 			return err
 		}
@@ -566,8 +436,6 @@ func (a *App) PlayRom(id uint) error {
 	return a.launcher.PlayRom(id)
 }
 
-// PlayRomWithCore launches the ROM using the specified libretro core base name
-// (e.g. "snes9x_libretro"). Allows the user to override the default core.
 func (a *App) PlayRomWithCore(id uint, coreName string) error {
 	if err := a.checkAndDownloadFirmware(id); err != nil {
 		a.LogErrorf("Firmware check failed: %v", err)
@@ -621,8 +489,6 @@ func (a *App) UpdateRetroArchBios() error {
 }
 
 func (a *App) SyncOfflineMetadata() error {
-	// Fetches metadata from server for all currently downloaded games
-	// and saves it locally. This helps migrate existing libraries.
 	const batchSize = 100
 	offset := 0
 	for {
@@ -654,72 +520,37 @@ func (a *App) SyncOfflineMetadata() error {
 	return nil
 }
 
+// GetCoresForGame returns an ordered list of candidate cores for a game,
+// delegating to CoreResolver for the multi-strategy fallback chain.
 func (a *App) GetCoresForGame(id uint) ([]string, error) {
+	cfg := a.configManager.GetConfig()
+
 	var game types.Game
 	var err error
-
-	cfg := a.configManager.GetConfig()
 	if cfg.OfflineMode {
 		game, err = a.librarySrv.GetLocalGame(id)
 	} else {
 		game, err = a.rommSrv.GetRom(id)
 	}
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ROM info: %w", err)
 	}
 
-	// Resolve the platform slug robustly
 	platformSlug := a.GetResolvedPlatformSlug(&game)
-
-	// Strategy 0: User Preference (Last Used Core for this platform).
 	lastUsed := ""
 	if platformSlug != "" {
 		lastUsed = cfg.LastUsedCores[platformSlug]
 	}
 
-	var allCores []string
-
-	// Strategy 1 & 2: Platform-based lookup.
-	if cores := a.getCoresByPlatform(&game); len(cores) > 0 {
-		allCores = append(allCores, cores...)
-	}
-
-	// Strategy 3: Derive extension from the server-side filename (Fallback).
-	if len(allCores) == 0 {
-		ext := strings.ToLower(filepath.Ext(filepath.Base(game.FullPath)))
-		if ext != ".zip" {
-			if cores := retroarch.GetCoresForExt(ext); len(cores) > 0 {
-				allCores = append(allCores, cores...)
-			}
-		}
-	}
-
-	// Strategy 4: Local file scan for the real extension (Fallback for zips).
-	if len(allCores) == 0 {
-		if cores := a.getCoresByLocalScan(&game); len(cores) > 0 {
-			allCores = append(allCores, cores...)
-		}
-	}
-
-	if len(allCores) == 0 {
+	cores := a.coreResolver.Resolve(retroarch.ResolveOptions{
+		PlatformSlug: platformSlug,
+		FullPath:     game.FullPath,
+		LastUsed:     lastUsed,
+	})
+	if len(cores) == 0 {
 		return nil, fmt.Errorf("no known cores for game %d (platform/ext not found)", id)
 	}
-
-	return a.prioritizeLastUsedCore(allCores, lastUsed), nil
-}
-
-func (a *App) prioritizeLastUsedCore(allCores []string, lastUsed string) []string {
-	if lastUsed == "" {
-		return allCores
-	}
-	finalCores := []string{lastUsed}
-	for _, c := range allCores {
-		if c != lastUsed {
-			finalCores = append(finalCores, c)
-		}
-	}
-	return finalCores
+	return cores, nil
 }
 
 // GetResolvedPlatformSlug returns a canonical platform slug, falling back to folder name if needed.
@@ -727,7 +558,6 @@ func (a *App) GetResolvedPlatformSlug(game *types.Game) string {
 	if game.Platform.Slug != "" {
 		return game.Platform.Slug
 	}
-	// Fallback to directory name identification
 	relDir := filepath.Dir(game.FullPath)
 	parts := strings.Split(filepath.ToSlash(relDir), "/")
 	for i := len(parts) - 1; i >= 0; i-- {
@@ -749,52 +579,6 @@ func (a *App) SaveLastUsedCore(platformSlug, coreName string) error {
 		}
 		cfg.LastUsedCores[platformSlug] = coreName
 	})
-}
-
-func (a *App) getCoresByPlatform(game *types.Game) []string {
-	// Strategy 1: Direct Platform-based lookup (Primary).
-	if game.Platform.Slug != "" {
-		if cores := retroarch.GetCoresForPlatform(game.Platform.Slug); len(cores) > 0 {
-			return cores
-		}
-	}
-
-	// Strategy 2: Platform-based lookup from path segments.
-	fullPath := filepath.ToSlash(game.FullPath)
-	parts := strings.Split(strings.TrimPrefix(fullPath, "/"), "/")
-	for _, part := range parts {
-		if cores := retroarch.GetCoresForPlatform(part); len(cores) > 0 {
-			return cores
-		}
-	}
-	return nil
-}
-
-func (a *App) getCoresByLocalScan(game *types.Game) []string {
-	romDir := a.librarySrv.GetRomDir(game)
-	if romDir == "" {
-		return nil
-	}
-	entries, err := os.ReadDir(romDir)
-	if err != nil {
-		return nil
-	}
-	for _, entry := range entries {
-		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
-			continue
-		}
-		itemPath := filepath.Join(romDir, entry.Name())
-		localExt := strings.ToLower(filepath.Ext(entry.Name()))
-
-		if localExt == ".zip" {
-			if zipCores := retroarch.GetCoresFromZip(itemPath); len(zipCores) > 0 {
-				return zipCores
-			}
-		} else if localCores := retroarch.GetCoresForExt(localExt); len(localCores) > 0 {
-			return localCores
-		}
-	}
-	return nil
 }
 
 // --- Internal Provider Implementations ---
@@ -828,7 +612,7 @@ func (a *App) GetLibraryPath() string {
 }
 
 func (a *App) GetBiosDir() string {
-	return a.librarySrv.GetBiosDir()
+	return a.firmwareSrv.GetBiosDir()
 }
 
 func (a *App) SaveDefaultLibraryPath(path string) error {
@@ -868,6 +652,7 @@ func (a *App) DownloadFile(ctx context.Context, game *types.Game) (reader io.Rea
 func (a *App) DownloadFirmwareContent(ctx context.Context, id uint, fileName string) (io.ReadCloser, string, error) {
 	return a.rommSrv.GetClient().DownloadFirmwareContent(ctx, id, fileName)
 }
+
 func (a *App) GetLocalGame(id uint) (types.Game, error) {
 	return a.librarySrv.GetLocalGame(id)
 }
@@ -935,9 +720,7 @@ func (a *App) WindowSetAlwaysOnTop(b bool) {
 }
 
 func (a *App) OpenFileDialog(title string, filters []string) (string, error) {
-	options := wailsRuntime.OpenDialogOptions{
-		Title: title,
-	}
+	options := wailsRuntime.OpenDialogOptions{Title: title}
 	if len(filters) > 0 {
 		options.Filters = []wailsRuntime.FileFilter{{DisplayName: "Filtered Files", Pattern: filters[0]}}
 	}

@@ -69,3 +69,13 @@ var RomMDefaultScopes = []string{
 	ScopeAssetsWrite,
 	ScopeFirmwareRead,
 }
+
+// RomMLoginScopes is the full space-separated scope string used during login.
+const RomMLoginScopes = "me.read me.write roms.read platforms.read assets.read assets.write firmware.read firmware.write"
+
+// URLs
+const (
+	URLRetroBiosLatestRelease = "https://api.github.com/repos/Abdess/retrobios/releases/latest"
+	URLPCSX2GameIndex         = "https://raw.githubusercontent.com/libretro/ps2/refs/heads/libretroization/bin/resources/GameIndex.yaml"
+	URLBuildbotBase           = "https://buildbot.libretro.com/nightly"
+)

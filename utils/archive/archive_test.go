@@ -9,6 +9,12 @@ import (
 	"testing"
 )
 
+// testData7z is a minimal 7z archive containing game.cue and game.bin, used for testing.
+var testData7z = "N3q8ryccAAQ7fK9ybgAAAAAAAAAgAAAAAAAAAEKKP6ABAAlmYWtlCmZha2UKAAAAgTMHrg/Ox1yBCSqu06qFJigV5+7h5KJ206s/OLhZ01FnEplGTsr+WPmHbi/IzGUB+fAEJopuBQwond5Pye6K1xROKq7KDsBKRVszsaPyNZhlSFH1GcJqHY80m6AAABcGDgEJYAAHCwEAASMDAQEFXQAQAAAMdgoBluSC3gAA"
+
+// testDataRar is a minimal RAR archive (from wailsapp/mimetype testdata) without a cue/bin pair.
+var testDataRar = "UmFyIRoHAQAzkrXlCgEFBgAFAQGAgABGzTVJHAICnQEGuwG0gwKAAPNateoMI4ADAQZhc2QuZ2/FBZomVENC9mBE3ZOFQmqQFk3oOpdKCPBUtmRmQWS8HJHNCPelLkzdnFrsv8eqq5PZdHq0VRQffcfxBvgHuPEISMaEcR9TOk1yJwi5Bq4PhPCnZbRiy8PbmvwY8duWLs2WsQlEHekm6N6VH+El5Fuw/U+7eezC+YheVNAtBI5HKV8AkzgXAckVVuswvjQpidDdBz/lkCf1StT9VP6YHXdWUQMFBAA="
+
 func TestExtractCueBin_Zip(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "archive-test-*")
 	if err != nil {
@@ -164,8 +170,7 @@ func TestExtractCueBin_NoPair(t *testing.T) {
 
 func TestExtractCueBin_7z(t *testing.T) {
 	// Minimal 7z file containing game.cue and game.bin
-	b64 := "N3q8ryccAAQ7fK9ybgAAAAAAAAAgAAAAAAAAAEKKP6ABAAlmYWtlCmZha2UKAAAAgTMHrg/Ox1yBCSqu06qFJigV5+7h5KJ206s/OLhZ01FnEplGTsr+WPmHbi/IzGUB+fAEJopuBQwond5Pye6K1xROKq7KDsBKRVszsaPyNZhlSFH1GcJqHY80m6AAABcGDgEJYAAHCwEAASMDAQEFXQAQAAAMdgoBluSC3gAA"
-	data, _ := base64.StdEncoding.DecodeString(b64)
+	data, _ := base64.StdEncoding.DecodeString(testData7z)
 
 	tmpDir, err := os.MkdirTemp("", "archive-test-7z-*")
 	if err != nil {
@@ -194,8 +199,7 @@ func TestExtractCueBin_7z(t *testing.T) {
 
 func TestExtractCueBin_Rar_Negative(t *testing.T) {
 	// Minimal RAR file (from wailsapp/mimetype testdata) - likely doesn't have cue/bin
-	b64 := "UmFyIRoHAQAzkrXlCgEFBgAFAQGAgABGzTVJHAICnQEGuwG0gwKAAPNateoMI4ADAQZhc2QuZ2/FBZomVENC9mBE3ZOFQmqQFk3oOpdKCPBUtmRmQWS8HJHNCPelLkzdnFrsv8eqq5PZdHq0VRQffcfxBvgHuPEISMaEcR9TOk1yJwi5Bq4PhPCnZbRiy8PbmvwY8duWLs2WsQlEHekm6N6VH+El5Fuw/U+7eezC+YheVNAtBI5HKV8AkzgXAckVVuswvjQpidDdBz/lkCf1StT9VP6YHXdWUQMFBAA="
-	data, _ := base64.StdEncoding.DecodeString(b64)
+	data, _ := base64.StdEncoding.DecodeString(testDataRar)
 
 	tmpDir, err := os.MkdirTemp("", "archive-test-rar-*")
 	if err != nil {

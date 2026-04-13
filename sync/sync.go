@@ -437,7 +437,13 @@ func (s *Service) prepareAssetPath(game *types.Game, core, filename, subDir stri
 	// RomM stores these saves with emulator = "Card A", but locally they must live at:
 	//   saves/dolphin-emu/User/GC/{region}/Card A/
 	// We default to USA region; the file will be placed correctly for NTSC-U games.
-	switch core {
+	//
+	// Normalize backslashes to forward slashes before extracting the base name so
+	// that saves uploaded from Windows (where the emulator field was stored with
+	// backslash separators, e.g. "dolphin-emu\User\GC\USA\Card A") are handled
+	// correctly on macOS/Linux where filepath.Base does not treat '\' as a separator.
+	coreBase := filepath.Base(strings.ReplaceAll(core, "\\", "/"))
+	switch coreBase {
 	case "Card A":
 		core = filepath.Join("dolphin-emu", "User", "GC", "USA", "Card A")
 	case "Card B":

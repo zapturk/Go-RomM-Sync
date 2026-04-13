@@ -51,16 +51,7 @@ func (c *Client) Login(username, password string) (string, error) {
 	data := url.Values{}
 	data.Set("username", username)
 	data.Set("password", password)
-	data.Set("scope", strings.Join([]string{
-		constants.ScopeMeRead,
-		constants.ScopeMeWrite,
-		constants.ScopeRomsRead,
-		constants.ScopePlatformsRead,
-		constants.ScopeAssetsRead,
-		constants.ScopeAssetsWrite,
-		constants.ScopeFirmwareRead,
-		constants.ScopeFirmwareWrite,
-	}, " "))
+	data.Set("scope", constants.RomMLoginScopes)
 
 	req, err := http.NewRequest("POST", c.BaseURL+"/api/token", strings.NewReader(data.Encode()))
 	if err != nil {
@@ -150,10 +141,6 @@ func (c *Client) CreateClientToken(name string, scopes []string) (string, error)
 }
 
 // GetLibrary fetches the list of games (ROMs) from the library
-//
-// types with different JSON decode strategies; a generic refactor would add complexity without benefit.
-//
-//nolint:dupl // GetLibrary/GetPlatforms have similar pagination structures but operate on different
 func (c *Client) GetLibrary(limit, offset, platformID int, search string) ([]types.Game, int, error) {
 	if c.Token == "" {
 		return nil, 0, fmt.Errorf("not authenticated")
@@ -164,64 +151,12 @@ func (c *Client) GetLibrary(limit, offset, platformID int, search string) ([]typ
 		return nil, 0, err
 	}
 
-	req, err := http.NewRequest("GET", u, http.NoBody)
+	raw, err := c.getJSON(u, "library")
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to create library request: %w", err)
+		return nil, 0, err
 	}
 
-	req.Header.Set("Authorization", "Bearer "+c.Token)
-
-	resp, err := c.APIClient.Do(req) //nolint:bodyclose // body is closed via fileio.Close
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to perform library request: %w", err)
-	}
-	defer fileio.Close(resp.Body, nil, "GetLibrary: Failed to close response body")
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
-		return nil, 0, fmt.Errorf("library fetch failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	// Check if response is an array or object (pagination)
-	var raw json.RawMessage
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		return nil, 0, fmt.Errorf("failed to decode library response: %w", err)
-	}
-
-	var pageItems []types.Game
-	totalCount := 0
-
-	// Try unmarshalling as array first (backward compatibility or non-paginated)
-	if err := json.Unmarshal(raw, &pageItems); err == nil {
-		return pageItems, len(pageItems), nil
-	}
-
-	// Try unmarshalling as paginated object
-	var paginated struct {
-		Items []types.Game `json:"items"`
-		Total int          `json:"total_count"`
-		Alt   int          `json:"total"`
-		Cnt   int          `json:"count"`
-		Res   int          `json:"total_results"`
-	}
-	if err := json.Unmarshal(raw, &paginated); err == nil && paginated.Items != nil {
-		pageItems = paginated.Items
-		switch {
-		case paginated.Total != 0:
-			totalCount = paginated.Total
-		case paginated.Alt != 0:
-			totalCount = paginated.Alt
-		case paginated.Cnt != 0:
-			totalCount = paginated.Cnt
-		case paginated.Res != 0:
-			totalCount = paginated.Res
-		default:
-			totalCount = len(pageItems)
-		}
-		return pageItems, totalCount, nil
-	}
-
-	return nil, 0, fmt.Errorf("unknown library response format: %s", string(raw))
+	return decodePaginated[types.Game](raw, "library")
 }
 
 func (c *Client) buildLibraryURL(limit, offset, platformID int, search string) (string, error) {
@@ -277,16 +212,11 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 }
 
 // GetPlatforms fetches the list of platforms
-//
-// types with different JSON decode strategies; a generic refactor would add complexity without benefit.
-//
-//nolint:dupl // GetLibrary/GetPlatforms have similar pagination structures but operate on different
 func (c *Client) GetPlatforms(limit, offset int) ([]types.Platform, int, error) {
 	if c.Token == "" {
 		return nil, 0, fmt.Errorf("not authenticated")
 	}
 
-	// Construct URL with pagination parameters
 	u, err := url.Parse(c.BaseURL + "/api/platforms")
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to parse base URL: %w", err)
@@ -296,63 +226,12 @@ func (c *Client) GetPlatforms(limit, offset int) ([]types.Platform, int, error) 
 	q.Set("offset", fmt.Sprintf("%d", offset))
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest("GET", u.String(), http.NoBody)
+	raw, err := c.getJSON(u.String(), "platforms")
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to create platforms request: %w", err)
+		return nil, 0, err
 	}
 
-	req.Header.Set("Authorization", "Bearer "+c.Token)
-
-	resp, err := c.APIClient.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to perform platforms request: %w", err)
-	}
-	defer fileio.Close(resp.Body, nil, "GetPlatforms: Failed to close response body")
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
-		return nil, 0, fmt.Errorf("platforms fetch failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var raw json.RawMessage
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		return nil, 0, fmt.Errorf("failed to decode platforms response: %w", err)
-	}
-
-	var pageItems []types.Platform
-	totalCount := 0
-
-	// Try parsing as array (legacy or non-paginated)
-	if err := json.Unmarshal(raw, &pageItems); err == nil {
-		return pageItems, len(pageItems), nil
-	}
-
-	// Try parsing as paginated object
-	var paginated struct {
-		Items []types.Platform `json:"items"`
-		Total int              `json:"total_count"`
-		Alt   int              `json:"total"`
-		Cnt   int              `json:"count"`
-		Res   int              `json:"total_results"`
-	}
-	if err := json.Unmarshal(raw, &paginated); err == nil && paginated.Items != nil {
-		pageItems = paginated.Items
-		switch {
-		case paginated.Total != 0:
-			totalCount = paginated.Total
-		case paginated.Alt != 0:
-			totalCount = paginated.Alt
-		case paginated.Cnt != 0:
-			totalCount = paginated.Cnt
-		case paginated.Res != 0:
-			totalCount = paginated.Res
-		default:
-			totalCount = len(pageItems)
-		}
-		return pageItems, totalCount, nil
-	}
-
-	return nil, 0, fmt.Errorf("unknown platforms response format: %s", string(raw))
+	return decodePaginated[types.Platform](raw, "platforms")
 }
 
 // GetFirmware fetches the list of firmware for a given platform
@@ -414,7 +293,7 @@ func (c *Client) DownloadFile(ctx context.Context, game *types.Game) (reader io.
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.FileClient.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
+	resp, err := c.FileClient.Do(req) //nolint:bodyclose // caller closes
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to perform download request: %w", err)
 	}
@@ -577,7 +456,7 @@ func (c *Client) downloadAsset(ctx context.Context, id uint, assetType, fallback
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.FileClient.Do(req)
+	resp, err := c.FileClient.Do(req) //nolint:bodyclose // caller closes
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to perform download request: %w", err)
 	}
@@ -621,6 +500,67 @@ func (c *Client) shouldSendToken(targetURL string) bool {
 	return target.Scheme == base.Scheme && target.Host == base.Host
 }
 
+// getJSON performs an authenticated GET and returns the raw JSON body.
+func (c *Client) getJSON(urlStr, label string) (json.RawMessage, error) {
+	req, err := http.NewRequest("GET", urlStr, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s request: %w", label, err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	resp, err := c.APIClient.Do(req) //nolint:bodyclose // body is closed via fileio.Close
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform %s request: %w", label, err)
+	}
+	defer fileio.Close(resp.Body, nil, label+": Failed to close response body")
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
+		return nil, fmt.Errorf("%s fetch failed with status %d: %s", label, resp.StatusCode, string(body))
+	}
+
+	var raw json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil, fmt.Errorf("failed to decode %s response: %w", label, err)
+	}
+	return raw, nil
+}
+
+// decodePaginated decodes a raw JSON response that may be either a plain array
+// or a paginated envelope object (various field name conventions supported).
+func decodePaginated[T any](raw json.RawMessage, label string) (items []T, total int, err error) {
+	// Try plain array first (legacy / non-paginated responses)
+	if err := json.Unmarshal(raw, &items); err == nil {
+		return items, len(items), nil
+	}
+
+	// Try paginated envelope
+	var envelope struct {
+		Items []T `json:"items"`
+		Total int `json:"total_count"`
+		Alt   int `json:"total"`
+		Cnt   int `json:"count"`
+		Res   int `json:"total_results"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err == nil && envelope.Items != nil {
+		total := envelope.Total
+		switch {
+		case total != 0:
+		case envelope.Alt != 0:
+			total = envelope.Alt
+		case envelope.Cnt != 0:
+			total = envelope.Cnt
+		case envelope.Res != 0:
+			total = envelope.Res
+		default:
+			total = len(envelope.Items)
+		}
+		return envelope.Items, total, nil
+	}
+
+	return nil, 0, fmt.Errorf("unknown %s response format: %s", label, string(raw))
+}
+
 func (c *Client) readAllWithLimit(r io.Reader, limit int64) ([]byte, error) {
 	lr := io.LimitReader(r, limit+1)
 	data, err := io.ReadAll(lr)
@@ -647,7 +587,7 @@ func (c *Client) DownloadFirmwareContent(ctx context.Context, id uint, fileName 
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.FileClient.Do(req)
+	resp, err := c.FileClient.Do(req) //nolint:bodyclose // caller closes
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to perform firmware download request: %w", err)
 	}
