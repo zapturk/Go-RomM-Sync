@@ -17,6 +17,8 @@ import (
 )
 
 
+var buildbotBaseURL = constants.URLBuildbotBase
+
 // ExtCoreMap maps file extensions to an ordered list of known-working libretro core
 // base names. The first entry is the default used for auto-launch; subsequent entries
 // are alternatives offered via the core-selector UI.
@@ -209,7 +211,7 @@ func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 		return fmt.Errorf("unsupported arch for core downloads: %s", arch)
 	}
 
-	urlStr := fmt.Sprintf("%s/%s/%s/latest/%s.zip", constants.URLBuildbotBase, osName, archName, coreFile)
+	urlStr := fmt.Sprintf("%s/%s/%s/latest/%s.zip", buildbotBaseURL, osName, archName, coreFile)
 
 	resp, err := http.Get(urlStr) //nolint:bodyclose // body is closed via fileio.Close wrapper below
 	if err != nil {
