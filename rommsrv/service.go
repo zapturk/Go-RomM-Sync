@@ -63,6 +63,21 @@ func (s *Service) GetClient() *romm.Client {
 	return s.client
 }
 
+// SetClientToken updates the active client's auth token.
+func (s *Service) SetClientToken(token string) {
+	s.client.Token = token
+}
+
+// ResetClient re-initialises the RomM client, clearing any in-memory session.
+func (s *Service) ResetClient() {
+	s.client = romm.NewClient(s.config.GetRomMHost())
+}
+
+// CreateClientToken creates a persistent client token via the RomM API.
+func (s *Service) CreateClientToken(name string, scopes []string) (string, error) {
+	return s.client.CreateClientToken(name, scopes)
+}
+
 // GetLibrary fetches a page of the game library from RomM, optionally filtered by platform and search query.
 func (s *Service) GetLibrary(limit, offset, platformID int, search string) ([]types.Game, int, error) {
 	return s.client.GetLibrary(limit, offset, platformID, search)
