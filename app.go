@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"go-romm-sync/assets"
 	"go-romm-sync/authsrv"
 	"go-romm-sync/config"
 	"go-romm-sync/configsrv"
 	"go-romm-sync/constants"
+	"go-romm-sync/firmware"
 	"go-romm-sync/launcher"
 	"go-romm-sync/library"
 	"go-romm-sync/retroarch"
@@ -35,6 +37,8 @@ type App struct {
 	launcher      *launcher.Launcher
 	authSrv       *authsrv.Service
 	coreResolver  *retroarch.CoreResolver
+	firmwareSrv   *firmware.Service
+	assetSrv      *assets.Service
 
 	// Download/Auth protection
 	downloadCancels map[uint]context.CancelFunc
@@ -54,6 +58,8 @@ func NewApp(cm *config.ConfigManager) *App {
 	app.syncSrv = syncSrvPkg.New(app, app, app)
 	app.launcher = launcher.New(app, app, app, app)
 	app.authSrv = authsrv.New(app.configManager, app.rommSrv, app)
+	app.firmwareSrv = firmware.New(app, app, app)
+	app.assetSrv = assets.New(app, app.rommSrv.GetClient(), app)
 	app.coreResolver = retroarch.NewCoreResolver(func(fullPath string) string {
 		// Build a synthetic game to get the rom dir via librarySrv
 		g := &types.Game{FullPath: fullPath}
@@ -147,27 +153,7 @@ func (a *App) Logout() error {
 }
 
 func (a *App) ClearImageCache() error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("failed to get user home dir: %w", err)
-	}
-
-	cacheDirs := []string{
-		filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.CoversDir),
-		filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.PlatformsDir),
-	}
-
-	for _, dir := range cacheDirs {
-		if err := os.RemoveAll(dir); err != nil {
-			a.LogErrorf("Failed to clear cache directory %s: %v", dir, err)
-			continue
-		}
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			a.LogErrorf("Failed to recreate cache directory %s: %v", dir, err)
-		}
-	}
-
-	return nil
+	return a.assetSrv.ClearCache()
 }
 
 func (a *App) GetLibrary(limit, offset, platformID int, search string) (types.LibraryResult[types.Game], error) {
@@ -259,9 +245,9 @@ func (a *App) SetPlatformFirmware(platformSlug string, firmware *types.Firmware)
 		return err
 	}
 	if firmware.ID == 0 {
-		return a.librarySrv.CleanupFirmware(platformSlug)
+		return a.firmwareSrv.CleanupFirmware(platformSlug)
 	}
-	return a.librarySrv.DownloadFirmware(platformSlug, firmware)
+	return a.firmwareSrv.DownloadFirmware(platformSlug, firmware)
 }
 
 func (a *App) DownloadRom(id uint) (string, error) {
@@ -273,11 +259,11 @@ func (a *App) DownloadRom(id uint) (string, error) {
 }
 
 func (a *App) GetCover(romID uint, coverURL string) (string, error) {
-	return a.rommSrv.GetCover(romID, coverURL)
+	return a.assetSrv.GetCover(romID, coverURL)
 }
 
 func (a *App) GetPlatformCover(platformID uint, slug string) (string, error) {
-	return a.rommSrv.GetPlatformCover(platformID, slug)
+	return a.assetSrv.GetPlatformCover(platformID, slug)
 }
 
 func (a *App) GetServerSaves(id uint) ([]types.ServerSave, error) {
@@ -434,10 +420,10 @@ func (a *App) checkAndDownloadFirmware(id uint) error {
 		return nil
 	}
 
-	if !a.librarySrv.IsFirmwareDownloaded(platformSlug, selectedFw) {
+	if !a.firmwareSrv.IsFirmwareDownloaded(platformSlug, selectedFw) {
 		a.LogInfof("Firmware %s is missing locally. Attempting to download...", selectedFw.FileName)
 		a.EventsEmit(constants.EventPlayStatus, "Downloading missing firmware for platform...")
-		if err := a.librarySrv.DownloadFirmware(platformSlug, selectedFw); err != nil {
+		if err := a.firmwareSrv.DownloadFirmware(platformSlug, selectedFw); err != nil {
 			a.LogErrorf("Failed to auto-download firmware: %v", err)
 			return err
 		}
@@ -630,7 +616,7 @@ func (a *App) GetLibraryPath() string {
 }
 
 func (a *App) GetBiosDir() string {
-	return a.librarySrv.GetBiosDir()
+	return a.firmwareSrv.GetBiosDir()
 }
 
 func (a *App) SaveDefaultLibraryPath(path string) error {
