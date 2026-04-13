@@ -149,7 +149,7 @@ func UpdateBios(ui UIProvider, exePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch release info: %w", err)
 	}
-	defer fileio.Close(resp.Body, nil, "UpdateBios: Failed to close response body")
+	defer fileio.Close(resp.Body, ui.LogErrorf, "UpdateBios: Failed to close response body")
 
 	var release githubRelease
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
@@ -174,7 +174,7 @@ func UpdateBios(ui UIProvider, exePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to download BIOS pack: %w", err)
 	}
-	defer fileio.Close(dlResp.Body, nil, "UpdateBios: Failed to close download body")
+	defer fileio.Close(dlResp.Body, ui.LogErrorf, "UpdateBios: Failed to close download body")
 
 	if dlResp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to download BIOS pack: HTTP %d", dlResp.StatusCode)

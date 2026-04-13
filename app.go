@@ -60,11 +60,7 @@ func NewApp(cm *config.ConfigManager) *App {
 	app.authSrv = authsrv.New(app.configManager, app.rommSrv, app)
 	app.firmwareSrv = firmware.New(app, app, app)
 	app.assetSrv = assets.New(app, app.rommSrv.GetClient(), app)
-	app.coreResolver = retroarch.NewCoreResolver(func(fullPath string) string {
-		// Build a synthetic game to get the rom dir via librarySrv
-		g := &types.Game{FullPath: fullPath}
-		return app.librarySrv.GetRomDir(g)
-	})
+	app.coreResolver = retroarch.NewCoreResolver(app.librarySrv)
 	return app
 }
 

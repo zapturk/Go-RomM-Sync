@@ -192,7 +192,7 @@ func ensurePCSX2Resources(ui UIProvider, coreBaseName, baseDir string) error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch GameIndex.yaml: %w", err)
 	}
-	defer fileio.Close(body, nil, "ensurePCSX2Resources: close response")
+	defer fileio.Close(body, ui.LogErrorf, "ensurePCSX2Resources: close response")
 
 	out, err := os.Create(yamlPath)
 	if err != nil {
@@ -229,8 +229,7 @@ func resolveSystemDir(ui UIProvider, baseDir, platform, customBiosDir string) st
 // writeTempConfig writes a temporary RetroArch --appendconfig file and returns
 // its path. Returns "" if the file could not be created (non-fatal).
 func writeTempConfig(ui UIProvider, coresDir, savesDir, statesDir, systemDir, cheevosUser, cheevosPass string) string {
-	tmpDir := filepath.Dir(coresDir)
-	tmpFile, err := os.CreateTemp(tmpDir, "retroarch_config_*.cfg")
+	tmpFile, err := os.CreateTemp("", "retroarch_config_*.cfg")
 	if err != nil {
 		ui.LogErrorf("Launch: Failed to create temporary config: %v", err)
 		return ""

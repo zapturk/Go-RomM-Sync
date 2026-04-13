@@ -16,7 +16,6 @@ import (
 	"go-romm-sync/utils/fileio"
 )
 
-var buildbotBaseURL = "https://buildbot.libretro.com/nightly"
 
 // ExtCoreMap maps file extensions to an ordered list of known-working libretro core
 // base names. The first entry is the default used for auto-launch; subsequent entries
@@ -210,13 +209,13 @@ func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 		return fmt.Errorf("unsupported arch for core downloads: %s", arch)
 	}
 
-	urlStr := fmt.Sprintf("%s/%s/%s/latest/%s.zip", buildbotBaseURL, osName, archName, coreFile)
+	urlStr := fmt.Sprintf("%s/%s/%s/latest/%s.zip", constants.URLBuildbotBase, osName, archName, coreFile)
 
 	resp, err := http.Get(urlStr) //nolint:bodyclose // body is closed via fileio.Close wrapper below
 	if err != nil {
 		return fmt.Errorf("failed to download core: %w", err)
 	}
-	defer fileio.Close(resp.Body, nil, "DownloadCore: Failed to close response body")
+	defer fileio.Close(resp.Body, ui.LogErrorf, "DownloadCore: Failed to close response body")
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("core download failed with status 404 from %s", urlStr)

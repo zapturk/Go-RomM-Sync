@@ -293,7 +293,7 @@ func (c *Client) DownloadFile(ctx context.Context, game *types.Game) (reader io.
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.FileClient.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
+	resp, err := c.FileClient.Do(req) //nolint:bodyclose // caller closes
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to perform download request: %w", err)
 	}
@@ -456,7 +456,7 @@ func (c *Client) downloadAsset(ctx context.Context, id uint, assetType, fallback
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.FileClient.Do(req)
+	resp, err := c.FileClient.Do(req) //nolint:bodyclose // caller closes
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to perform download request: %w", err)
 	}
@@ -588,7 +588,7 @@ func (c *Client) DownloadFirmwareContent(ctx context.Context, id uint, fileName 
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.FileClient.Do(req)
+	resp, err := c.FileClient.Do(req) //nolint:bodyclose // caller closes
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to perform firmware download request: %w", err)
 	}

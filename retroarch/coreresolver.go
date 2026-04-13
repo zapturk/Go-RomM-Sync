@@ -1,21 +1,26 @@
 package retroarch
 
 import (
+	"go-romm-sync/types"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
+// LibraryProvider defines the dependency for resolving local ROM directories.
+type LibraryProvider interface {
+	GetRomDir(game *types.Game) string
+}
+
 // CoreResolver resolves the best libretro core(s) for a given game using a
 // multi-strategy fallback chain.
 type CoreResolver struct {
-	romDir func(fullPath string) string
+	library LibraryProvider
 }
 
-// NewCoreResolver creates a CoreResolver. romDirFn maps a game's FullPath to
-// its local ROM directory (used for the local-scan fallback strategy).
-func NewCoreResolver(romDirFn func(fullPath string) string) *CoreResolver {
-	return &CoreResolver{romDir: romDirFn}
+// NewCoreResolver creates a CoreResolver.
+func NewCoreResolver(lib LibraryProvider) *CoreResolver {
+	return &CoreResolver{library: lib}
 }
 
 // ResolveOptions carries the inputs needed to resolve cores for a game.
@@ -59,7 +64,7 @@ func (r *CoreResolver) Resolve(opts ResolveOptions) []string {
 	}
 
 	// Strategy 4: local file scan (handles zips with real content inside)
-	if len(all) == 0 && r.romDir != nil {
+	if len(all) == 0 && r.library != nil {
 		if cores := r.scanLocalFiles(opts.FullPath); len(cores) > 0 {
 			all = append(all, cores...)
 		}
@@ -75,7 +80,7 @@ func (r *CoreResolver) Resolve(opts ResolveOptions) []string {
 // scanLocalFiles scans the local ROM directory for a game and returns cores
 // based on the actual files present (including peeking inside ZIPs).
 func (r *CoreResolver) scanLocalFiles(fullPath string) []string {
-	dir := r.romDir(fullPath)
+	dir := r.library.GetRomDir(&types.Game{FullPath: fullPath})
 	if dir == "" {
 		return nil
 	}
