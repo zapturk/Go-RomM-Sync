@@ -17,10 +17,6 @@ import (
 	"time"
 )
 
-const (
-	// No firmware constants needed here anymore
-)
-
 // ConfigProvider defines the configuration needed for library management.
 type ConfigProvider interface {
 	GetLibraryPath() string
@@ -388,7 +384,6 @@ func (s *Service) DeleteRom(id uint) error {
 
 	return nil
 }
-
 
 // FindRomPath is a public wrapper for finding a ROM path.
 func (s *Service) FindRomPath(romDir string) string {
