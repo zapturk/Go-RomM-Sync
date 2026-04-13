@@ -27,6 +27,12 @@ func resolveRomPath(ui UIProvider, romPath, platform string) (ext, outRomPath, t
 	outRomPath = romPath
 
 	if ext != extZip {
+		// Special case: Pico-8 .png carts must be hard-linked to .p8 to prevent
+		// RetroArch from routing them to the image-viewer core.
+		if ext == ".png" && platform == "pico8" {
+			newPath, tempPath := createPico8Hardlink(ui, romPath)
+			return ext, newPath, tempPath, nil
+		}
 		return ext, outRomPath, "", nil
 	}
 
@@ -140,4 +146,17 @@ func httpGet(url string) (io.ReadCloser, error) {
 // copyIO copies from src to dst.
 func copyIO(dst io.Writer, src io.Reader) (int64, error) {
 	return io.Copy(dst, src)
+}
+
+// createPico8Hardlink creates a .p8 hardlink for a Pico-8 .png cart so RetroArch
+// doesn't route it to the image-viewer core. Returns the new path and temp path.
+func createPico8Hardlink(ui UIProvider, romPath string) (newPath, tempPath string) {
+	target := romPath + ".p8"
+	fileio.Remove(target, ui.LogErrorf)
+	if err := os.Link(romPath, target); err == nil {
+		ui.LogInfof("Launch: Created temporary hardlink %s for Pico-8 .png cart", target)
+		return target, target
+	}
+	ui.LogErrorf("Launch: Failed to create temporary hardlink. Falling back to original path.")
+	return romPath, ""
 }

@@ -65,14 +65,16 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 		ui.LogErrorf("Launch: PCSX2 resource setup failed: %v", err)
 	}
 
-	// Pico-8 .png hardlink workaround (physical files, not inside a ZIP)
-	if tempRomPath == "" && !strings.Contains(romPath, "#") &&
-		strings.ToLower(filepath.Ext(romPath)) == ".png" && coreBaseName == constants.CoreRetro8 {
-		romPath, tempRomPath = createPico8Hardlink(ui, romPath)
-	}
-
 	appendConfigPath := prepareLaunchEnv(ui, baseDir, romBaseDir, platform, customBiosDir, cheevosUser, cheevosPass)
 
+	runRetroArch(ui, exePath, baseDir, corePath, romPath, appendConfigPath, tempRomPath)
+
+	return nil
+}
+
+// runRetroArch executes the RetroArch process in a separate goroutine and handles
+// the lifecycle events (started, exited, cleanup).
+func runRetroArch(ui UIProvider, exePath, baseDir, corePath, romPath, appendConfigPath, tempRomPath string) {
 	args := []string{"-L", corePath, "-f", "-v"}
 	if appendConfigPath != "" {
 		args = append(args, "--appendconfig", appendConfigPath)
@@ -109,8 +111,6 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 			ui.LogInfof("RetroArch Output:\n%s", string(output))
 		}
 	}()
-
-	return nil
 }
 
 // resolveCore picks the libretro core base name to use, in priority order:
@@ -258,17 +258,4 @@ func writeTempConfig(ui UIProvider, savesDir, statesDir, systemDir, cheevosUser,
 	fileio.Close(tmpFile, ui.LogErrorf, "Launch: Failed to close temporary config file")
 	ui.LogInfof("Launch: Created temporary config at: %s with content:\n%s", tmpFile.Name(), content)
 	return tmpFile.Name()
-}
-
-// createPico8Hardlink creates a .p8 hardlink for a Pico-8 .png cart so RetroArch
-// doesn't route it to the image-viewer core. Returns the new path and temp path.
-func createPico8Hardlink(ui UIProvider, romPath string) (newPath, tempPath string) {
-	target := romPath + ".p8"
-	fileio.Remove(target, ui.LogErrorf)
-	if err := os.Link(romPath, target); err == nil {
-		ui.LogInfof("Launch: Created temporary hardlink %s for Pico-8 .png cart", target)
-		return target, target
-	}
-	ui.LogErrorf("Launch: Failed to create temporary hardlink. Falling back to original path.")
-	return romPath, ""
 }
