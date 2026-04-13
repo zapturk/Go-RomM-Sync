@@ -71,15 +71,7 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 		romPath, tempRomPath = createPico8Hardlink(ui, romPath)
 	}
 
-	savesDir := filepath.Join(romBaseDir, constants.DirSaves)
-	statesDir := filepath.Join(romBaseDir, constants.DirStates)
-	ui.LogInfof("Launch: Saves dir: %s, States dir: %s", savesDir, statesDir)
-	fileio.MkdirAll(savesDir, 0o755, ui.LogErrorf)
-
-	systemDir := resolveSystemDir(ui, baseDir, platform, customBiosDir)
-	fileio.MkdirAll(systemDir, 0o755, ui.LogErrorf)
-
-	appendConfigPath := writeTempConfig(ui, coresDir, savesDir, statesDir, systemDir, cheevosUser, cheevosPass)
+	appendConfigPath := prepareLaunchEnv(ui, baseDir, romBaseDir, platform, customBiosDir, cheevosUser, cheevosPass)
 
 	args := []string{"-L", corePath, "-f", "-v"}
 	if appendConfigPath != "" {
@@ -206,6 +198,19 @@ func ensurePCSX2Resources(ui UIProvider, coreBaseName, baseDir string) error {
 	return nil
 }
 
+// prepareLaunchEnv sets up the directories and config file needed for a RetroArch launch.
+func prepareLaunchEnv(ui UIProvider, baseDir, romBaseDir, platform, customBiosDir, cheevosUser, cheevosPass string) string {
+	savesDir := filepath.Join(romBaseDir, constants.DirSaves)
+	statesDir := filepath.Join(romBaseDir, constants.DirStates)
+	ui.LogInfof("Launch: Saves dir: %s, States dir: %s", savesDir, statesDir)
+	fileio.MkdirAll(savesDir, 0o755, ui.LogErrorf)
+
+	systemDir := resolveSystemDir(ui, baseDir, platform, customBiosDir)
+	fileio.MkdirAll(systemDir, 0o755, ui.LogErrorf)
+
+	return writeTempConfig(ui, savesDir, statesDir, systemDir, cheevosUser, cheevosPass)
+}
+
 // resolveSystemDir returns the RetroArch system directory, preferring a custom
 // BIOS dir when the platform's firmware is present there.
 func resolveSystemDir(ui UIProvider, baseDir, platform, customBiosDir string) string {
@@ -228,7 +233,7 @@ func resolveSystemDir(ui UIProvider, baseDir, platform, customBiosDir string) st
 
 // writeTempConfig writes a temporary RetroArch --appendconfig file and returns
 // its path. Returns "" if the file could not be created (non-fatal).
-func writeTempConfig(ui UIProvider, coresDir, savesDir, statesDir, systemDir, cheevosUser, cheevosPass string) string {
+func writeTempConfig(ui UIProvider, savesDir, statesDir, systemDir, cheevosUser, cheevosPass string) string {
 	tmpFile, err := os.CreateTemp("", "retroarch_config_*.cfg")
 	if err != nil {
 		ui.LogErrorf("Launch: Failed to create temporary config: %v", err)

@@ -231,19 +231,19 @@ func (a *App) GetFirmware(platformID uint) ([]types.Firmware, error) {
 	return a.rommSrv.GetFirmware(platformID)
 }
 
-func (a *App) SetPlatformFirmware(platformSlug string, firmware *types.Firmware) error {
+func (a *App) SetPlatformFirmware(platformSlug string, fw *types.Firmware) error {
 	cfg := a.configManager.GetConfig()
 	if cfg.PlatformFirmware == nil {
 		cfg.PlatformFirmware = make(map[string]uint)
 	}
-	cfg.PlatformFirmware[platformSlug] = firmware.ID
+	cfg.PlatformFirmware[platformSlug] = fw.ID
 	if err := a.configManager.Save(&cfg); err != nil {
 		return err
 	}
-	if firmware.ID == 0 {
+	if fw.ID == 0 {
 		return a.firmwareSrv.CleanupFirmware(platformSlug)
 	}
-	return a.firmwareSrv.DownloadFirmware(platformSlug, firmware)
+	return a.firmwareSrv.DownloadFirmware(platformSlug, fw)
 }
 
 func (a *App) DownloadRom(id uint) (string, error) {

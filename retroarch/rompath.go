@@ -26,7 +26,7 @@ func resolveRomPath(ui UIProvider, romPath, platform string) (ext, outRomPath, t
 	ext = strings.ToLower(filepath.Ext(romPath))
 	outRomPath = romPath
 
-	if ext != ".zip" {
+	if ext != extZip {
 		return ext, outRomPath, "", nil
 	}
 

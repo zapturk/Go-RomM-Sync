@@ -528,9 +528,8 @@ func (c *Client) getJSON(urlStr, label string) (json.RawMessage, error) {
 
 // decodePaginated decodes a raw JSON response that may be either a plain array
 // or a paginated envelope object (various field name conventions supported).
-func decodePaginated[T any](raw json.RawMessage, label string) ([]T, int, error) {
+func decodePaginated[T any](raw json.RawMessage, label string) (items []T, total int, err error) {
 	// Try plain array first (legacy / non-paginated responses)
-	var items []T
 	if err := json.Unmarshal(raw, &items); err == nil {
 		return items, len(items), nil
 	}

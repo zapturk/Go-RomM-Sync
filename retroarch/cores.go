@@ -16,6 +16,7 @@ import (
 	"go-romm-sync/utils/fileio"
 )
 
+const extZip = ".zip"
 
 var buildbotBaseURL = constants.URLBuildbotBase
 
@@ -115,7 +116,7 @@ var ExtCoreMap = map[string][]string{
 	".mx1": {"bluemsx_libretro"},
 	".mx2": {"bluemsx_libretro"},
 	".rom": {"bluemsx_libretro", "gearcoleco_libretro"},
-	".zip": {"fbneo_libretro", "mame2003_plus_libretro"},
+	extZip: {"fbneo_libretro", "mame2003_plus_libretro"},
 	".7z":  {"fbneo_libretro", "mame2003_plus_libretro"},
 	".pce": {"mednafen_pce_fast_libretro", "mednafen_pce_libretro"},
 	".sgx": {"mednafen_pce_fast_libretro"},
@@ -227,7 +228,7 @@ func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 	}
 
 	fileio.MkdirAll(coresDir, 0o755, ui.LogErrorf)
-	zipPath := filepath.Join(coresDir, coreFile+".zip")
+	zipPath := filepath.Join(coresDir, coreFile+extZip)
 	out, err := os.Create(zipPath)
 	if err != nil {
 		return fmt.Errorf("failed to create core zip: %w", err)

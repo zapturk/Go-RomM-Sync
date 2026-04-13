@@ -56,7 +56,7 @@ func (r *CoreResolver) Resolve(opts ResolveOptions) []string {
 	// Strategy 3: extension from server-side filename (skip .zip — too ambiguous)
 	if len(all) == 0 {
 		ext := strings.ToLower(filepath.Ext(filepath.Base(opts.FullPath)))
-		if ext != ".zip" {
+		if ext != extZip {
 			if cores := GetCoresForExt(ext); len(cores) > 0 {
 				all = append(all, cores...)
 			}
@@ -94,7 +94,7 @@ func (r *CoreResolver) scanLocalFiles(fullPath string) []string {
 		}
 		itemPath := filepath.Join(dir, entry.Name())
 		ext := strings.ToLower(filepath.Ext(entry.Name()))
-		if ext == ".zip" {
+		if ext == extZip {
 			if cores := GetCoresFromZip(itemPath); len(cores) > 0 {
 				return cores
 			}
