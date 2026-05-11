@@ -125,11 +125,8 @@ func (s *Service) collectCoreFiles(platformSlug, subDir, dirPath string, entries
 	for _, entry := range entries {
 		if entry.IsDir() {
 			if entry.Name() == azaharDirName {
-				info, err := entry.Info()
-				updatedAt := ""
-				if err == nil {
-					updatedAt = info.ModTime().UTC().Format(time.RFC3339)
-				}
+				latestTime := getDirLatestModTime(filepath.Join(dirPath, entry.Name()))
+				updatedAt := latestTime.UTC().Format(time.RFC3339)
 				items = append(items, types.FileItem{
 					Name:      entry.Name(),
 					Core:      constants.CoreAzahar,
@@ -170,15 +167,10 @@ func (s *Service) scanPPSSPPFiles(subDir, coreName, coreDir string) []types.File
 		if !f.IsDir() || strings.HasPrefix(f.Name(), ".") {
 			continue
 		}
-		info, err := f.Info()
-		updatedAt := ""
-		if err == nil {
-			updatedAt = info.ModTime().UTC().Format(time.RFC3339)
-		}
 		items = append(items, types.FileItem{
 			Name:      f.Name(),
 			Core:      coreName,
-			UpdatedAt: updatedAt,
+			UpdatedAt: getDirLatestModTime(filepath.Join(saveDataDir, f.Name())).UTC().Format(time.RFC3339),
 		})
 	}
 	return items
@@ -190,7 +182,8 @@ func (s *Service) scanDolphinFiles(platformSlug, coreDir string) []types.FileIte
 	if platformSlug == platformWii {
 		wiiDir := filepath.Join(coreDir, "User", wiiDirName)
 		if info, err := os.Stat(wiiDir); err == nil && info.IsDir() {
-			updatedAt := info.ModTime().UTC().Format(time.RFC3339)
+			latestTime := getDirLatestModTime(wiiDir)
+			updatedAt := latestTime.UTC().Format(time.RFC3339)
 			items = append(items, types.FileItem{
 				Name:      wiiDirName,
 				Core:      coreDolphin,
@@ -452,30 +445,43 @@ func (s *Service) prepareAssetPath(game *types.Game, core, filename, subDir stri
 		return "", err
 	}
 
+	if destDir := s.getSpecialDestDir(game, core, filename, subDir); destDir != "" {
+		if err := os.MkdirAll(destDir, 0o755); err != nil {
+			return "", fmt.Errorf("failed to create destination directory: %w", err)
+		}
+		return filepath.Join(destDir, filename), nil
+	}
+
+	baseDir := filepath.Join(s.library.GetRomDir(game), subDir)
+	core = remapCorePath(core)
+	destDir := filepath.Join(baseDir, core)
+
+	rel, err := filepath.Rel(baseDir, destDir)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return "", fmt.Errorf("invalid path traversal detected")
+	}
+
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return "", fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	return filepath.Join(destDir, filename), nil
+}
+
+func (s *Service) getSpecialDestDir(game *types.Game, core, filename, subDir string) string {
 	if core == corePCSX2 && subDir == constants.DirSaves {
-		destDir := filepath.Join(s.library.GetBiosDir(), "pcsx2", "memcards")
-		if err := os.MkdirAll(destDir, 0o755); err != nil {
-			return "", fmt.Errorf("failed to create destination directory: %w", err)
-		}
-		return filepath.Join(destDir, filename), nil
+		return filepath.Join(s.library.GetBiosDir(), "pcsx2", "memcards")
 	}
-
 	if core == constants.CoreAzahar && filename == azaharDirName {
-		destDir := filepath.Join(s.library.GetRomDir(game), subDir)
-		return filepath.Join(destDir, filename), nil
+		return filepath.Join(s.library.GetRomDir(game), subDir)
 	}
-
 	if getPlatformSlug(game) == platformPSP && (core == corePPSSPP || core == corePPSSPP_LR) && subDir == constants.DirSaves {
-		destDir := filepath.Join(s.library.GetRomDir(game), subDir, core, "PSP", "SAVEDATA")
-		if err := os.MkdirAll(destDir, 0o755); err != nil {
-			return "", fmt.Errorf("failed to create destination directory: %w", err)
-		}
-		return filepath.Join(destDir, filename), nil
+		return filepath.Join(s.library.GetRomDir(game), subDir, core, "PSP", "SAVEDATA")
 	}
+	return ""
+}
 
-	romDir := s.library.GetRomDir(game)
-	baseDir := filepath.Join(romDir, subDir)
-
+func remapCorePath(core string) string {
 	// Remap the Dolphin "Card A" / "Card B" emulator names from RomM to the correct
 	// local nested path that the dolphin-emu RetroArch core expects.
 	// RomM stores these saves with emulator = "Card A", but locally they must live at:
@@ -489,22 +495,11 @@ func (s *Service) prepareAssetPath(game *types.Game, core, filename, subDir stri
 	coreBase := filepath.Base(strings.ReplaceAll(core, "\\", "/"))
 	switch coreBase {
 	case "Card A":
-		core = filepath.Join("dolphin-emu", "User", "GC", "USA", "Card A")
+		return filepath.Join("dolphin-emu", "User", "GC", "USA", "Card A")
 	case "Card B":
-		core = filepath.Join("dolphin-emu", "User", "GC", "USA", "Card B")
+		return filepath.Join("dolphin-emu", "User", "GC", "USA", "Card B")
 	}
-
-	destDir := filepath.Join(baseDir, core)
-	rel, err := filepath.Rel(baseDir, destDir)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		return "", fmt.Errorf("invalid path traversal detected")
-	}
-
-	if err := os.MkdirAll(destDir, 0o755); err != nil {
-		return "", fmt.Errorf("failed to create destination directory: %w", err)
-	}
-
-	return filepath.Join(destDir, filename), nil
+	return core
 }
 
 func (s *Service) setFileTime(destPath, updatedAt string) {
@@ -530,4 +525,24 @@ func (s *Service) ValidateAssetPath(core, filename string) (coreBase, fileBase s
 	}
 
 	return core, filename, nil
+}
+
+func getDirLatestModTime(dirPath string) time.Time {
+	var latest time.Time
+	_ = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !info.IsDir() && info.ModTime().After(latest) {
+			latest = info.ModTime()
+		}
+		return nil
+	})
+	// If no files found, fallback to directory mtime
+	if latest.IsZero() {
+		if info, err := os.Stat(dirPath); err == nil {
+			return info.ModTime()
+		}
+	}
+	return latest
 }
