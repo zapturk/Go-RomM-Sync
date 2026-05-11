@@ -22,6 +22,9 @@ const (
 	coreDolphin   = "dolphin-emu"
 	wiiDirName    = "Wii"
 	platformWii   = "wii"
+	corePPSSPP    = "PPSSPP"
+	corePPSSPP_LR = "ppsspp_libretro"
+	platformPSP   = "psp"
 )
 
 // LibraryProvider defines the local library interactions needed for syncing.
@@ -93,7 +96,7 @@ func (s *Service) getGameFiles(id uint, subDir string) (items []types.FileItem, 
 		return nil, err
 	}
 
-	items = s.collectCoreFiles(getPlatformSlug(&game), dirPath, entries)
+	items = s.collectCoreFiles(getPlatformSlug(&game), subDir, dirPath, entries)
 
 	if subDir == constants.DirSaves && getPlatformSlug(&game) == "ps2" {
 		pcsx2Dir := filepath.Join(s.library.GetBiosDir(), "pcsx2", "memcards")
@@ -117,7 +120,7 @@ func getPlatformSlug(game *types.Game) string {
 
 // (Deprecated/Removed handleGetFilesError logically)
 
-func (s *Service) collectCoreFiles(platformSlug, dirPath string, entries []os.DirEntry) []types.FileItem {
+func (s *Service) collectCoreFiles(platformSlug, subDir, dirPath string, entries []os.DirEntry) []types.FileItem {
 	var items []types.FileItem
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -133,19 +136,52 @@ func (s *Service) collectCoreFiles(platformSlug, dirPath string, entries []os.Di
 					UpdatedAt: updatedAt,
 				})
 			} else {
-				items = append(items, s.scanCoreDir(platformSlug, dirPath, entry.Name())...)
+				items = append(items, s.scanCoreDir(platformSlug, subDir, dirPath, entry.Name())...)
 			}
 		}
 	}
 	return items
 }
 
-func (s *Service) scanCoreDir(platformSlug, dirPath, coreName string) []types.FileItem {
+func (s *Service) scanCoreDir(platformSlug, subDir, dirPath, coreName string) []types.FileItem {
 	coreDir := filepath.Join(dirPath, coreName)
 	if coreName == coreDolphin {
 		return s.scanDolphinFiles(platformSlug, coreDir)
 	}
+	if platformSlug == platformPSP && (coreName == corePPSSPP || coreName == corePPSSPP_LR) {
+		return s.scanPPSSPPFiles(subDir, coreName, coreDir)
+	}
 	return s.scanFlatCoreFiles(coreName, coreDir)
+}
+
+func (s *Service) scanPPSSPPFiles(subDir, coreName, coreDir string) []types.FileItem {
+	if subDir != constants.DirSaves {
+		return s.scanFlatCoreFiles(coreName, coreDir)
+	}
+
+	saveDataDir := filepath.Join(coreDir, "PSP", "SAVEDATA")
+	files, err := os.ReadDir(saveDataDir)
+	if err != nil {
+		return nil
+	}
+
+	items := make([]types.FileItem, 0, len(files))
+	for _, f := range files {
+		if !f.IsDir() || strings.HasPrefix(f.Name(), ".") {
+			continue
+		}
+		info, err := f.Info()
+		updatedAt := ""
+		if err == nil {
+			updatedAt = info.ModTime().UTC().Format(time.RFC3339)
+		}
+		items = append(items, types.FileItem{
+			Name:      f.Name(),
+			Core:      coreName,
+			UpdatedAt: updatedAt,
+		})
+	}
+	return items
 }
 
 func (s *Service) scanDolphinFiles(platformSlug, coreDir string) []types.FileItem {
@@ -207,9 +243,13 @@ func (s *Service) UploadState(id uint, core, filename string) error {
 	return s.uploadServerAsset(id, core, filename, constants.DirStates)
 }
 
-func getLocalAssetPaths(romDir, biosDir, subDir, core, filename string) (baseDir, filePath string) {
+func getLocalAssetPaths(romDir, biosDir, subDir, core, filename, platform string) (baseDir, filePath string) {
 	if core == corePCSX2 && subDir == constants.DirSaves {
 		base := filepath.Join(biosDir, "pcsx2", "memcards")
+		return base, filepath.Join(base, filename)
+	}
+	if platform == platformPSP && (core == corePPSSPP || core == corePPSSPP_LR) && subDir == constants.DirSaves {
+		base := filepath.Join(romDir, subDir, core, "PSP", "SAVEDATA")
 		return base, filepath.Join(base, filename)
 	}
 	base := filepath.Join(romDir, subDir)
@@ -233,7 +273,7 @@ func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) erro
 	}
 
 	romDir := s.library.GetRomDir(&game)
-	baseDir, filePath := getLocalAssetPaths(romDir, s.library.GetBiosDir(), subDir, core, filename)
+	baseDir, filePath := getLocalAssetPaths(romDir, s.library.GetBiosDir(), subDir, core, filename, getPlatformSlug(&game))
 
 	cleanPath := filepath.Clean(filePath)
 	cleanBase := filepath.Clean(baseDir)
@@ -288,7 +328,7 @@ func (s *Service) DeleteGameFile(id uint, subDir, core, filename string) error {
 	}
 
 	romDir := s.library.GetRomDir(&game)
-	baseDir, filePath := getLocalAssetPaths(romDir, s.library.GetBiosDir(), subDir, core, filename)
+	baseDir, filePath := getLocalAssetPaths(romDir, s.library.GetBiosDir(), subDir, core, filename, getPlatformSlug(&game))
 
 	cleanPath := filepath.Clean(filePath)
 	cleanBase := filepath.Clean(baseDir)
@@ -368,7 +408,8 @@ func (s *Service) downloadServerAsset(gameID, serverID uint, core, filename, upd
 
 func (s *Service) saveDownloadedAsset(reader io.Reader, destPath, core, filename, subDir string) error {
 	isDirAsset := (core == constants.CoreAzahar && filename == azaharDirName) ||
-		(core == coreDolphin && filename == wiiDirName)
+		(core == coreDolphin && filename == wiiDirName) ||
+		((core == corePPSSPP || core == corePPSSPP_LR) && subDir == constants.DirSaves)
 
 	if isDirAsset {
 		tmpFile, err := os.CreateTemp("", "romm_dl_*.zip")
@@ -424,8 +465,11 @@ func (s *Service) prepareAssetPath(game *types.Game, core, filename, subDir stri
 		return filepath.Join(destDir, filename), nil
 	}
 
-	if core == coreDolphin && filename == wiiDirName {
-		destDir := filepath.Join(s.library.GetRomDir(game), subDir, coreDolphin, "User")
+	if getPlatformSlug(game) == platformPSP && (core == corePPSSPP || core == corePPSSPP_LR) && subDir == constants.DirSaves {
+		destDir := filepath.Join(s.library.GetRomDir(game), subDir, core, "PSP", "SAVEDATA")
+		if err := os.MkdirAll(destDir, 0o755); err != nil {
+			return "", fmt.Errorf("failed to create destination directory: %w", err)
+		}
 		return filepath.Join(destDir, filename), nil
 	}
 
