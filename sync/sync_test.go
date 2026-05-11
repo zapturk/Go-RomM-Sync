@@ -291,3 +291,56 @@ func TestGetSaves_DolphinPlatformFilter(t *testing.T) {
 		t.Errorf("Expected 1 Wii save, got %v", savesWii)
 	}
 }
+
+func TestGetSaves_PPSSPP(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "sync_test_ppsspp")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// User's path structure: saves/PPSSPP/PSP/SAVEDATA/ULUS...
+	saveName := "ULUS10374SO10000"
+	savesDir := filepath.Join(tempDir, "saves", "PPSSPP", "PSP", "SAVEDATA", saveName)
+	if err := os.MkdirAll(savesDir, 0o755); err != nil {
+		t.Fatalf("failed to create PPSSPP saves dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(savesDir, "PARAM.SFO"), []byte("data"), 0o644); err != nil {
+		t.Fatalf("failed to write save file: %v", err)
+	}
+
+	lib := &MockLibraryProvider{RomDir: tempDir}
+	lib.Game = types.Game{ID: 954, PlatformSlug: "psp"}
+	romm := &MockRomMProvider{}
+	s := New(lib, romm, &MockUIProvider{})
+
+	saves, err := s.GetSaves(954)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(saves) != 1 || saves[0].Name != saveName {
+		t.Errorf("Expected 1 PPSSPP save %s, got %v", saveName, saves)
+	}
+}
+
+func TestPrepareAssetPath_PPSSPP(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "sync_test_ppsspp_path")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	lib := &MockLibraryProvider{RomDir: tempDir}
+	s := New(lib, &MockRomMProvider{}, &MockUIProvider{})
+
+	game := &types.Game{ID: 954, PlatformSlug: "psp"}
+	destPath, err := s.prepareAssetPath(game, "PPSSPP", "ULUS10374SO10000", "saves")
+	if err != nil {
+		t.Fatalf("prepareAssetPath failed: %v", err)
+	}
+
+	expected := filepath.Join(tempDir, "saves", "PPSSPP", "PSP", "SAVEDATA", "ULUS10374SO10000")
+	if destPath != expected {
+		t.Errorf("Expected path %s, got %s", expected, destPath)
+	}
+}
