@@ -3,7 +3,7 @@ import { types } from "../../../wailsjs/go/models";
 import { PlatformCard } from "../../PlatformCard";
 import { SettingsIcon } from "../../components/Icons";
 import { getMouseActive } from '../../inputMode';
-import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
+import { useFocusable, setFocus, getCurrentFocusKey } from '@noriginmedia/norigin-spatial-navigation';
 import { FocusableButton } from '../../components/FocusableButton';
 
 interface PlatformGridViewProps {
@@ -58,6 +58,11 @@ export function PlatformGridView({
 
         if (platforms.length > 0) {
             setTimeout(() => {
+                const currentFocus = getCurrentFocusKey();
+                if (currentFocus && (currentFocus.startsWith('platform-') || currentFocus === 'prev-plats-page' || currentFocus === 'next-plats-page' || currentFocus === 'config-button')) {
+                    return;
+                }
+
                 if (lastViewedPlatformId && platforms.some(p => p.id === lastViewedPlatformId)) {
                     setFocus(`platform-${lastViewedPlatformId}`);
                 } else {
@@ -66,6 +71,10 @@ export function PlatformGridView({
             }, 100);
         } else if (!isLoading) {
             setTimeout(() => {
+                const currentFocus = getCurrentFocusKey();
+                if (currentFocus === 'config-button') {
+                    return;
+                }
                 focusConfig();
             }, 100);
         }

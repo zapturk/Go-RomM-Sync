@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from 'react';
 import { types } from "../../../wailsjs/go/models";
 import { GameCard } from "../../GameCard";
-import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
+import { useFocusable, setFocus, getCurrentFocusKey } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from '../../inputMode';
 import { FocusableButton } from '../../components/FocusableButton';
 
@@ -64,6 +64,11 @@ export function GameGridView({
 
         if (!isLoading && games.length > 0) {
             setTimeout(() => {
+                const currentFocus = getCurrentFocusKey();
+                if (currentFocus && (currentFocus.startsWith('game-') || currentFocus === 'prev-page' || currentFocus === 'next-page')) {
+                    return;
+                }
+
                 if (lastViewedGameId && games.some(g => g.id === lastViewedGameId)) {
                     setFocus(`game-${lastViewedGameId}`);
                 } else {
