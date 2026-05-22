@@ -6,6 +6,8 @@ import { getMouseActive } from '../../inputMode';
 import { useFocusable, setFocus, getCurrentFocusKey } from '@noriginmedia/norigin-spatial-navigation';
 import { FocusableButton } from '../../components/FocusableButton';
 
+const IGNORED_FOCUS_KEYS = ['prev-plats-page', 'next-plats-page', 'config-button'];
+
 interface PlatformGridViewProps {
     platforms: types.Platform[];
     isLoading: boolean;
@@ -54,30 +56,38 @@ export function PlatformGridView({
     });
 
     useEffect(() => {
-        if (!isActive) return;
+        let timerId: ReturnType<typeof setTimeout> | undefined;
 
-        if (platforms.length > 0) {
-            setTimeout(() => {
-                const currentFocus = getCurrentFocusKey();
-                if (currentFocus && (currentFocus.startsWith('platform-') || currentFocus === 'prev-plats-page' || currentFocus === 'next-plats-page' || currentFocus === 'config-button')) {
-                    return;
-                }
+        if (isActive) {
+            if (platforms.length > 0) {
+                timerId = setTimeout(() => {
+                    const currentFocus = getCurrentFocusKey();
+                    if (currentFocus && (currentFocus.startsWith('platform-') || IGNORED_FOCUS_KEYS.includes(currentFocus))) {
+                        return;
+                    }
 
-                if (lastViewedPlatformId && platforms.some(p => p.id === lastViewedPlatformId)) {
-                    setFocus(`platform-${lastViewedPlatformId}`);
-                } else {
-                    setFocus(`platform-${platforms[0].id}`);
-                }
-            }, 100);
-        } else if (!isLoading) {
-            setTimeout(() => {
-                const currentFocus = getCurrentFocusKey();
-                if (currentFocus === 'config-button') {
-                    return;
-                }
-                focusConfig();
-            }, 100);
+                    if (lastViewedPlatformId && platforms.some(p => p.id === lastViewedPlatformId)) {
+                        setFocus(`platform-${lastViewedPlatformId}`);
+                    } else {
+                        setFocus(`platform-${platforms[0].id}`);
+                    }
+                }, 100);
+            } else if (!isLoading) {
+                timerId = setTimeout(() => {
+                    const currentFocus = getCurrentFocusKey();
+                    if (currentFocus === 'config-button') {
+                        return;
+                    }
+                    focusConfig();
+                }, 100);
+            }
         }
+
+        return () => {
+            if (timerId) {
+                clearTimeout(timerId);
+            }
+        };
     }, [platforms.length, lastViewedPlatformId, isLoading, focusConfig, isActive]);
 
     return (

@@ -60,26 +60,33 @@ export function GameGridView({
     }, [localSearch]);
 
     useEffect(() => {
-        if (!isActive) return;
+        let timerId: ReturnType<typeof setTimeout> | undefined;
 
-        if (!isLoading && games.length > 0) {
-            setTimeout(() => {
+        if (isActive && !isLoading && games.length > 0) {
+            timerId = setTimeout(() => {
                 const currentFocus = getCurrentFocusKey();
                 if (currentFocus && (currentFocus.startsWith('game-') || currentFocus === 'prev-page' || currentFocus === 'next-page')) {
+                    return;
+                }
+
+                // Don't auto-focus game list if we are already searching
+                if (document.activeElement === searchInputRef.current) {
                     return;
                 }
 
                 if (lastViewedGameId && games.some(g => g.id === lastViewedGameId)) {
                     setFocus(`game-${lastViewedGameId}`);
                 } else {
-                    // Don't auto-focus game list if we are already searching
-                    if (document.activeElement === searchInputRef.current) {
-                        return;
-                    }
                     setFocus(`game-${games[0].id}`);
                 }
             }, 100);
         }
+
+        return () => {
+            if (timerId) {
+                clearTimeout(timerId);
+            }
+        };
     }, [games.length, isLoading, lastViewedGameId, isActive]);
 
     return (
