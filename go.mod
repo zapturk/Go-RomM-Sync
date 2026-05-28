@@ -6,7 +6,7 @@ toolchain go1.26.0
 
 require (
 	github.com/bodgit/sevenzip v1.6.4
-	github.com/nwaples/rardecode/v2 v2.2.2
+	github.com/nwaples/rardecode/v2 v2.2.3
 	github.com/wailsapp/wails/v2 v2.12.0
 )
 
