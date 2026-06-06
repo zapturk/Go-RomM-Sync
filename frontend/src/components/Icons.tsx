@@ -19,7 +19,7 @@ export const TrashIcon = ({ size = 24 }: { size?: number }) => (
     </svg>
 );
 
-export const SaveIcon = ({ size = 20 }: { size?: number }) => (
+const SaveIcon = ({ size = 20 }: { size?: number }) => (
     <svg
         width={size}
         height={size}
@@ -53,7 +53,7 @@ export const UploadIcon = ({ size = 20 }: { size?: number }) => (
     </svg>
 );
 
-export const SyncIcon = ({ size = 20 }: { size?: number }) => (
+const SyncIcon = ({ size = 20 }: { size?: number }) => (
     <svg
         width={size}
         height={size}

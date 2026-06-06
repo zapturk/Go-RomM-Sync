@@ -2,7 +2,7 @@ import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation
 import { types } from "../wailsjs/go/models";
 import { TrashIcon, UploadIcon, DownloadIcon } from "./components/Icons";
 
-export type FileItemRowType = types.FileItem | types.ServerSave | types.ServerState;
+type FileItemRowType = types.FileItem | types.ServerSave | types.ServerState;
 
 interface FileItemRowProps {
     item: FileItemRowType;

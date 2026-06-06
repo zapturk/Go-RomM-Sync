@@ -12,6 +12,7 @@ import { FileItemRow } from "./FileItemRow";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
 import { TIMESTAMP_REGEX, APP_EVENTS } from './constants';
+import { LegendItem } from './components/LegendItem';
 
 const decodeHtml = (html: string) => {
     if (!html) return '';
@@ -795,38 +796,9 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                             <span>{game.name}</span>
                         </div>
                         <div className="footer-right">
-                            <div className="legend-item">
-                                <div className="btn-icon show-gamepad">
-                                    <div className="btn-dot north"></div>
-                                    <div className="btn-dot east"></div>
-                                    <div className="btn-dot south"></div>
-                                    <div className="btn-dot west active"></div>
-                                </div>
-                                <div className="key-icon show-keyboard">R</div>
-                                <span>Sync</span>
-                            </div>
-
-                            <div className="legend-item">
-                                <div className="btn-icon show-gamepad">
-                                    <div className="btn-dot north"></div>
-                                    <div className="btn-dot east active"></div>
-                                    <div className="btn-dot south"></div>
-                                    <div className="btn-dot west"></div>
-                                </div>
-                                <div className="key-icon show-keyboard">ESC</div>
-                                <span>Back</span>
-                            </div>
-
-                            <div className="legend-item">
-                                <div className="btn-icon show-gamepad">
-                                    <div className="btn-dot north"></div>
-                                    <div className="btn-dot east"></div>
-                                    <div className="btn-dot south active"></div>
-                                    <div className="btn-dot west"></div>
-                                </div>
-                                <div className="key-icon show-keyboard">ENTER</div>
-                                <span>OK</span>
-                            </div>
+                            <LegendItem buttonAction="west" keyLabel="R" label="Sync" />
+                            <LegendItem buttonAction="east" keyLabel="ESC" label="Back" />
+                            <LegendItem buttonAction="south" keyLabel="ENTER" label="OK" />
                         </div>
                     </div>
                 </>
@@ -1248,5 +1220,3 @@ function FirmwareOption({ id, name, isSelected, onSelect, focusKey, isFirst }: {
         </div>
     );
 }
-
-export default GamePage;

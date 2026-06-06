@@ -6,6 +6,7 @@ import { GamePage } from "./GamePage";
 import { PlatformGridView } from "./views/Library/PlatformGridView";
 import { GameGridView } from "./views/Library/GameGridView";
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
+import { LegendItem } from './components/LegendItem';
 
 interface LibraryProps {
     onOpenSettings: () => void;
@@ -277,40 +278,13 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
                                 </div>
                             )}
 
-                            <div className="legend-item">
-                                <div className="btn-icon show-gamepad">
-                                    <div className="btn-dot north"></div>
-                                    <div className="btn-dot east"></div>
-                                    <div className="btn-dot south"></div>
-                                    <div className="btn-dot west active"></div>
-                                </div>
-                                <div className="key-icon show-keyboard">R</div>
-                                <span>Sync</span>
-                            </div>
+                            <LegendItem buttonAction="west" keyLabel="R" label="Sync" />
 
                             {selectedPlatform && (
-                                <div className="legend-item">
-                                    <div className="btn-icon show-gamepad">
-                                        <div className="btn-dot north"></div>
-                                        <div className="btn-dot east active"></div>
-                                        <div className="btn-dot south"></div>
-                                        <div className="btn-dot west"></div>
-                                    </div>
-                                    <div className="key-icon show-keyboard">ESC</div>
-                                    <span>Back</span>
-                                </div>
+                                <LegendItem buttonAction="east" keyLabel="ESC" label="Back" />
                             )}
 
-                            <div className="legend-item">
-                                <div className="btn-icon show-gamepad">
-                                    <div className="btn-dot north"></div>
-                                    <div className="btn-dot east"></div>
-                                    <div className="btn-dot south active"></div>
-                                    <div className="btn-dot west"></div>
-                                </div>
-                                <div className="key-icon show-keyboard">ENTER</div>
-                                <span>OK</span>
-                            </div>
+                            <LegendItem buttonAction="south" keyLabel="ENTER" label="OK" />
 
                             <div className="legend-item">
                                 <div className="show-gamepad">

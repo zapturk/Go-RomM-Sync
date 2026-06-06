@@ -9,6 +9,7 @@ import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation
 import { getMouseActive } from './inputMode';
 import { FocusableButton } from './components/FocusableButton';
 import { FocusableInput } from './components/FocusableInput';
+import { LegendItem } from './components/LegendItem';
 
 interface SettingsProps {
     isActive?: boolean;
@@ -604,27 +605,8 @@ function SettingsForm({
                     <span>{status}</span>
                 </div>
                 <div className="footer-right">
-                    <div className="legend-item">
-                        <div className="btn-icon show-gamepad">
-                            <div className="btn-dot north"></div>
-                            <div className="btn-dot east active"></div>
-                            <div className="btn-dot south"></div>
-                            <div className="btn-dot west"></div>
-                        </div>
-                        <div className="key-icon show-keyboard">ESC</div>
-                        <span>Back</span>
-                    </div>
-
-                    <div className="legend-item">
-                        <div className="btn-icon show-gamepad">
-                            <div className="btn-dot north"></div>
-                            <div className="btn-dot east"></div>
-                            <div className="btn-dot south active"></div>
-                            <div className="btn-dot west"></div>
-                        </div>
-                        <div className="key-icon show-keyboard">ENTER</div>
-                        <span>OK</span>
-                    </div>
+                    <LegendItem buttonAction="east" keyLabel="ESC" label="Back" />
+                    <LegendItem buttonAction="south" keyLabel="ENTER" label="OK" />
                 </div>
             </div>
         </div>
