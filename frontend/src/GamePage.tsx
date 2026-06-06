@@ -12,6 +12,7 @@ import { FileItemRow } from "./FileItemRow";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
 import { TIMESTAMP_REGEX, APP_EVENTS } from './constants';
+import { LegendItem } from './components/LegendItem';
 
 const decodeHtml = (html: string) => {
     if (!html) return '';
@@ -39,21 +40,248 @@ const formatFileSize = (bytes: number) => {
     }
 };
 
+const getItemName = (item: any) => item.name || item.file_name;
+const getItemCore = (item: any) => item.core || item.emulator;
+
+const isMatchingItem = (o: any, name: string, core: string) => 
+    getItemName(o) === name && getItemCore(o) === core;
+
+const getItemTime = (item: any): number => {
+    if (!item || !item.updated_at) return 0;
+    return new Date(item.updated_at).getTime();
+};
+
 const getFileStatus = (item: any, otherList: any[]) => {
-    const name = item.name || item.file_name;
-    const core = item.core || item.emulator;
-    if (!name || !core || !item.updated_at) return undefined;
+    const name = getItemName(item);
+    const core = getItemCore(item);
+    const itemTime = getItemTime(item);
+    if (!name || !core || !itemTime) return undefined;
 
-    const other = otherList.find(o => (o.name === name || o.file_name === name) && (o.core === core || o.emulator === core));
-    if (!other || !other.updated_at) return undefined;
+    const other = otherList.find(o => isMatchingItem(o, name, core));
+    const otherTime = getItemTime(other);
+    if (!otherTime) return undefined;
 
-    const currentDate = new Date(item.updated_at).getTime();
-    const otherDate = new Date(other.updated_at).getTime();
-
-    const diff = currentDate - otherDate;
+    const diff = itemTime - otherTime;
     if (Math.abs(diff) < 5000) return 'equal'; // 5s buffer for clock drift/transfer latency
     return diff > 0 ? 'newer' : 'older';
 };
+
+const getTargetFirmware = (firmwares: types.Firmware[], id: number): types.Firmware | null => {
+    if (id === 0) {
+        return { id: 0, platform_id: 0, file_name: '', md5_hash: '', file_size_bytes: 0, is_verified: false } as unknown as types.Firmware;
+    }
+    return firmwares.find(f => f.id === id) || null;
+};
+
+enum SyncAction {
+    Upload,
+    Download,
+    None
+}
+
+const determineSyncAction = (local?: any, server?: any): SyncAction => {
+    if (!local) {
+        return server ? SyncAction.Download : SyncAction.None;
+    }
+    if (!server) {
+        return SyncAction.Upload;
+    }
+    const localTime = getItemTime(local);
+    const serverTime = getItemTime(server);
+    if (localTime > serverTime) return SyncAction.Upload;
+    if (serverTime > localTime) return SyncAction.Download;
+    return SyncAction.None;
+};
+
+const handleEscapeKey = (
+    e: KeyboardEvent,
+    isPickerOpen: boolean,
+    isFirmwarePickerOpen: boolean,
+    closePicker: () => void,
+    closeFirmwarePicker: () => void
+): boolean => {
+    if (e.key !== 'Escape') return false;
+    if (isPickerOpen) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        closePicker();
+        return true;
+    }
+    if (isFirmwarePickerOpen) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        closeFirmwarePicker();
+        return true;
+    }
+    return false;
+};
+
+function useGameSavesAndStates(
+    gameId: number,
+    offlineMode: boolean,
+    isDownloaded: boolean,
+    setDownloadStatus: (status: string | null) => void,
+    setSuccessStatus: (msg: string) => void
+) {
+    const [saves, setSaves] = useState<types.FileItem[]>([]);
+    const [states, setStates] = useState<types.FileItem[]>([]);
+    const [serverSaves, setServerSaves] = useState<types.ServerSave[]>([]);
+    const [serverStates, setServerStates] = useState<types.ServerState[]>([]);
+
+    const fetchAppData = useCallback(() => {
+        GetSaves(gameId).then(res => setSaves(res || [])).catch(console.error);
+        GetStates(gameId).then(res => setStates(res || [])).catch(console.error);
+        GetServerSaves(gameId).then(res => setServerSaves(res || [])).catch(console.error);
+        GetServerStates(gameId).then(res => setServerStates(res || [])).catch(console.error);
+    }, [gameId]);
+
+    const focusFallbackAfterDeletion = useCallback((
+        primaryList: any[],
+        secondaryList: any[],
+        index: number,
+        primaryPrefix: 'save' | 'state',
+        secondaryPrefix: 'save' | 'state'
+    ) => {
+        if (primaryList.length > 0) {
+            const nextIdx = Math.min(index, primaryList.length - 1);
+            setFocus(`${primaryPrefix}-${nextIdx}-upload`);
+        } else if (secondaryList.length > 0) {
+            setFocus(`${secondaryPrefix}-0-upload`);
+        } else if (isDownloaded) {
+            setFocus('play-button');
+        } else {
+            setFocus('download-button');
+        }
+    }, [isDownloaded]);
+
+    const syncFiles = useCallback(async (
+        type: 'saves' | 'states',
+        localList: any[],
+        serverList: any[],
+        uploadFn: (gameId: number, core: string, name: string) => Promise<any>,
+        downloadFn: (gameId: number, id: number, emulator: string, name: string, updatedAt: string) => Promise<any>
+    ) => {
+        setDownloadStatus(`Starting smart sync for ${type}...`);
+        const allNames = new Set<string>();
+        localList.forEach(s => allNames.add(s.name));
+        serverList.forEach(s => {
+            const cleanName = s.file_name.replace(TIMESTAMP_REGEX, "");
+            allNames.add(cleanName);
+        });
+
+        for (const name of Array.from(allNames)) {
+            const local = localList.find(s => s.name === name);
+            const serverClean = serverList.find(s => s.file_name.replace(TIMESTAMP_REGEX, "") === name);
+
+            const action = determineSyncAction(local, serverClean);
+            if (action === SyncAction.Upload && local) {
+                await uploadFn(gameId, local.core, local.name).catch(console.error);
+            } else if (action === SyncAction.Download && serverClean) {
+                await downloadFn(gameId, serverClean.id, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
+            }
+        }
+        setSuccessStatus(`Smart sync for ${type} complete!`);
+        fetchAppData();
+    }, [gameId, fetchAppData, setSuccessStatus, setDownloadStatus]);
+
+    const handleDeleteSave = useCallback((core: string, name: string, index: number) => {
+        DeleteSave(gameId, core, name).then(() => {
+            GetSaves(gameId).then(res => {
+                const newSaves = res || [];
+                setSaves(newSaves);
+                setTimeout(() => focusFallbackAfterDeletion(newSaves, states, index, 'save', 'state'), 50);
+            }).catch(console.error);
+            setSuccessStatus("Save deleted.");
+        }).catch((err: string) => setDownloadStatus(`Error deleting save: ${err}`));
+    }, [gameId, states, focusFallbackAfterDeletion, setSuccessStatus, setDownloadStatus]);
+
+    const handleDeleteState = useCallback((core: string, name: string, index: number) => {
+        DeleteState(gameId, core, name).then(() => {
+            GetStates(gameId).then(res => {
+                const newStates = res || [];
+                setStates(newStates);
+                setTimeout(() => focusFallbackAfterDeletion(newStates, saves, index, 'state', 'save'), 50);
+            }).catch(console.error);
+            setSuccessStatus("State deleted.");
+        }).catch((err: string) => setDownloadStatus(`Error deleting state: ${err}`));
+    }, [gameId, saves, focusFallbackAfterDeletion, setSuccessStatus, setDownloadStatus]);
+
+    const handleUploadSave = useCallback((core: string, name: string) => {
+        setDownloadStatus(`Uploading save ${name}...`);
+        UploadSave(gameId, core, name).then(() => {
+            setSuccessStatus("Save uploaded successfully to RomM!");
+            fetchAppData();
+        }).catch((err: string) => {
+            setDownloadStatus(`Upload error: ${err}`);
+        });
+    }, [gameId, fetchAppData, setSuccessStatus, setDownloadStatus]);
+
+    const handleUploadState = useCallback((core: string, name: string) => {
+        setDownloadStatus(`Uploading state ${name}...`);
+        UploadState(gameId, core, name).then(() => {
+            setSuccessStatus("State uploaded successfully to RomM!");
+            fetchAppData();
+        }).catch((err: string) => {
+            setDownloadStatus(`Upload error: ${err}`);
+        });
+    }, [gameId, fetchAppData, setSuccessStatus, setDownloadStatus]);
+
+    const handleDownloadServerSave = useCallback((save: types.ServerSave) => {
+        setDownloadStatus(`Downloading save ${save.file_name}...`);
+        const cleanFileName = save.file_name.replace(TIMESTAMP_REGEX, "");
+        DownloadServerSave(gameId, save.id, save.emulator, cleanFileName, save.updated_at).then(() => {
+            setSuccessStatus("Server save downloaded successfully!");
+            fetchAppData();
+        }).catch((err: string) => {
+            setDownloadStatus(`Download error: ${err}`);
+        });
+    }, [gameId, fetchAppData, setSuccessStatus, setDownloadStatus]);
+
+    const handleDownloadServerState = useCallback((state: types.ServerState) => {
+        setDownloadStatus(`Downloading state ${state.file_name}...`);
+        const cleanFileName = state.file_name.replace(TIMESTAMP_REGEX, "");
+        DownloadServerState(gameId, state.id, state.emulator, cleanFileName, state.updated_at).then(() => {
+            setSuccessStatus("Server state downloaded successfully!");
+            fetchAppData();
+        }).catch((err: string) => {
+            setDownloadStatus(`Download error: ${err}`);
+        });
+    }, [gameId, fetchAppData, setSuccessStatus, setDownloadStatus]);
+
+    const handleSyncSaves = useCallback(() => {
+        return syncFiles('saves', saves, serverSaves, UploadSave, DownloadServerSave);
+    }, [syncFiles, saves, serverSaves]);
+
+    const handleSyncStates = useCallback(() => {
+        return syncFiles('states', states, serverStates, UploadState, DownloadServerState);
+    }, [syncFiles, states, serverStates]);
+
+    const handleSmartSync = useCallback(async () => {
+        if (offlineMode) return;
+        setDownloadStatus("Starting full smart sync...");
+        await handleSyncSaves();
+        await handleSyncStates();
+        setSuccessStatus("Smart sync complete!");
+    }, [offlineMode, handleSyncSaves, handleSyncStates, setDownloadStatus, setSuccessStatus]);
+
+    const hasSavesOrStates = serverSaves.length > 0 || saves.length > 0 || serverStates.length > 0 || states.length > 0;
+
+    return {
+        saves,
+        states,
+        serverSaves,
+        serverStates,
+        hasSavesOrStates,
+        fetchAppData,
+        handleDeleteSave,
+        handleDeleteState,
+        handleUploadSave,
+        handleUploadState,
+        handleDownloadServerSave,
+        handleDownloadServerState,
+        handleSmartSync,
+    };
+}
 
 export function GamePage({ gameId, onBack }: GamePageProps) {
     const [game, setGame] = useState<types.Game | null>(null);
@@ -62,10 +290,6 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const [downloadStatus, setDownloadStatus] = useState<string | null>(null);
     const [isDownloaded, setIsDownloaded] = useState(false);
     const [statusChecked, setStatusChecked] = useState(false);
-    const [saves, setSaves] = useState<types.FileItem[]>([]);
-    const [states, setStates] = useState<types.FileItem[]>([]);
-    const [serverSaves, setServerSaves] = useState<types.ServerSave[]>([]);
-    const [serverStates, setServerStates] = useState<types.ServerState[]>([]);
     const [downloadProgress, setDownloadProgress] = useState<number>(0);
     const [statusFading, setStatusFading] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -78,7 +302,57 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const [isFirmwarePickerOpen, setIsFirmwarePickerOpen] = useState(false);
     const [offlineMode, setOfflineMode] = useState(false);
 
-    const hasSavesOrStates = serverSaves.length > 0 || saves.length > 0 || serverStates.length > 0 || states.length > 0;
+    const fadeTimeoutRef = useRef<any>(null);
+    const clearStatusTimeoutRef = useRef<any>(null);
+    const statusSequenceRef = useRef(0);
+
+    const setSuccessStatus = (msg: string) => {
+        const sequence = ++statusSequenceRef.current;
+
+        if (fadeTimeoutRef.current) clearTimeout(fadeTimeoutRef.current);
+        if (clearStatusTimeoutRef.current) clearTimeout(clearStatusTimeoutRef.current);
+
+        setStatusFading(false);
+        setDownloadStatus(msg);
+
+        fadeTimeoutRef.current = setTimeout(() => {
+            if (statusSequenceRef.current === sequence) {
+                setStatusFading(true);
+            }
+        }, 1000);
+
+        clearStatusTimeoutRef.current = setTimeout(() => {
+            if (statusSequenceRef.current === sequence) {
+                setDownloadStatus(prev => prev === msg ? null : prev);
+                setStatusFading(false);
+            }
+        }, 3000);
+    };
+
+    const {
+        saves,
+        states,
+        serverSaves,
+        serverStates,
+        hasSavesOrStates,
+        fetchAppData,
+        handleDeleteSave,
+        handleDeleteState,
+        handleUploadSave,
+        handleUploadState,
+        handleDownloadServerSave,
+        handleDownloadServerState,
+        handleSmartSync,
+    } = useGameSavesAndStates(
+        gameId,
+        offlineMode,
+        isDownloaded,
+        setDownloadStatus,
+        setSuccessStatus
+    );
+
+    const [firmwareDownloading, setFirmwareDownloading] = useState(false);
+    const [firmwareStatus, setFirmwareStatus] = useState<string>('');
 
     const focusFirstAvailableSaveState = () => {
         if (serverSaves.length > 0) {
@@ -91,11 +365,6 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
             setFocus('state-0-upload');
         }
     };
-    const [firmwareDownloading, setFirmwareDownloading] = useState(false);
-    const [firmwareStatus, setFirmwareStatus] = useState<string>('');
-    const fadeTimeoutRef = useRef<any>(null);
-    const clearStatusTimeoutRef = useRef<any>(null);
-    const statusSequenceRef = useRef(0);
 
     useEffect(() => {
         const unsubscribe = EventsOn("offline-mode-changed", (newOfflineMode: boolean) => {
@@ -103,32 +372,6 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         });
         return () => unsubscribe();
     }, []);
-
-    const setSuccessStatus = (msg: string) => {
-        const sequence = ++statusSequenceRef.current;
-
-        // Clear any existing timeouts to reset the cycle
-        if (fadeTimeoutRef.current) clearTimeout(fadeTimeoutRef.current);
-        if (clearStatusTimeoutRef.current) clearTimeout(clearStatusTimeoutRef.current);
-
-        setStatusFading(false);
-        setDownloadStatus(msg);
-
-        // Start fading after 1 second (opaque for 1s, then fades via CSS)
-        fadeTimeoutRef.current = setTimeout(() => {
-            if (statusSequenceRef.current === sequence) {
-                setStatusFading(true);
-            }
-        }, 1000);
-
-        // Clear status after 3 seconds
-        clearStatusTimeoutRef.current = setTimeout(() => {
-            if (statusSequenceRef.current === sequence) {
-                setDownloadStatus(prev => prev === msg ? null : prev);
-                setStatusFading(false);
-            }
-        }, 3000);
-    };
 
     // Cleanup on unmount
     useEffect(() => {
@@ -165,7 +408,6 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
     const { ref } = useFocusable({
         onArrowPress: (direction: string) => {
-            // Internal navigation could go here if we have more buttons
             return true;
         },
     });
@@ -313,110 +555,12 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         return () => unsubscribe();
     }, [gameId]);
 
-    const fetchAppData = () => {
-        GetSaves(gameId).then(res => setSaves(res || [])).catch(console.error);
-        GetStates(gameId).then(res => setStates(res || [])).catch(console.error);
-        GetServerSaves(gameId).then(res => setServerSaves(res || [])).catch(console.error);
-        GetServerStates(gameId).then(res => setServerStates(res || [])).catch(console.error);
-    };
-
-    const handleDeleteSave = (core: string, name: string, index: number) => {
-        DeleteSave(gameId, core, name).then(() => {
-            GetSaves(gameId).then(res => {
-                const newSaves = res || [];
-                setSaves(newSaves);
-                setTimeout(() => {
-                    if (newSaves.length > 0) {
-                        const nextIdx = Math.min(index, newSaves.length - 1);
-                        setFocus(`save-${nextIdx}-upload`);
-                    } else if (states.length > 0) {
-                        setFocus(`state-0-upload`);
-                    } else if (isDownloaded) {
-                        setFocus('play-button');
-                    } else {
-                        setFocus('download-button');
-                    }
-                }, 50);
-            }).catch(console.error);
-            setSuccessStatus("Save deleted.");
-        }).catch((err: string) => setDownloadStatus(`Error deleting save: ${err}`));
-    };
-
-    const handleDeleteState = (core: string, name: string, index: number) => {
-        DeleteState(gameId, core, name).then(() => {
-            GetStates(gameId).then(res => {
-                const newStates = res || [];
-                setStates(newStates);
-                setTimeout(() => {
-                    if (newStates.length > 0) {
-                        const nextIdx = Math.min(index, newStates.length - 1);
-                        setFocus(`state-${nextIdx}-upload`);
-                    } else if (saves.length > 0) {
-                        setFocus(`save-0-upload`);
-                    } else if (isDownloaded) {
-                        setFocus('play-button');
-                    } else {
-                        setFocus('download-button');
-                    }
-                }, 50);
-            }).catch(console.error);
-            setSuccessStatus("State deleted.");
-        }).catch((err: string) => setDownloadStatus(`Error deleting state: ${err}`));
-    };
-
-    const handleUploadSave = (core: string, name: string) => {
-        setDownloadStatus(`Uploading save ${name}...`);
-        UploadSave(gameId, core, name).then(() => {
-            setSuccessStatus("Save uploaded successfully to RomM!");
-            fetchAppData(); // Refresh server save list
-        }).catch((err: string) => {
-            setDownloadStatus(`Upload error: ${err}`);
-        });
-    };
-
-    const handleUploadState = (core: string, name: string) => {
-        setDownloadStatus(`Uploading state ${name}...`);
-        UploadState(gameId, core, name).then(() => {
-            setSuccessStatus("State uploaded successfully to RomM!");
-            fetchAppData(); // Refresh server state list
-        }).catch((err: string) => {
-            setDownloadStatus(`Upload error: ${err}`);
-        });
-    };
-
-    const handleDownloadServerSave = (save: types.ServerSave) => {
-        setDownloadStatus(`Downloading save ${save.file_name}...`);
-        const cleanFileName = save.file_name.replace(TIMESTAMP_REGEX, "");
-        DownloadServerSave(gameId, save.id, save.emulator, cleanFileName, save.updated_at).then(() => {
-            setSuccessStatus("Server save downloaded successfully!");
-            fetchAppData(); // Refresh local saves list
-        }).catch((err: string) => {
-            setDownloadStatus(`Download error: ${err}`);
-        });
-    };
-
-    const handleDownloadServerState = (state: types.ServerState) => {
-        setDownloadStatus(`Downloading state ${state.file_name}...`);
-        const cleanFileName = state.file_name.replace(TIMESTAMP_REGEX, "");
-        DownloadServerState(gameId, state.id, state.emulator, cleanFileName, state.updated_at).then(() => {
-            setSuccessStatus("Server state downloaded successfully!");
-            fetchAppData(); // Refresh local states list
-        }).catch((err: string) => {
-            setDownloadStatus(`Download error: ${err}`);
-        });
-    };
-
     const handleFirmwareChange = async (id: number) => {
         if (!game) return;
         setSelectedFirmwareId(id);
 
-        let fw = firmwares.find(f => f.id === id);
-        if (!fw && id !== 0) return;
-
-        // Use a dummy object for "No firmware" (id 0)
-        if (!fw) {
-            fw = { id: 0, platform_id: 0, file_name: '', md5_hash: '', file_size_bytes: 0, is_verified: false } as unknown as types.Firmware;
-        }
+        const fw = getTargetFirmware(firmwares, id);
+        if (!fw) return;
 
         setFirmwareDownloading(true);
         setFirmwareStatus('Downloading...');
@@ -434,106 +578,22 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         }
     };
 
-    const handleSyncSaves = async () => {
-        setDownloadStatus("Starting smart sync for saves...");
-        const allNames = new Set<string>();
-        saves.forEach(s => allNames.add(s.name));
-        serverSaves.forEach(s => {
-            const cleanName = s.file_name.replace(TIMESTAMP_REGEX, "");
-            allNames.add(cleanName);
-        });
-
-        for (const name of Array.from(allNames)) {
-            const local = saves.find(s => s.name === name);
-            const serverClean = serverSaves.find(s => s.file_name.replace(TIMESTAMP_REGEX, "") === name);
-
-            if (local && serverClean) {
-                const localTime = new Date(local.updated_at || "").getTime();
-                const serverTime = new Date(serverClean.updated_at || "").getTime();
-                if (localTime > serverTime) {
-                    await UploadSave(gameId, local.core, local.name).catch(console.error);
-                } else if (serverTime > localTime) {
-                    await DownloadServerSave(gameId, serverClean.id, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
-                }
-            } else if (local && !serverClean) {
-                await UploadSave(gameId, local.core, local.name).catch(console.error);
-            } else if (!local && serverClean) {
-                await DownloadServerSave(gameId, serverClean.id, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
-            }
-        }
-        setSuccessStatus("Smart sync for saves complete!");
-        fetchAppData();
-    };
-
-    const handleSyncStates = async () => {
-        setDownloadStatus("Starting smart sync for states...");
-        const allNames = new Set<string>();
-        states.forEach(s => allNames.add(s.name));
-        serverStates.forEach(s => {
-            const cleanName = s.file_name.replace(TIMESTAMP_REGEX, "");
-            allNames.add(cleanName);
-        });
-
-        for (const name of Array.from(allNames)) {
-            const local = states.find(s => s.name === name);
-            const serverClean = serverStates.find(s => s.file_name.replace(TIMESTAMP_REGEX, "") === name);
-
-            if (local && serverClean) {
-                const localTime = new Date(local.updated_at || "").getTime();
-                const serverTime = new Date(serverClean.updated_at || "").getTime();
-                if (localTime > serverTime) {
-                    await UploadState(gameId, local.core, local.name).catch(console.error);
-                } else if (serverTime > localTime) {
-                    await DownloadServerState(gameId, serverClean.id, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
-                }
-            } else if (local && !serverClean) {
-                await UploadState(gameId, local.core, local.name).catch(console.error);
-            } else if (!local && serverClean) {
-                await DownloadServerState(gameId, serverClean.id, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
-            }
-        }
-        setSuccessStatus("Smart sync for states complete!");
-        fetchAppData();
-    };
-
-    const handleSmartSync = async () => {
-        if (offlineMode) return;
-        setDownloadStatus("Starting full smart sync...");
-        await handleSyncSaves();
-        await handleSyncStates();
-        setSuccessStatus("Smart sync complete!");
-    };
-
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Don't trigger sync if we're typing in an input
             const activeElement = document.activeElement;
             const isTyping = activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA';
-
             if (isTyping) return;
 
             if (e.key.toLowerCase() === 'r') {
                 handleSmartSync();
             }
 
-            if (e.key === 'Escape') {
-                if (isPickerOpen) {
-                    // Close picker instead of going back to library
-                    e.preventDefault();
-                    e.stopImmediatePropagation(); // Prevent Library.tsx from seeing this
-                    closePicker();
-                } else if (isFirmwarePickerOpen) {
-                    e.preventDefault();
-                    e.stopImmediatePropagation();
-                    closeFirmwarePicker();
-                }
-            }
+            handleEscapeKey(e, isPickerOpen, isFirmwarePickerOpen, closePicker, closeFirmwarePicker);
         };
 
-        // Use capture phase to ensure we catch it before Library.tsx listener
         window.addEventListener('keydown', handleKeyDown, true);
         return () => window.removeEventListener('keydown', handleKeyDown, true);
-    }, [saves, serverSaves, states, serverStates, gameId, isPickerOpen, isFirmwarePickerOpen, closePicker, closeFirmwarePicker]);
+    }, [isPickerOpen, isFirmwarePickerOpen, closePicker, closeFirmwarePicker, handleSmartSync]);
 
 
     return (
@@ -559,9 +619,9 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                 </div>
                                 <div className="core-picker-list">
                                     {availableCores.map((core, idx) => (
-                                        <CoreOption
+                                        <PickerOption
                                             key={core}
-                                            core={core}
+                                            name={core.replace('_libretro', '').replace(/_/g, ' ')}
                                             isSelected={core === selectedCore}
                                             isFirst={idx === 0}
                                             onSelect={() => {
@@ -569,6 +629,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                                 closePicker();
                                             }}
                                             focusKey={`core-option-${idx}`}
+                                            className="core-option"
                                         />
                                     ))}
                                 </div>
@@ -583,23 +644,23 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                     <h3>Select Firmware</h3>
                                 </div>
                                 <div className="core-picker-list">
-                                    <FirmwareOption
-                                        id={0}
+                                    <PickerOption
                                         name="No Firmware"
                                         isSelected={selectedFirmwareId === 0}
                                         isFirst={true}
                                         onSelect={() => handleFirmwareChange(0)}
                                         focusKey="firmware-option-0"
+                                        className="firmware-option"
                                     />
                                     {firmwares.map((fw, idx) => (
-                                        <FirmwareOption
+                                        <PickerOption
                                             key={fw.id}
-                                            id={fw.id}
                                             name={`${fw.file_name} ${fw.is_verified ? '✓' : ''}`}
                                             isSelected={fw.id === selectedFirmwareId}
                                             isFirst={false}
                                             onSelect={() => handleFirmwareChange(fw.id)}
                                             focusKey={`firmware-option-${idx + 1}`}
+                                            className="firmware-option"
                                         />
                                     ))}
                                 </div>
@@ -795,38 +856,9 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                             <span>{game.name}</span>
                         </div>
                         <div className="footer-right">
-                            <div className="legend-item">
-                                <div className="btn-icon show-gamepad">
-                                    <div className="btn-dot north"></div>
-                                    <div className="btn-dot east"></div>
-                                    <div className="btn-dot south"></div>
-                                    <div className="btn-dot west active"></div>
-                                </div>
-                                <div className="key-icon show-keyboard">R</div>
-                                <span>Sync</span>
-                            </div>
-
-                            <div className="legend-item">
-                                <div className="btn-icon show-gamepad">
-                                    <div className="btn-dot north"></div>
-                                    <div className="btn-dot east active"></div>
-                                    <div className="btn-dot south"></div>
-                                    <div className="btn-dot west"></div>
-                                </div>
-                                <div className="key-icon show-keyboard">ESC</div>
-                                <span>Back</span>
-                            </div>
-
-                            <div className="legend-item">
-                                <div className="btn-icon show-gamepad">
-                                    <div className="btn-dot north"></div>
-                                    <div className="btn-dot east"></div>
-                                    <div className="btn-dot south active"></div>
-                                    <div className="btn-dot west"></div>
-                                </div>
-                                <div className="key-icon show-keyboard">ENTER</div>
-                                <span>OK</span>
-                            </div>
+                            <LegendItem buttonAction="west" keyLabel="R" label="Sync" />
+                            <LegendItem buttonAction="east" keyLabel="ESC" label="Back" />
+                            <LegendItem buttonAction="south" keyLabel="ENTER" label="OK" />
                         </div>
                     </div>
                 </>
@@ -834,6 +866,38 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         </div>
     );
 }
+
+const handleDownloadButtonArrowPress = (direction: string, hasSaves: boolean, onFocusSaves: () => void) => {
+    if (direction === 'left') return false;
+    if (direction === 'right') {
+        if (hasSaves) onFocusSaves();
+        return false;
+    }
+    return direction === 'down';
+};
+
+const handleDownloadButtonMouseEnter = (isDownloading: boolean, isDisabled: boolean) => {
+    if (!getMouseActive()) return;
+    if (isDownloading || !isDisabled) {
+        setFocus('download-button');
+    }
+};
+
+const getDownloadBtnClassName = (focused: boolean, isBtnDisabled: boolean, isDownloading: boolean) => {
+    let className = "btn download-btn";
+    if (focused) className += " focused";
+    if (isBtnDisabled) className += " disabled";
+    if (isDownloading) className += " cancel-mode";
+    return className;
+};
+
+const getDownloadBtnIconAndText = (isDownloading: boolean, isExtracting: boolean) => {
+    const icon = isDownloading ? <TrashIcon /> : <DownloadIcon />;
+    let text = "Download to Library";
+    if (isDownloading) text = "Cancel Download";
+    if (isExtracting) text = "Extracting...";
+    return { icon, text };
+};
 
 function InnerDownloadButton({ isDisabled, isDownloading, isExtracting, hasSaves, onDownload, onCancel, onFocusSaves }: {
     isDisabled: boolean;
@@ -844,36 +908,29 @@ function InnerDownloadButton({ isDisabled, isDownloading, isExtracting, hasSaves
     onCancel: () => void;
     onFocusSaves: () => void;
 }) {
+    const handleAction = isDownloading ? onCancel : onDownload;
+
     const { ref, focused } = useFocusable({
         focusKey: 'download-button',
-        onArrowPress: (direction: string) => {
-            if (direction === 'right' && hasSaves) {
-                onFocusSaves();
-                return false;
-            }
-            if (direction === 'left') return false;
-            return direction === 'down';
-        },
-        onEnterPress: isDownloading ? onCancel : onDownload
+        onArrowPress: (direction: string) => handleDownloadButtonArrowPress(direction, hasSaves, onFocusSaves),
+        onEnterPress: handleAction
     });
+
+    const isBtnDisabled = isDisabled && !isDownloading;
+    const btnClassName = getDownloadBtnClassName(focused, isBtnDisabled, isDownloading);
+    const { icon, text } = getDownloadBtnIconAndText(isDownloading, isExtracting);
 
     return (
         <button
             ref={ref}
-            className={`btn download-btn ${focused ? 'focused' : ''} ${isDisabled && !isDownloading ? 'disabled' : ''} ${isDownloading ? 'cancel-mode' : ''}`}
-            disabled={isDisabled && !isDownloading}
-            onMouseEnter={() => {
-                if (getMouseActive() && (!isDisabled || isDownloading)) {
-                    setFocus('download-button');
-                }
-            }}
-            onClick={isDownloading ? onCancel : onDownload}
+            className={btnClassName}
+            disabled={isBtnDisabled}
+            onMouseEnter={() => handleDownloadButtonMouseEnter(isDownloading, isDisabled)}
+            onClick={handleAction}
         >
             <div className="btn-content">
-                {isDownloading ? <TrashIcon /> : <DownloadIcon />}
-                <span>
-                    {isExtracting ? "Extracting..." : isDownloading ? "Cancel Download" : "Download to Library"}
-                </span>
+                {icon}
+                <span>{text}</span>
             </div>
         </button>
     );
@@ -891,26 +948,21 @@ function InnerCoreSelector({ currentCore, isDisabled, hasFirmware, hasSaves, onC
     const { ref, focused } = useFocusable({
         focusKey: 'core-selector',
         onArrowPress: (direction: string) => {
-            if (direction === 'up') {
-                if (hasFirmware) {
-                    setFocus('firmware-selector');
-                }
-                return false; // Block Up to prevent focus loss
-            }
-            if (direction === 'down') {
-                setFocus('play-button');
-                return false;
-            }
-            if (direction === 'right') {
-                if (hasSaves) {
-                    onFocusSaves();
+            switch (direction) {
+                case 'up':
+                    if (hasFirmware) setFocus('firmware-selector');
                     return false;
-                }
-                setFocus('play-button');
-                return false;
+                case 'down':
+                    setFocus('play-button');
+                    return false;
+                case 'right':
+                    hasSaves ? onFocusSaves() : setFocus('play-button');
+                    return false;
+                case 'left':
+                    return false;
+                default:
+                    return true;
             }
-            if (direction === 'left') return false;
-            return true;
         },
         onEnterPress: onClick
     });
@@ -946,24 +998,22 @@ function InnerPlayButton({ isDisabled, hasCore, hasFirmware, hasSaves, onPlay, o
     const { ref, focused } = useFocusable({
         focusKey: 'play-button',
         onArrowPress: (direction: string) => {
-            if (direction === 'up') {
-                if (hasCore) {
-                    setFocus('core-selector');
-                } else if (hasFirmware) {
-                    setFocus('firmware-selector');
-                }
-                return false; // Block Up if nothing focusable is found
+            switch (direction) {
+                case 'up':
+                    if (hasCore) setFocus('core-selector');
+                    else if (hasFirmware) setFocus('firmware-selector');
+                    return false;
+                case 'down':
+                    setFocus('open-folder-button');
+                    return false;
+                case 'right':
+                    if (hasSaves) onFocusSaves();
+                    return false;
+                case 'left':
+                    return false;
+                default:
+                    return true;
             }
-            if (direction === 'down') {
-                setFocus('open-folder-button');
-                return false;
-            }
-            if (direction === 'right' && hasSaves) {
-                onFocusSaves();
-                return false;
-            }
-            if (direction === 'left') return false;
-            return true;
         },
         onEnterPress: onPlay
     });
@@ -1078,20 +1128,21 @@ function InnerDeleteButton({ isDisabled, hasSaves, onDelete, onFocusDownload, on
     );
 }
 
-function CoreOption({ core, isSelected, onSelect, focusKey, isFirst }: {
-    core: string;
+interface PickerOptionProps {
+    name: string;
     isSelected: boolean;
     onSelect: () => void;
     focusKey: string;
     isFirst: boolean;
-}) {
+    className: string;
+}
+
+function PickerOption({ name, isSelected, onSelect, focusKey, isFirst, className }: PickerOptionProps) {
     const { ref, focused } = useFocusable({
         focusKey,
         onEnterPress: onSelect,
         onArrowPress: (direction: string) => {
-            // Block left/right to keep focus in the list
             if (direction === 'left' || direction === 'right') return false;
-            // Block up on first item
             if (direction === 'up' && isFirst) return false;
             return true;
         }
@@ -1106,7 +1157,7 @@ function CoreOption({ core, isSelected, onSelect, focusKey, isFirst }: {
     return (
         <div
             ref={ref}
-            className={`core-option ${focused ? 'focused' : ''} ${isSelected ? 'selected' : ''}`}
+            className={`${className} ${focused ? 'focused' : ''} ${isSelected ? 'selected' : ''}`}
             onClick={onSelect}
             onMouseEnter={() => {
                 if (getMouseActive()) {
@@ -1114,9 +1165,7 @@ function CoreOption({ core, isSelected, onSelect, focusKey, isFirst }: {
                 }
             }}
         >
-            <span className="core-name">
-                {core.replace('_libretro', '').replace(/_/g, ' ')}
-            </span>
+            <span className={`${className}-name`}>{name}</span>
             {isSelected && <span className="selected-check">✓</span>}
         </div>
     );
@@ -1149,6 +1198,11 @@ function CancelButton({ onCancel }: { onCancel: () => void }) {
     );
 }
 
+const getFirmwareDisplayText = (selectedId: number, selectedFw?: types.Firmware) => {
+    if (selectedId === 0) return "No Firmware";
+    return selectedFw?.file_name || "Unknown Firmware";
+};
+
 function InnerFirmwareSelector({ firmwares, selectedId, isDownloading, status, hasSaves, onClick, onFocusRequest, onFocusSaves }: {
     firmwares: types.Firmware[];
     selectedId: number;
@@ -1162,25 +1216,25 @@ function InnerFirmwareSelector({ firmwares, selectedId, isDownloading, status, h
     const { ref, focused } = useFocusable({
         focusKey: 'firmware-selector',
         onArrowPress: (direction: string) => {
-            if (direction === 'up') {
-                return false; // Header is above, nothing focusable
+            switch (direction) {
+                case 'up':
+                case 'left':
+                    return false;
+                case 'down':
+                    setFocus('core-selector');
+                    return false;
+                case 'right':
+                    if (hasSaves) onFocusSaves();
+                    return false;
+                default:
+                    return true;
             }
-            if (direction === 'down') {
-                setFocus('core-selector');
-                return false;
-            }
-            if (direction === 'right' && hasSaves) {
-                onFocusSaves();
-                return false;
-            }
-            if (direction === 'left') return false;
-            return true;
         },
         onEnterPress: onClick
     });
 
     const selectedFw = firmwares.find(f => f.id === selectedId);
-    const displayText = selectedId === 0 ? "No Firmware" : (selectedFw?.file_name || "Unknown Firmware");
+    const displayText = getFirmwareDisplayText(selectedId, selectedFw);
 
     return (
         <div className="platform-firmware-selector">
@@ -1208,45 +1262,4 @@ function InnerFirmwareSelector({ firmwares, selectedId, isDownloading, status, h
     );
 }
 
-function FirmwareOption({ id, name, isSelected, onSelect, focusKey, isFirst }: {
-    id: number;
-    name: string;
-    isSelected: boolean;
-    onSelect: () => void;
-    focusKey: string;
-    isFirst: boolean;
-}) {
-    const { ref, focused } = useFocusable({
-        focusKey,
-        onEnterPress: onSelect,
-        onArrowPress: (direction: string) => {
-            if (direction === 'left' || direction === 'right') return false;
-            if (direction === 'up' && isFirst) return false;
-            return true;
-        }
-    });
-
-    useEffect(() => {
-        if (isSelected) {
-            setFocus(focusKey);
-        }
-    }, [isSelected, focusKey]);
-
-    return (
-        <div
-            ref={ref}
-            className={`firmware-option ${focused ? 'focused' : ''} ${isSelected ? 'selected' : ''}`}
-            onClick={onSelect}
-            onMouseEnter={() => {
-                if (getMouseActive()) {
-                    setFocus(focusKey);
-                }
-            }}
-        >
-            <span className="firmware-name">{name}</span>
-            {isSelected && <span className="selected-check">✓</span>}
-        </div>
-    );
-}
-
-export default GamePage;
+// FirmwareOption deleted, PickerOption used instead

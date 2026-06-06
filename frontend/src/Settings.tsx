@@ -9,10 +9,29 @@ import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation
 import { getMouseActive } from './inputMode';
 import { FocusableButton } from './components/FocusableButton';
 import { FocusableInput } from './components/FocusableInput';
+import { LegendItem } from './components/LegendItem';
 
 interface SettingsProps {
     isActive?: boolean;
     onLogout?: () => void;
+}
+
+interface SettingsRowProps {
+    label: string;
+    desc: string;
+    children: React.ReactNode;
+}
+
+function SettingsRow({ label, desc, children }: SettingsRowProps) {
+    return (
+        <div className="settings-row">
+            <div className="settings-row-info">
+                <span className="settings-row-label">{label}</span>
+                <span className="settings-row-desc">{desc}</span>
+            </div>
+            {children}
+        </div>
+    );
 }
 
 function Settings({ isActive = false, onLogout }: SettingsProps) {
@@ -31,15 +50,27 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [isUpdatingCores, setIsUpdatingCores] = useState(false);
     const [isUpdatingBios, setIsUpdatingBios] = useState(false);
 
+    const { ref: containerRef } = useFocusable({
+        trackChildren: true,
+    });
+
     useEffect(() => {
         GetConfig().then((cfg) => {
+            const {
+                retroarch_path = '',
+                library_path = '',
+                cheevos_username = '',
+                cheevos_password = '',
+                offline_mode = false,
+                client_token = ''
+            } = cfg || {};
             setConfig(cfg);
-            setRaPath(cfg.retroarch_path || '');
-            setLibPath(cfg.library_path || '');
-            setCheevosUser(cfg.cheevos_username || '');
-            setCheevosPass(cfg.cheevos_password || '');
-            setOfflineMode(cfg.offline_mode || false);
-            setClientToken(cfg.client_token || '');
+            setRaPath(retroarch_path);
+            setLibPath(library_path);
+            setCheevosUser(cheevos_username);
+            setCheevosPass(cheevos_password);
+            setOfflineMode(offline_mode);
+            setClientToken(client_token);
         });
     }, []);
 
@@ -59,6 +90,15 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             unsubscribeConfig();
         };
     }, []);
+
+    // Auto-focus save button on load or when view becomes active
+    useEffect(() => {
+        if (isActive && config) {
+            setTimeout(() => {
+                setFocus('browse-ra-button');
+            }, 100);
+        }
+    }, [isActive, !!config]);
 
     const handleBrowseRA = () => {
         SelectRetroArchExecutable().then((path) => {
@@ -213,130 +253,9 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             });
     };
 
-    const handleInputKeyDown = (e: React.KeyboardEvent) => {
-        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
-            e.stopPropagation();
-        }
-    };
+    const handleTopArrowPress = (direction: string) => direction !== 'up';
 
     if (!config) return <div className="loading-screen"><h2>Loading settings...</h2></div>;
-
-    return (
-        <SettingsForm
-            config={config}
-            isActive={isActive}
-            onLogout={onLogout}
-            raPath={raPath}
-            setRaPath={setRaPath}
-            libPath={libPath}
-            setLibPath={setLibPath}
-            cheevosUser={cheevosUser}
-            setCheevosUser={setCheevosUser}
-            cheevosPass={cheevosPass}
-            setCheevosPass={setCheevosPass}
-            clientToken={clientToken}
-            setClientToken={setClientToken}
-            status={status}
-            setStatus={setStatus}
-            isSaving={isSaving}
-            handleBrowseRA={handleBrowseRA}
-            handleBrowseLib={handleBrowseLib}
-            handleSetDefaultLib={handleSetDefaultLib}
-            handleSave={handleSave}
-            handleLogout={handleLogout}
-            handleClearCache={handleClearCache}
-            offlineMode={offlineMode}
-            handleToggleOffline={handleToggleOffline}
-            handleSyncMetadata={handleSyncMetadata}
-            isSyncing={isSyncing}
-            handleUpdateCores={handleUpdateCores}
-            isUpdatingCores={isUpdatingCores}
-            handleUpdateBios={handleUpdateBios}
-            isUpdatingBios={isUpdatingBios}
-        />
-    );
-}
-
-interface SettingsFormProps {
-    config: types.AppConfig;
-    isActive: boolean;
-    onLogout?: () => void;
-    raPath: string;
-    setRaPath: (v: string) => void;
-    libPath: string;
-    setLibPath: (v: string) => void;
-    cheevosUser: string;
-    setCheevosUser: (v: string) => void;
-    cheevosPass: string;
-    setCheevosPass: (v: string) => void;
-    clientToken: string;
-    setClientToken: (v: string) => void;
-    status: string;
-    setStatus: (v: string) => void;
-    isSaving: boolean;
-    handleBrowseRA: () => void;
-    handleBrowseLib: () => void;
-    handleSetDefaultLib: () => void;
-    handleSave: () => void;
-    handleLogout: () => void;
-    handleClearCache: () => void;
-    offlineMode: boolean;
-    handleToggleOffline: () => void;
-    handleSyncMetadata: () => void;
-    isSyncing: boolean;
-    handleUpdateCores: () => void;
-    isUpdatingCores: boolean;
-    handleUpdateBios: () => void;
-    isUpdatingBios: boolean;
-}
-
-function SettingsForm({
-    isActive,
-    onLogout,
-    raPath,
-    setRaPath,
-    libPath,
-    setLibPath,
-    cheevosUser,
-    setCheevosUser,
-    cheevosPass,
-    setCheevosPass,
-    clientToken,
-    setClientToken,
-    status,
-    setStatus,
-    isSaving,
-    handleBrowseRA,
-    handleBrowseLib,
-    handleSetDefaultLib,
-    handleSave,
-    handleLogout,
-    handleClearCache,
-    offlineMode,
-    handleToggleOffline,
-    handleSyncMetadata,
-    isSyncing,
-    handleUpdateCores,
-    isUpdatingCores,
-    handleUpdateBios,
-    isUpdatingBios
-}: SettingsFormProps) {
-    const { ref: containerRef } = useFocusable({
-        trackChildren: true,
-    });
-
-    // Auto-focus save button on load or when view becomes active
-    useEffect(() => {
-        if (isActive) {
-            setTimeout(() => {
-                setFocus('browse-ra-button');
-            }, 100);
-        }
-    }, [isActive]);
-
-    // Focus management handled by components
-
-    const handleTopArrowPress = (direction: string) => direction !== 'up';
 
     return (
         <div id="settings-page" className="settings-page">
@@ -347,220 +266,48 @@ function SettingsForm({
                         <div className="settings-status-box">{status}</div>
                     </div>
 
-                    {/* Emulator Section */}
-                    <div className="settings-card">
-                        <div className="settings-section-title">Emulator Configuration</div>
-                        <div className="input-group">
-                            <label>RetroArch Executable</label>
-                            <div>
-                                <FocusableInput
-                                    className="input"
-                                    value={raPath}
-                                    readOnly
-                                    placeholder="Not configured"
-                                    focusKey="ra-path-input"
-                                    onArrowPress={handleTopArrowPress}
-                                />
-                                <FocusableButton
-                                    focusKey="browse-ra-button"
-                                    className={`btn ${isSaving ? 'disabled' : ''}`}
-                                    onClick={handleBrowseRA}
-                                    onEnterPress={handleBrowseRA}
-                                    onArrowPress={handleTopArrowPress}
-                                    disabled={isSaving}
-                                    onMouseEnter={() => getMouseActive() && !isSaving && setFocus('browse-ra-button')}
-                                >
-                                    Browse
-                                </FocusableButton>
-                            </div>
-                        </div>
-                    </div>
+                    <EmulatorSection
+                        raPath={raPath}
+                        isSaving={isSaving}
+                        handleBrowseRA={handleBrowseRA}
+                        handleTopArrowPress={handleTopArrowPress}
+                    />
 
-                    {/* Library Section */}
-                    <div className="settings-card">
-                        <div className="settings-section-title">Library Configuration</div>
-                        <div className="input-group">
-                            <label>Local ROM Library Path</label>
-                            <div>
-                                <FocusableInput
-                                    className="input"
-                                    value={libPath}
-                                    readOnly
-                                    placeholder="Not configured"
-                                    focusKey="lib-path-input"
-                                />
-                                <FocusableButton
-                                    focusKey="browse-lib-button"
-                                    className={`btn ${isSaving ? 'disabled' : ''}`}
-                                    onClick={handleBrowseLib}
-                                    onEnterPress={handleBrowseLib}
-                                    disabled={isSaving}
-                                    onMouseEnter={() => getMouseActive() && !isSaving && setFocus('browse-lib-button')}
-                                >
-                                    Browse
-                                </FocusableButton>
-                                <FocusableButton
-                                    focusKey="default-lib-button"
-                                    className={`btn ${isSaving ? 'disabled' : ''}`}
-                                    onClick={handleSetDefaultLib}
-                                    onEnterPress={handleSetDefaultLib}
-                                    disabled={isSaving}
-                                    onMouseEnter={() => getMouseActive() && !isSaving && setFocus('default-lib-button')}
-                                >
-                                    Set Default
-                                </FocusableButton>
-                            </div>
-                        </div>
-                    </div>
+                    <LibrarySection
+                        libPath={libPath}
+                        isSaving={isSaving}
+                        handleBrowseLib={handleBrowseLib}
+                        handleSetDefaultLib={handleSetDefaultLib}
+                    />
 
-                    {/* Maintenance Section */}
-                    <div className="settings-card">
-                        <div className="settings-section-title">Maintenance</div>
-                        <div className="settings-row">
-                            <div className="settings-row-info">
-                                <span className="settings-row-label">Local Image Cache</span>
-                                <span className="settings-row-desc">Refresh game covers and screenshots</span>
-                            </div>
-                            <FocusableButton
-                                focusKey="clear-cache-button"
-                                className={`btn ${isSaving ? 'disabled' : ''}`}
-                                onClick={handleClearCache}
-                                onEnterPress={handleClearCache}
-                                disabled={isSaving}
-                                onMouseEnter={() => getMouseActive() && !isSaving && setFocus('clear-cache-button')}
-                            >
-                                Clear Cache
-                            </FocusableButton>
-                        </div>
-                        <div className="settings-row">
-                            <div className="settings-row-info">
-                                <span className="settings-row-label">Update Cores</span>
-                                <span className="settings-row-desc">Re-download all downloaded cores for the latest updates</span>
-                            </div>
-                            <FocusableButton
-                                focusKey="update-cores-button"
-                                className={`btn ${isSaving || isUpdatingCores ? 'disabled' : ''}`}
-                                onClick={handleUpdateCores}
-                                onEnterPress={handleUpdateCores}
-                                disabled={isSaving || isUpdatingCores}
-                                onMouseEnter={() => getMouseActive() && !isSaving && !isUpdatingCores && setFocus('update-cores-button')}
-                            >
-                                {isUpdatingCores ? "Updating..." : "Update Cores"}
-                            </FocusableButton>
-                        </div>
-                        <div className="settings-row">
-                            <div className="settings-row-info">
-                                <span className="settings-row-label">Download BIOS</span>
-                                <span className="settings-row-desc">Download latest RetroArch BIOS pack from Abdess/retrobios</span>
-                            </div>
-                            <FocusableButton
-                                focusKey="update-bios-button"
-                                className={`btn ${isSaving || isUpdatingBios ? 'disabled' : ''}`}
-                                onClick={handleUpdateBios}
-                                onEnterPress={handleUpdateBios}
-                                disabled={isSaving || isUpdatingBios}
-                                onMouseEnter={() => getMouseActive() && !isSaving && !isUpdatingBios && setFocus('update-bios-button')}
-                            >
-                                {isUpdatingBios ? "Downloading..." : "Download BIOS"}
-                            </FocusableButton>
-                        </div>
-                    </div>
+                    <MaintenanceSection
+                        isSaving={isSaving}
+                        isUpdatingCores={isUpdatingCores}
+                        isUpdatingBios={isUpdatingBios}
+                        handleClearCache={handleClearCache}
+                        handleUpdateCores={handleUpdateCores}
+                        handleUpdateBios={handleUpdateBios}
+                    />
 
-                    {/* Offline Support Section */}
-                    <div className="settings-card">
-                        <div className="settings-section-title">Offline Support</div>
-                        <div className="settings-row">
-                            <div className="settings-row-info">
-                                <span className="settings-row-label">Offline Mode</span>
-                                <span className="settings-row-desc">Enable browsing without server connection</span>
-                            </div>
-                            <FocusableButton
-                                focusKey="offline-toggle-button"
-                                className={`btn ${isSaving ? 'disabled' : ''}`}
-                                style={{
-                                    minWidth: '120px',
-                                    backgroundColor: offlineMode ? '#4CAF50' : 'rgba(255,255,255,0.1)',
-                                }}
-                                onClick={handleToggleOffline}
-                                onEnterPress={handleToggleOffline}
-                                onArrowPress={(direction) => {
-                                    if (direction === 'up') {
-                                        setFocus('update-cores-button');
-                                        return false;
-                                    }
-                                    return true;
-                                }}
-                                disabled={isSaving}
-                                onMouseEnter={() => getMouseActive() && !isSaving && setFocus('offline-toggle-button')}
-                            >
-                                {offlineMode ? "Enabled" : "Disabled"}
-                            </FocusableButton>
-                        </div>
-                        <div className="settings-row">
-                            <div className="settings-row-info">
-                                <span className="settings-row-label">Sync Metadata</span>
-                                <span className="settings-row-desc">Prepare game data for offline use</span>
-                            </div>
-                            <FocusableButton
-                                focusKey="sync-metadata-button"
-                                className={`btn ${isSaving || isSyncing ? 'disabled' : ''}`}
-                                onClick={handleSyncMetadata}
-                                onEnterPress={handleSyncMetadata}
-                                disabled={isSaving || isSyncing}
-                                onMouseEnter={() => getMouseActive() && !isSaving && !isSyncing && setFocus('sync-metadata-button')}
-                            >
-                                {isSyncing ? "Syncing..." : "Sync Now"}
-                            </FocusableButton>
-                        </div>
-                    </div>
+                    <OfflineSection
+                        isSaving={isSaving}
+                        isSyncing={isSyncing}
+                        offlineMode={offlineMode}
+                        handleToggleOffline={handleToggleOffline}
+                        handleSyncMetadata={handleSyncMetadata}
+                    />
 
-                    {/* RetroAchievements Section */}
-                    <div className="settings-card">
-                        <div className="settings-section-title">RetroAchievements</div>
-                        <div className="input-group">
-                            <label htmlFor="cheevosUser">Username</label>
-                            <FocusableInput
-                                id="cheevosUser"
-                                focusKey="cheevos-user-input"
-                                className="input"
-                                value={cheevosUser}
-                                onChange={(e) => setCheevosUser(e.target.value)}
-                                autoComplete="off"
-                            />
-                        </div>
-                        <div className="input-group">
-                            <label htmlFor="cheevosPass">Password</label>
-                            <FocusableInput
-                                id="cheevosPass"
-                                focusKey="cheevos-pass-input"
-                                className="input"
-                                type="password"
-                                value={cheevosPass}
-                                onChange={(e) => setCheevosPass(e.target.value)}
-                                autoComplete="off"
-                            />
-                        </div>
-                    </div>
+                    <RetroAchievementsSection
+                        cheevosUser={cheevosUser}
+                        setCheevosUser={setCheevosUser}
+                        cheevosPass={cheevosPass}
+                        setCheevosPass={setCheevosPass}
+                    />
 
-                    {/* RomM Connection Section */}
-                    <div className="settings-card">
-                        <div className="settings-section-title">RomM Connection</div>
-                        <div className="input-group">
-                            <label htmlFor="clientToken">Client Token</label>
-                            <FocusableInput
-                                id="clientToken"
-                                focusKey="client-token-input"
-                                className="input"
-                                value={clientToken}
-                                onChange={(e) => setClientToken(e.target.value)}
-                                autoComplete="off"
-                                placeholder="rmm_..."
-                            />
-                            <div className="input-help-text" style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: '0.5rem' }}>
-                                A persistent token for stable connection. The app can auto-generate this if you login normally, or you can paste one from RomM Settings.
-                            </div>
-                        </div>
-                    </div>
+                    <RomMConnectionSection
+                        clientToken={clientToken}
+                        setClientToken={setClientToken}
+                    />
 
                     <div className="settings-actions">
                         <FocusableButton
@@ -604,27 +351,297 @@ function SettingsForm({
                     <span>{status}</span>
                 </div>
                 <div className="footer-right">
-                    <div className="legend-item">
-                        <div className="btn-icon show-gamepad">
-                            <div className="btn-dot north"></div>
-                            <div className="btn-dot east active"></div>
-                            <div className="btn-dot south"></div>
-                            <div className="btn-dot west"></div>
-                        </div>
-                        <div className="key-icon show-keyboard">ESC</div>
-                        <span>Back</span>
-                    </div>
+                    <LegendItem buttonAction="east" keyLabel="ESC" label="Back" />
+                    <LegendItem buttonAction="south" keyLabel="ENTER" label="OK" />
+                </div>
+            </div>
+        </div>
+    );
+}
 
-                    <div className="legend-item">
-                        <div className="btn-icon show-gamepad">
-                            <div className="btn-dot north"></div>
-                            <div className="btn-dot east"></div>
-                            <div className="btn-dot south active"></div>
-                            <div className="btn-dot west"></div>
-                        </div>
-                        <div className="key-icon show-keyboard">ENTER</div>
-                        <span>OK</span>
-                    </div>
+interface EmulatorSectionProps {
+    raPath: string;
+    isSaving: boolean;
+    handleBrowseRA: () => void;
+    handleTopArrowPress: (direction: string) => boolean;
+}
+
+function EmulatorSection({ raPath, isSaving, handleBrowseRA, handleTopArrowPress }: EmulatorSectionProps) {
+    return (
+        <div className="settings-card">
+            <div className="settings-section-title">Emulator Configuration</div>
+            <div className="input-group">
+                <label>RetroArch Executable</label>
+                <div>
+                    <FocusableInput
+                        className="input"
+                        value={raPath}
+                        readOnly
+                        placeholder="Not configured"
+                        focusKey="ra-path-input"
+                        onArrowPress={handleTopArrowPress}
+                    />
+                    <FocusableButton
+                        focusKey="browse-ra-button"
+                        className={`btn ${isSaving ? 'disabled' : ''}`}
+                        onClick={handleBrowseRA}
+                        onEnterPress={handleBrowseRA}
+                        onArrowPress={handleTopArrowPress}
+                        disabled={isSaving}
+                        onMouseEnter={() => getMouseActive() && !isSaving && setFocus('browse-ra-button')}
+                    >
+                        Browse
+                    </FocusableButton>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+interface LibrarySectionProps {
+    libPath: string;
+    isSaving: boolean;
+    handleBrowseLib: () => void;
+    handleSetDefaultLib: () => void;
+}
+
+function LibrarySection({ libPath, isSaving, handleBrowseLib, handleSetDefaultLib }: LibrarySectionProps) {
+    return (
+        <div className="settings-card">
+            <div className="settings-section-title">Library Configuration</div>
+            <div className="input-group">
+                <label>Local ROM Library Path</label>
+                <div>
+                    <FocusableInput
+                        className="input"
+                        value={libPath}
+                        readOnly
+                        placeholder="Not configured"
+                        focusKey="lib-path-input"
+                    />
+                    <FocusableButton
+                        focusKey="browse-lib-button"
+                        className={`btn ${isSaving ? 'disabled' : ''}`}
+                        onClick={handleBrowseLib}
+                        onEnterPress={handleBrowseLib}
+                        disabled={isSaving}
+                        onMouseEnter={() => getMouseActive() && !isSaving && setFocus('browse-lib-button')}
+                    >
+                        Browse
+                    </FocusableButton>
+                    <FocusableButton
+                        focusKey="default-lib-button"
+                        className={`btn ${isSaving ? 'disabled' : ''}`}
+                        onClick={handleSetDefaultLib}
+                        onEnterPress={handleSetDefaultLib}
+                        disabled={isSaving}
+                        onMouseEnter={() => getMouseActive() && !isSaving && setFocus('default-lib-button')}
+                    >
+                        Set Default
+                    </FocusableButton>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+const handleHover = (focusKey: string, isSaving: boolean, isUpdating?: boolean) => {
+    if (!getMouseActive()) return;
+    if (isSaving || isUpdating) return;
+    setFocus(focusKey);
+};
+
+const getBtnClassName = (isSaving: boolean, isUpdating?: boolean) => {
+    const disabled = isSaving || isUpdating;
+    return `btn ${disabled ? 'disabled' : ''}`;
+};
+
+const handleOfflineArrowPress = (direction: string) => {
+    if (direction === 'up') {
+        setFocus('update-cores-button');
+        return false;
+    }
+    return true;
+};
+
+interface MaintenanceSectionProps {
+    isSaving: boolean;
+    isUpdatingCores: boolean;
+    isUpdatingBios: boolean;
+    handleClearCache: () => void;
+    handleUpdateCores: () => void;
+    handleUpdateBios: () => void;
+}
+
+function MaintenanceSection({
+    isSaving,
+    isUpdatingCores,
+    isUpdatingBios,
+    handleClearCache,
+    handleUpdateCores,
+    handleUpdateBios
+}: MaintenanceSectionProps) {
+    return (
+        <div className="settings-card">
+            <div className="settings-section-title">Maintenance</div>
+            <SettingsRow label="Local Image Cache" desc="Refresh game covers and screenshots">
+                <FocusableButton
+                    focusKey="clear-cache-button"
+                    className={getBtnClassName(isSaving)}
+                    onClick={handleClearCache}
+                    onEnterPress={handleClearCache}
+                    disabled={isSaving}
+                    onMouseEnter={() => handleHover('clear-cache-button', isSaving)}
+                >
+                    Clear Cache
+                </FocusableButton>
+            </SettingsRow>
+            <SettingsRow label="Update Cores" desc="Re-download all downloaded cores for the latest updates">
+                <FocusableButton
+                    focusKey="update-cores-button"
+                    className={getBtnClassName(isSaving, isUpdatingCores)}
+                    onClick={handleUpdateCores}
+                    onEnterPress={handleUpdateCores}
+                    disabled={isSaving || isUpdatingCores}
+                    onMouseEnter={() => handleHover('update-cores-button', isSaving, isUpdatingCores)}
+                >
+                    {isUpdatingCores ? "Updating..." : "Update Cores"}
+                </FocusableButton>
+            </SettingsRow>
+            <SettingsRow label="Download BIOS" desc="Download latest RetroArch BIOS pack from Abdess/retrobios">
+                <FocusableButton
+                    focusKey="update-bios-button"
+                    className={getBtnClassName(isSaving, isUpdatingBios)}
+                    onClick={handleUpdateBios}
+                    onEnterPress={handleUpdateBios}
+                    disabled={isSaving || isUpdatingBios}
+                    onMouseEnter={() => handleHover('update-bios-button', isSaving, isUpdatingBios)}
+                >
+                    {isUpdatingBios ? "Downloading..." : "Download BIOS"}
+                </FocusableButton>
+            </SettingsRow>
+        </div>
+    );
+}
+
+interface OfflineSectionProps {
+    isSaving: boolean;
+    isSyncing: boolean;
+    offlineMode: boolean;
+    handleToggleOffline: () => void;
+    handleSyncMetadata: () => void;
+}
+
+function OfflineSection({
+    isSaving,
+    isSyncing,
+    offlineMode,
+    handleToggleOffline,
+    handleSyncMetadata
+}: OfflineSectionProps) {
+    const toggleStyle = {
+        minWidth: '120px',
+        backgroundColor: offlineMode ? '#4CAF50' : 'rgba(255,255,255,0.1)',
+    };
+
+    return (
+        <div className="settings-card">
+            <div className="settings-section-title">Offline Support</div>
+            <SettingsRow label="Offline Mode" desc="Enable browsing without server connection">
+                <FocusableButton
+                    focusKey="offline-toggle-button"
+                    className={getBtnClassName(isSaving)}
+                    style={toggleStyle}
+                    onClick={handleToggleOffline}
+                    onEnterPress={handleToggleOffline}
+                    onArrowPress={handleOfflineArrowPress}
+                    disabled={isSaving}
+                    onMouseEnter={() => handleHover('offline-toggle-button', isSaving)}
+                >
+                    {offlineMode ? "Enabled" : "Disabled"}
+                </FocusableButton>
+            </SettingsRow>
+            <SettingsRow label="Sync Metadata" desc="Prepare game data for offline use">
+                <FocusableButton
+                    focusKey="sync-metadata-button"
+                    className={getBtnClassName(isSaving, isSyncing)}
+                    onClick={handleSyncMetadata}
+                    onEnterPress={handleSyncMetadata}
+                    disabled={isSaving || isSyncing}
+                    onMouseEnter={() => handleHover('sync-metadata-button', isSaving, isSyncing)}
+                >
+                    {isSyncing ? "Syncing..." : "Sync Now"}
+                </FocusableButton>
+            </SettingsRow>
+        </div>
+    );
+}
+
+interface RetroAchievementsSectionProps {
+    cheevosUser: string;
+    setCheevosUser: (val: string) => void;
+    cheevosPass: string;
+    setCheevosPass: (val: string) => void;
+}
+
+function RetroAchievementsSection({
+    cheevosUser,
+    setCheevosUser,
+    cheevosPass,
+    setCheevosPass
+}: RetroAchievementsSectionProps) {
+    return (
+        <div className="settings-card">
+            <div className="settings-section-title">RetroAchievements</div>
+            <div className="input-group">
+                <label htmlFor="cheevosUser">Username</label>
+                <FocusableInput
+                    id="cheevosUser"
+                    focusKey="cheevos-user-input"
+                    className="input"
+                    value={cheevosUser}
+                    onChange={(e) => setCheevosUser(e.target.value)}
+                    autoComplete="off"
+                />
+            </div>
+            <div className="input-group">
+                <label htmlFor="cheevosPass">Password</label>
+                <FocusableInput
+                    id="cheevosPass"
+                    focusKey="cheevos-pass-input"
+                    className="input"
+                    type="password"
+                    value={cheevosPass}
+                    onChange={(e) => setCheevosPass(e.target.value)}
+                    autoComplete="off"
+                />
+            </div>
+        </div>
+    );
+}
+
+interface RomMConnectionSectionProps {
+    clientToken: string;
+    setClientToken: (val: string) => void;
+}
+
+function RomMConnectionSection({ clientToken, setClientToken }: RomMConnectionSectionProps) {
+    return (
+        <div className="settings-card">
+            <div className="settings-section-title">RomM Connection</div>
+            <div className="input-group">
+                <label htmlFor="clientToken">Client Token</label>
+                <FocusableInput
+                    id="clientToken"
+                    focusKey="client-token-input"
+                    className="input"
+                    value={clientToken}
+                    onChange={(e) => setClientToken(e.target.value)}
+                    autoComplete="off"
+                    placeholder="rmm_..."
+                />
+                <div className="input-help-text" style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: '0.5rem' }}>
+                    A persistent token for stable connection. The app can auto-generate this if you login normally, or you can paste one from RomM Settings.
                 </div>
             </div>
         </div>
