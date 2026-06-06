@@ -84,7 +84,7 @@ function handleExitCombo(gp: Gamepad) {
 }
 
 export function useGamepad() {
-    const prevButtonsRef = useRef<Record<number, boolean>>({});
+    const prevButtonsRef = useRef<Record<number, Record<number, boolean>>>({});
     const lastInputTime = useRef(0);
     const requestRef = useRef<number>(0);
     const isPlayingRef = useRef(false);
@@ -110,10 +110,10 @@ export function useGamepad() {
 
             handleDPad(gp, triggerKey);
             handleAxes(gp, triggerKey);
-            const currentButtons = handleActionButtons(gp, prevButtonsRef.current, triggerKey);
+            const currentButtons = handleActionButtons(gp, prevButtonsRef.current[gp.index] || {}, triggerKey);
             handleExitCombo(gp);
 
-            prevButtonsRef.current = currentButtons;
+            prevButtonsRef.current[gp.index] = currentButtons;
         }
 
         requestRef.current = requestAnimationFrame(scanGamepads);

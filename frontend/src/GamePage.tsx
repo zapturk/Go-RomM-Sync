@@ -135,7 +135,7 @@ function useGameSavesAndStates(
         GetServerStates(gameId).then(res => setServerStates(res || [])).catch(console.error);
     }, [gameId]);
 
-    const focusFallbackAfterDeletion = (
+    const focusFallbackAfterDeletion = useCallback((
         primaryList: any[],
         secondaryList: any[],
         index: number,
@@ -152,9 +152,9 @@ function useGameSavesAndStates(
         } else {
             setFocus('download-button');
         }
-    };
+    }, [isDownloaded]);
 
-    const syncFiles = async (
+    const syncFiles = useCallback(async (
         type: 'saves' | 'states',
         localList: any[],
         serverList: any[],
@@ -182,9 +182,9 @@ function useGameSavesAndStates(
         }
         setSuccessStatus(`Smart sync for ${type} complete!`);
         fetchAppData();
-    };
+    }, [gameId, fetchAppData, setSuccessStatus, setDownloadStatus]);
 
-    const handleDeleteSave = (core: string, name: string, index: number) => {
+    const handleDeleteSave = useCallback((core: string, name: string, index: number) => {
         DeleteSave(gameId, core, name).then(() => {
             GetSaves(gameId).then(res => {
                 const newSaves = res || [];
@@ -193,9 +193,9 @@ function useGameSavesAndStates(
             }).catch(console.error);
             setSuccessStatus("Save deleted.");
         }).catch((err: string) => setDownloadStatus(`Error deleting save: ${err}`));
-    };
+    }, [gameId, states, focusFallbackAfterDeletion, setSuccessStatus, setDownloadStatus]);
 
-    const handleDeleteState = (core: string, name: string, index: number) => {
+    const handleDeleteState = useCallback((core: string, name: string, index: number) => {
         DeleteState(gameId, core, name).then(() => {
             GetStates(gameId).then(res => {
                 const newStates = res || [];
@@ -204,9 +204,9 @@ function useGameSavesAndStates(
             }).catch(console.error);
             setSuccessStatus("State deleted.");
         }).catch((err: string) => setDownloadStatus(`Error deleting state: ${err}`));
-    };
+    }, [gameId, saves, focusFallbackAfterDeletion, setSuccessStatus, setDownloadStatus]);
 
-    const handleUploadSave = (core: string, name: string) => {
+    const handleUploadSave = useCallback((core: string, name: string) => {
         setDownloadStatus(`Uploading save ${name}...`);
         UploadSave(gameId, core, name).then(() => {
             setSuccessStatus("Save uploaded successfully to RomM!");
@@ -214,9 +214,9 @@ function useGameSavesAndStates(
         }).catch((err: string) => {
             setDownloadStatus(`Upload error: ${err}`);
         });
-    };
+    }, [gameId, fetchAppData, setSuccessStatus, setDownloadStatus]);
 
-    const handleUploadState = (core: string, name: string) => {
+    const handleUploadState = useCallback((core: string, name: string) => {
         setDownloadStatus(`Uploading state ${name}...`);
         UploadState(gameId, core, name).then(() => {
             setSuccessStatus("State uploaded successfully to RomM!");
@@ -224,9 +224,9 @@ function useGameSavesAndStates(
         }).catch((err: string) => {
             setDownloadStatus(`Upload error: ${err}`);
         });
-    };
+    }, [gameId, fetchAppData, setSuccessStatus, setDownloadStatus]);
 
-    const handleDownloadServerSave = (save: types.ServerSave) => {
+    const handleDownloadServerSave = useCallback((save: types.ServerSave) => {
         setDownloadStatus(`Downloading save ${save.file_name}...`);
         const cleanFileName = save.file_name.replace(TIMESTAMP_REGEX, "");
         DownloadServerSave(gameId, save.id, save.emulator, cleanFileName, save.updated_at).then(() => {
@@ -235,9 +235,9 @@ function useGameSavesAndStates(
         }).catch((err: string) => {
             setDownloadStatus(`Download error: ${err}`);
         });
-    };
+    }, [gameId, fetchAppData, setSuccessStatus, setDownloadStatus]);
 
-    const handleDownloadServerState = (state: types.ServerState) => {
+    const handleDownloadServerState = useCallback((state: types.ServerState) => {
         setDownloadStatus(`Downloading state ${state.file_name}...`);
         const cleanFileName = state.file_name.replace(TIMESTAMP_REGEX, "");
         DownloadServerState(gameId, state.id, state.emulator, cleanFileName, state.updated_at).then(() => {
@@ -246,18 +246,23 @@ function useGameSavesAndStates(
         }).catch((err: string) => {
             setDownloadStatus(`Download error: ${err}`);
         });
-    };
+    }, [gameId, fetchAppData, setSuccessStatus, setDownloadStatus]);
 
-    const handleSyncSaves = () => syncFiles('saves', saves, serverSaves, UploadSave, DownloadServerSave);
-    const handleSyncStates = () => syncFiles('states', states, serverStates, UploadState, DownloadServerState);
+    const handleSyncSaves = useCallback(() => {
+        return syncFiles('saves', saves, serverSaves, UploadSave, DownloadServerSave);
+    }, [syncFiles, saves, serverSaves]);
 
-    const handleSmartSync = async () => {
+    const handleSyncStates = useCallback(() => {
+        return syncFiles('states', states, serverStates, UploadState, DownloadServerState);
+    }, [syncFiles, states, serverStates]);
+
+    const handleSmartSync = useCallback(async () => {
         if (offlineMode) return;
         setDownloadStatus("Starting full smart sync...");
         await handleSyncSaves();
         await handleSyncStates();
         setSuccessStatus("Smart sync complete!");
-    };
+    }, [offlineMode, handleSyncSaves, handleSyncStates, setDownloadStatus, setSuccessStatus]);
 
     const hasSavesOrStates = serverSaves.length > 0 || saves.length > 0 || serverStates.length > 0 || states.length > 0;
 

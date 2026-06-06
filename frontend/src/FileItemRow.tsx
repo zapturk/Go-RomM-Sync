@@ -182,7 +182,7 @@ const FileItemRowActions = ({
                 <DeleteButton
                     focusKeyPrefix={focusKeyPrefix}
                     onAction={onDelete}
-                    onUpload={onUpload}
+                    onUpload={isOffline ? undefined : onUpload}
                     onDownload={onDownload}
                 />
             )}
@@ -194,7 +194,7 @@ export const FileItemRow = ({ item, onDelete, onUpload, onDownload, focusKeyPref
     const { ref: rowRef } = useFocusable({
         focusKey: isDisabled ? undefined : focusKeyPrefix,
         onFocus: () => {
-            const target = getFocusTarget(onUpload, onDownload, onDelete, focusKeyPrefix);
+            const target = getFocusTarget(isOffline ? undefined : onUpload, onDownload, onDelete, focusKeyPrefix);
             if (target) setFocus(target);
         }
     });
