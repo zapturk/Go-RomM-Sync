@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { types } from "../../../wailsjs/go/models";
 import { GameCard } from "../../GameCard";
 import { useFocusable, setFocus, getCurrentFocusKey } from '@noriginmedia/norigin-spatial-navigation';
@@ -20,6 +20,127 @@ interface GameGridViewProps {
     onSearchChange: (value: string) => void;
     gridRef: React.RefObject<HTMLDivElement | null>;
     isActive: boolean;
+}
+
+const shouldSkipGameFocus = (currentFocus: string | null): boolean => {
+    if (!currentFocus) return false;
+    return currentFocus.startsWith('game-') || currentFocus === 'prev-page' || currentFocus === 'next-page';
+};
+
+const getTargetGameId = (games: types.Game[], lastViewedGameId: number | null): number => {
+    if (lastViewedGameId && games.some(g => g.id === lastViewedGameId)) {
+        return lastViewedGameId;
+    }
+    return games[0].id;
+};
+
+const handleSearchInputKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    games: types.Game[],
+    searchInputRef: React.RefObject<HTMLInputElement | null>
+) => {
+    switch (e.key) {
+        case 'Enter':
+            e.stopPropagation();
+            break;
+        case 'Escape':
+            searchInputRef.current?.blur();
+            if (games.length > 0) {
+                setFocus(`game-${games[0].id}`);
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            break;
+        case 'ArrowDown':
+            if (games.length > 0) {
+                setFocus(`game-${games[0].id}`);
+                e.preventDefault();
+            }
+            break;
+    }
+};
+
+interface GamePaginationProps {
+    isLoading: boolean;
+    offset: number;
+    pageSize: number;
+    totalGames: number;
+    onPageChange: (newOffset: number) => void;
+}
+
+function GamePagination({ isLoading, offset, pageSize, totalGames, onPageChange }: GamePaginationProps) {
+    if (isLoading) return null;
+    const hasPrev = offset > 0;
+    const hasNext = offset + pageSize < totalGames;
+    if (!hasPrev && !hasNext) return null;
+
+    return (
+        <div className="pagination-controls">
+            {hasPrev && (
+                <FocusableButton
+                    focusKey="prev-page"
+                    className="btn pagination-btn"
+                    onEnterPress={() => onPageChange(offset - pageSize)}
+                    onClick={() => onPageChange(offset - pageSize)}
+                    onMouseEnter={() => {
+                        if (getMouseActive()) setFocus('prev-page');
+                    }}
+                >
+                    Previous
+                </FocusableButton>
+            )}
+            {hasNext && (
+                <FocusableButton
+                    focusKey="next-page"
+                    className="btn pagination-btn"
+                    onEnterPress={() => onPageChange(offset + pageSize)}
+                    onClick={() => onPageChange(offset + pageSize)}
+                    onMouseEnter={() => {
+                        if (getMouseActive()) setFocus('next-page');
+                    }}
+                >
+                    Next
+                </FocusableButton>
+            )}
+        </div>
+    );
+}
+
+interface GameGridContentProps {
+    isLoading: boolean;
+    games: types.Game[];
+    columns: number;
+    onSelectGame: (game: types.Game) => void;
+}
+
+function GameGridContent({ isLoading, games, columns, onSelectGame }: GameGridContentProps) {
+    if (isLoading) {
+        return (
+            <div style={{ padding: '40px', textAlign: 'center', width: '100%', opacity: 0.6 }}>
+                Loading games...
+            </div>
+        );
+    }
+    if (games.length === 0) {
+        return (
+            <div style={{ padding: '40px', textAlign: 'center', width: '100%', opacity: 0.6 }}>
+                No games found for this platform.
+            </div>
+        );
+    }
+    return (
+        <>
+            {games.map((game, index) => (
+                <GameCard
+                    key={game.id}
+                    game={game}
+                    isLeftmost={index % columns === 0}
+                    isTopRow={index < columns}
+                    onClick={() => onSelectGame(game)}
+                />
+            ))}
+        </>
+    );
 }
 
 export function GameGridView({
@@ -60,34 +181,18 @@ export function GameGridView({
     }, [localSearch]);
 
     useEffect(() => {
-        let timerId: ReturnType<typeof setTimeout> | undefined;
+        if (!isActive || isLoading || games.length === 0) return;
 
-        if (isActive && !isLoading && games.length > 0) {
-            timerId = setTimeout(() => {
-                const currentFocus = getCurrentFocusKey();
-                if (currentFocus && (currentFocus.startsWith('game-') || currentFocus === 'prev-page' || currentFocus === 'next-page')) {
-                    return;
-                }
+        const timerId = setTimeout(() => {
+            const currentFocus = getCurrentFocusKey();
+            if (shouldSkipGameFocus(currentFocus)) return;
+            if (document.activeElement === searchInputRef.current) return;
 
-                // Don't auto-focus game list if we are already searching
-                if (document.activeElement === searchInputRef.current) {
-                    return;
-                }
+            setFocus(`game-${getTargetGameId(games, lastViewedGameId)}`);
+        }, 100);
 
-                if (lastViewedGameId && games.some(g => g.id === lastViewedGameId)) {
-                    setFocus(`game-${lastViewedGameId}`);
-                } else {
-                    setFocus(`game-${games[0].id}`);
-                }
-            }, 100);
-        }
-
-        return () => {
-            if (timerId) {
-                clearTimeout(timerId);
-            }
-        };
-    }, [games.length, isLoading, lastViewedGameId, isActive]);
+        return () => clearTimeout(timerId);
+    }, [games, isLoading, lastViewedGameId, isActive]);
 
     return (
         <div className="game-grid-view" ref={ref}>
@@ -102,27 +207,7 @@ export function GameGridView({
                         placeholder="Search games..."
                         value={localSearch}
                         onChange={(e) => setLocalSearch(e.target.value)}
-                        onKeyDown={(e) => {
-                            switch (e.key) {
-                                case 'Enter':
-                                    e.stopPropagation();
-                                    break;
-                                case 'Escape':
-                                    searchInputRef.current?.blur();
-                                    if (games.length > 0) {
-                                        setFocus(`game-${games[0].id}`);
-                                    }
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    break;
-                                case 'ArrowDown':
-                                    if (games.length > 0) {
-                                        setFocus(`game-${games[0].id}`);
-                                        e.preventDefault();
-                                    }
-                                    break;
-                            }
-                        }}
+                        onKeyDown={(e) => handleSearchInputKeyDown(e, games, searchInputRef)}
                     />
                 </div>
 
@@ -132,57 +217,21 @@ export function GameGridView({
             </div>
 
             <div className="grid-container" ref={gridRef}>
-                {isLoading ? (
-                    <div style={{ padding: '40px', textAlign: 'center', width: '100%', opacity: 0.6 }}>
-                        Loading games...
-                    </div>
-                ) : games.length > 0 ? (
-                    games.map((game, index) => (
-                        <GameCard
-                            key={game.id}
-                            game={game}
-                            isLeftmost={index % columns === 0}
-                            isTopRow={index < columns}
-                            onClick={() => onSelectGame(game)}
-                        />
-                    ))
-                ) : (
-                    <div style={{ padding: '40px', textAlign: 'center', width: '100%', opacity: 0.6 }}>
-                        No games found for this platform.
-                    </div>
-                )}
+                <GameGridContent
+                    isLoading={isLoading}
+                    games={games}
+                    columns={columns}
+                    onSelectGame={onSelectGame}
+                />
             </div>
 
-            {!isLoading && (offset > 0 || (offset + pageSize < totalGames)) && (
-                <div className="pagination-controls">
-                    {offset > 0 && (
-                        <FocusableButton
-                            focusKey="prev-page"
-                            className="btn pagination-btn"
-                            onEnterPress={() => onPageChange(offset - pageSize)}
-                            onClick={() => onPageChange(offset - pageSize)}
-                            onMouseEnter={() => {
-                                if (getMouseActive()) setFocus('prev-page');
-                            }}
-                        >
-                            Previous
-                        </FocusableButton>
-                    )}
-                    {offset + pageSize < totalGames && (
-                        <FocusableButton
-                            focusKey="next-page"
-                            className="btn pagination-btn"
-                            onEnterPress={() => onPageChange(offset + pageSize)}
-                            onClick={() => onPageChange(offset + pageSize)}
-                            onMouseEnter={() => {
-                                if (getMouseActive()) setFocus('next-page');
-                            }}
-                        >
-                            Next
-                        </FocusableButton>
-                    )}
-                </div>
-            )}
+            <GamePagination
+                isLoading={isLoading}
+                offset={offset}
+                pageSize={pageSize}
+                totalGames={totalGames}
+                onPageChange={onPageChange}
+            />
         </div>
     );
 }

@@ -24,6 +24,90 @@ interface PlatformGridViewProps {
     isActive: boolean;
 }
 
+const shouldSkipFocus = (currentFocus: string | null): boolean => {
+    if (!currentFocus) return false;
+    return currentFocus.startsWith('platform-') || IGNORED_FOCUS_KEYS.includes(currentFocus);
+};
+
+const getTargetPlatformId = (platforms: types.Platform[], lastViewedPlatformId: number | null): number => {
+    if (lastViewedPlatformId && platforms.some(p => p.id === lastViewedPlatformId)) {
+        return lastViewedPlatformId;
+    }
+    return platforms[0].id;
+};
+
+interface PlatformPaginationProps {
+    isLoading: boolean;
+    offset: number;
+    pageSize: number;
+    totalPlatforms: number;
+    onPageChange: (newOffset: number) => void;
+}
+
+function PlatformPagination({ isLoading, offset, pageSize, totalPlatforms, onPageChange }: PlatformPaginationProps) {
+    if (isLoading) return null;
+    const hasPrev = offset > 0;
+    const hasNext = offset + pageSize < totalPlatforms;
+    if (!hasPrev && !hasNext) return null;
+
+    return (
+        <div className="pagination-controls">
+            {hasPrev && (
+                <FocusableButton
+                    focusKey="prev-plats-page"
+                    className="btn pagination-btn"
+                    onEnterPress={() => onPageChange(offset - pageSize)}
+                    onClick={() => onPageChange(offset - pageSize)}
+                    onMouseEnter={() => {
+                        if (getMouseActive()) setFocus('prev-plats-page');
+                    }}
+                >
+                    Previous
+                </FocusableButton>
+            )}
+            {hasNext && (
+                <FocusableButton
+                    focusKey="next-plats-page"
+                    className="btn pagination-btn"
+                    onEnterPress={() => onPageChange(offset + pageSize)}
+                    onClick={() => onPageChange(offset + pageSize)}
+                    onMouseEnter={() => {
+                        if (getMouseActive()) setFocus('next-plats-page');
+                    }}
+                >
+                    Next
+                </FocusableButton>
+            )}
+        </div>
+    );
+}
+
+interface PlatformEmptyStateProps {
+    platformsCount: number;
+    isLoading: boolean;
+    onOpenSettings: () => void;
+}
+
+function PlatformEmptyState({ platformsCount, isLoading, onOpenSettings }: PlatformEmptyStateProps) {
+    if (platformsCount !== 0 || isLoading) return null;
+    return (
+        <div className="empty-state-container">
+            <div className="empty-state-card">
+                <div className="empty-state-icon">🎮</div>
+                <h2>No platforms found</h2>
+                <p>Your library is empty. Please check your RomM host and local library path in settings to connect your collection.</p>
+                <button
+                    className="btn play-btn"
+                    style={{ marginTop: '1.5rem', width: 'auto', padding: '10px 30px' }}
+                    onClick={onOpenSettings}
+                >
+                    Open Settings
+                </button>
+            </div>
+        </div>
+    );
+}
+
 export function PlatformGridView({
     platforms,
     isLoading,
@@ -56,39 +140,29 @@ export function PlatformGridView({
     });
 
     useEffect(() => {
+        if (!isActive) return;
+
         let timerId: ReturnType<typeof setTimeout> | undefined;
 
-        if (isActive) {
-            if (platforms.length > 0) {
-                timerId = setTimeout(() => {
-                    const currentFocus = getCurrentFocusKey();
-                    if (currentFocus && (currentFocus.startsWith('platform-') || IGNORED_FOCUS_KEYS.includes(currentFocus))) {
-                        return;
-                    }
-
-                    if (lastViewedPlatformId && platforms.some(p => p.id === lastViewedPlatformId)) {
-                        setFocus(`platform-${lastViewedPlatformId}`);
-                    } else {
-                        setFocus(`platform-${platforms[0].id}`);
-                    }
-                }, 100);
-            } else if (!isLoading) {
-                timerId = setTimeout(() => {
-                    const currentFocus = getCurrentFocusKey();
-                    if (currentFocus === 'config-button') {
-                        return;
-                    }
+        if (platforms.length > 0) {
+            timerId = setTimeout(() => {
+                const currentFocus = getCurrentFocusKey();
+                if (!shouldSkipFocus(currentFocus)) {
+                    setFocus(`platform-${getTargetPlatformId(platforms, lastViewedPlatformId)}`);
+                }
+            }, 100);
+        } else if (!isLoading) {
+            timerId = setTimeout(() => {
+                if (getCurrentFocusKey() !== 'config-button') {
                     focusConfig();
-                }, 100);
-            }
+                }
+            }, 100);
         }
 
         return () => {
-            if (timerId) {
-                clearTimeout(timerId);
-            }
+            if (timerId) clearTimeout(timerId);
         };
-    }, [platforms.length, lastViewedPlatformId, isLoading, focusConfig, isActive]);
+    }, [platforms, lastViewedPlatformId, isLoading, focusConfig, isActive]);
 
     return (
         <div className="platform-grid-view" ref={ref}>
@@ -125,53 +199,19 @@ export function PlatformGridView({
                 ))}
             </div>
 
-            {!isLoading && (offset > 0 || (offset + pageSize < totalPlatforms)) && (
-                <div className="pagination-controls">
-                    {offset > 0 && (
-                        <FocusableButton
-                            focusKey="prev-plats-page"
-                            className="btn pagination-btn"
-                            onEnterPress={() => onPageChange(offset - pageSize)}
-                            onClick={() => onPageChange(offset - pageSize)}
-                            onMouseEnter={() => {
-                                if (getMouseActive()) setFocus('prev-plats-page');
-                            }}
-                        >
-                            Previous
-                        </FocusableButton>
-                    )}
-                    {offset + pageSize < totalPlatforms && (
-                        <FocusableButton
-                            focusKey="next-plats-page"
-                            className="btn pagination-btn"
-                            onEnterPress={() => onPageChange(offset + pageSize)}
-                            onClick={() => onPageChange(offset + pageSize)}
-                            onMouseEnter={() => {
-                                if (getMouseActive()) setFocus('next-plats-page');
-                            }}
-                        >
-                            Next
-                        </FocusableButton>
-                    )}
-                </div>
-            )}
+            <PlatformPagination
+                isLoading={isLoading}
+                offset={offset}
+                pageSize={pageSize}
+                totalPlatforms={totalPlatforms}
+                onPageChange={onPageChange}
+            />
 
-            {platforms.length === 0 && !isLoading && (
-                <div className="empty-state-container">
-                    <div className="empty-state-card">
-                        <div className="empty-state-icon">🎮</div>
-                        <h2>No platforms found</h2>
-                        <p>Your library is empty. Please check your RomM host and local library path in settings to connect your collection.</p>
-                        <button
-                            className="btn play-btn"
-                            style={{ marginTop: '1.5rem', width: 'auto', padding: '10px 30px' }}
-                            onClick={onOpenSettings}
-                        >
-                            Open Settings
-                        </button>
-                    </div>
-                </div>
-            )}
+            <PlatformEmptyState
+                platformsCount={platforms.length}
+                isLoading={isLoading}
+                onOpenSettings={onOpenSettings}
+            />
         </div>
     );
 }

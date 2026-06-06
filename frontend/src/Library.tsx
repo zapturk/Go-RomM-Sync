@@ -7,11 +7,66 @@ import { PlatformGridView } from "./views/Library/PlatformGridView";
 import { GameGridView } from "./views/Library/GameGridView";
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 import { LegendItem } from './components/LegendItem';
-
 interface LibraryProps {
     onOpenSettings: () => void;
     isActive?: boolean;
 }
+const isTypingActive = (): boolean => {
+    const el = document.activeElement;
+    return el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA';
+};
+
+const isRefreshKey = (key: string): boolean => 
+    key === 'r' || key === 'R';
+
+const handleLibraryNavigation = (
+    e: KeyboardEvent,
+    selectedGameId: number | null,
+    selectedPlatform: string | null,
+    offset: number,
+    platformOffset: number,
+    totalGames: number,
+    totalPlatforms: number,
+    pageSize: number,
+    setSelectedGameId: (id: number | null) => void,
+    setSelectedPlatform: (p: string | null) => void,
+    handlePageChange: (offset: number) => void,
+    handlePlatformPageChange: (offset: number) => void
+) => {
+    if (selectedGameId) {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            setSelectedGameId(null);
+        }
+        return;
+    }
+
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        if (selectedPlatform) setSelectedPlatform(null);
+        return;
+    }
+
+    if (e.key === 'PageUp') {
+        e.preventDefault();
+        if (selectedPlatform && offset > 0) {
+            handlePageChange(offset - pageSize);
+        } else if (!selectedPlatform && platformOffset > 0) {
+            handlePlatformPageChange(platformOffset - pageSize);
+        }
+        return;
+    }
+
+    if (e.key === 'PageDown') {
+        e.preventDefault();
+        if (selectedPlatform && offset + pageSize < totalGames) {
+            handlePageChange(offset + pageSize);
+        } else if (!selectedPlatform && platformOffset + pageSize < totalPlatforms) {
+            handlePlatformPageChange(platformOffset + pageSize);
+        }
+        return;
+    }
+};
 
 function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     const [games, setGames] = useState<types.Game[]>([]);
@@ -115,35 +170,20 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (!isActive) return;
-
-            switch (e.key) {
-                case 'Escape':
-                    e.preventDefault();
-                    if (selectedGameId) {
-                        setSelectedGameId(null);
-                    } else if (selectedPlatform) {
-                        setSelectedPlatform(null);
-                    }
-                    break;
-                case 'PageUp':
-                    e.preventDefault();
-                    if (selectedGameId) return;
-                    if (selectedPlatform) {
-                        if (offset > 0) handlePageChange(offset - PAGE_SIZE);
-                    } else {
-                        if (platformOffset > 0) handlePlatformPageChange(platformOffset - PAGE_SIZE);
-                    }
-                    break;
-                case 'PageDown':
-                    e.preventDefault();
-                    if (selectedGameId) return;
-                    if (selectedPlatform) {
-                        if (offset + PAGE_SIZE < totalGames) handlePageChange(offset + PAGE_SIZE);
-                    } else {
-                        if (platformOffset + PAGE_SIZE < totalPlatforms) handlePlatformPageChange(platformOffset + PAGE_SIZE);
-                    }
-                    break;
-            }
+            handleLibraryNavigation(
+                e,
+                selectedGameId,
+                selectedPlatform,
+                offset,
+                platformOffset,
+                totalGames,
+                totalPlatforms,
+                PAGE_SIZE,
+                setSelectedGameId,
+                setSelectedPlatform,
+                handlePageChange,
+                handlePlatformPageChange
+            );
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
@@ -165,12 +205,9 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (!isActive) return;
+            if (isTypingActive()) return;
 
-            // Don't trigger sync if we're typing in an input
-            const activeElement = document.activeElement;
-            const isTyping = activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA';
-
-            if (!isTyping && (e.key === 'r' || e.key === 'R')) {
+            if (isRefreshKey(e.key)) {
                 e.preventDefault();
                 refreshLibrary();
             }
@@ -198,110 +235,110 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
 
     const currentPlatformObj = platforms.find(p => p.name === selectedPlatform);
 
+    if (selectedGameId) {
+        return (
+            <GamePage
+                gameId={selectedGameId}
+                onBack={() => setSelectedGameId(null)}
+            />
+        );
+    }
+
     return (
         <div id="library-root" ref={ref} style={{ height: '100%' }}>
-            {selectedGameId ? (
-                <GamePage
-                    gameId={selectedGameId}
-                    onBack={() => setSelectedGameId(null)}
-                />
-            ) : (
-                <div id="library">
-                    <div className="library-header-extras" style={{ top: '2rem', right: '8rem' }}>
-                        {offlineMode && (
-                            <div className="offline-badge">
-                                Offline Mode
-                            </div>
-                        )}
-                    </div>
-                    {!selectedPlatform || !currentPlatformObj ? (
-                        <PlatformGridView
-                            platforms={sortedPlatforms}
-                            isLoading={isLoading}
-                            isActive={isActive}
-                            offset={platformOffset}
-                            totalPlatforms={totalPlatforms}
-                            pageSize={PAGE_SIZE}
-                            onSelectPlatform={(p) => {
-                                setSelectedPlatform(p.name);
-                                lastViewedPlatformId.current = p.id;
-                            }}
-                            onPageChange={handlePlatformPageChange}
-                            onOpenSettings={onOpenSettings}
-                            columns={columns}
-                            syncTrigger={syncTrigger}
-                            lastViewedPlatformId={lastViewedPlatformId.current}
-                            gridRef={gridRef}
-                        />
-                    ) : (
-                        <GameGridView
-                            platform={currentPlatformObj}
-                            games={games}
-                            isLoading={isLoading}
-                            isActive={isActive}
-                            offset={offset}
-                            totalGames={totalGames}
-                            pageSize={PAGE_SIZE}
-                            columns={columns}
-                            lastViewedGameId={lastViewedGameId.current}
-                            onSelectGame={(g) => {
-                                setSelectedGameId(g.id);
-                                lastViewedGameId.current = g.id;
-                            }}
-                            onPageChange={handlePageChange}
-                            searchTerm={searchTerm}
-                            onSearchChange={setSearchTerm}
-                            gridRef={gridRef}
-                        />
-                    )}
-
-                    <div className="input-legend">
-                        <div className="footer-left">
-                            <span>{status}</span>
+            <div id="library">
+                <div className="library-header-extras" style={{ top: '2rem', right: '8rem' }}>
+                    {offlineMode && (
+                        <div className="offline-badge">
+                            Offline Mode
                         </div>
-                        <div className="footer-right">
-                            {!selectedGameId && (
-                                <div className="legend-item">
-                                    <div className="show-gamepad">
-                                        <div className="icon-group">
-                                            <div className="pill-icon">LB</div>
-                                            <div className="pill-icon">RB</div>
-                                        </div>
-                                    </div>
-                                    <div className="show-keyboard">
-                                        <div className="icon-group">
-                                            <div className="key-icon" style={{ width: 'auto', padding: '0 4px' }}>PgUp</div>
-                                            <div className="key-icon" style={{ width: 'auto', padding: '0 4px' }}>PgDn</div>
-                                        </div>
-                                    </div>
-                                    <span>Page</span>
+                    )}
+                </div>
+                {!selectedPlatform || !currentPlatformObj ? (
+                    <PlatformGridView
+                        platforms={sortedPlatforms}
+                        isLoading={isLoading}
+                        isActive={isActive}
+                        offset={platformOffset}
+                        totalPlatforms={totalPlatforms}
+                        pageSize={PAGE_SIZE}
+                        onSelectPlatform={(p) => {
+                            setSelectedPlatform(p.name);
+                            lastViewedPlatformId.current = p.id;
+                        }}
+                        onPageChange={handlePlatformPageChange}
+                        onOpenSettings={onOpenSettings}
+                        columns={columns}
+                        syncTrigger={syncTrigger}
+                        lastViewedPlatformId={lastViewedPlatformId.current}
+                        gridRef={gridRef}
+                    />
+                ) : (
+                    <GameGridView
+                        platform={currentPlatformObj}
+                        games={games}
+                        isLoading={isLoading}
+                        isActive={isActive}
+                        offset={offset}
+                        totalGames={totalGames}
+                        pageSize={PAGE_SIZE}
+                        columns={columns}
+                        lastViewedGameId={lastViewedGameId.current}
+                        onSelectGame={(g) => {
+                            setSelectedGameId(g.id);
+                            lastViewedGameId.current = g.id;
+                        }}
+                        onPageChange={handlePageChange}
+                        searchTerm={searchTerm}
+                        onSearchChange={setSearchTerm}
+                        gridRef={gridRef}
+                    />
+                )}
+
+                <div className="input-legend">
+                    <div className="footer-left">
+                        <span>{status}</span>
+                    </div>
+                    <div className="footer-right">
+                        <div className="legend-item">
+                            <div className="show-gamepad">
+                                <div className="icon-group">
+                                    <div className="pill-icon">LB</div>
+                                    <div className="pill-icon">RB</div>
                                 </div>
-                            )}
-
-                            <LegendItem buttonAction="west" keyLabel="R" label="Sync" />
-
-                            {selectedPlatform && (
-                                <LegendItem buttonAction="east" keyLabel="ESC" label="Back" />
-                            )}
-
-                            <LegendItem buttonAction="south" keyLabel="ENTER" label="OK" />
-
-                            <div className="legend-item">
-                                <div className="show-gamepad">
-                                    <div className="icon-group">
-                                        <div className="pill-icon">SELECT</div>
-                                        <div className="pill-icon">START</div>
-                                    </div>
-                                </div>
-                                <div className="key-icon show-keyboard" style={{ width: 'auto', padding: '0 4px' }}>
-                                    {navigator.userAgent.includes('Mac') ? 'CMD + Q' : 'ALT + F4'}
-                                </div>
-                                <span>Exit</span>
                             </div>
+                            <div className="show-keyboard">
+                                <div className="icon-group">
+                                    <div className="key-icon" style={{ width: 'auto', padding: '0 4px' }}>PgUp</div>
+                                    <div className="key-icon" style={{ width: 'auto', padding: '0 4px' }}>PgDn</div>
+                                </div>
+                            </div>
+                            <span>Page</span>
+                        </div>
+
+                        <LegendItem buttonAction="west" keyLabel="R" label="Sync" />
+
+                        {selectedPlatform && (
+                            <LegendItem buttonAction="east" keyLabel="ESC" label="Back" />
+                        )}
+
+                        <LegendItem buttonAction="south" keyLabel="ENTER" label="OK" />
+
+                        <div className="legend-item">
+                            <div className="show-gamepad">
+                                <div className="icon-group">
+                                    <div className="pill-icon">SELECT</div>
+                                    <div className="pill-icon">START</div>
+                                </div>
+                            </div>
+                            <div className="key-icon show-keyboard" style={{ width: 'auto', padding: '0 4px' }}>
+                                {navigator.userAgent.includes('Mac') ? 'CMD + Q' : 'ALT + F4'}
+                            </div>
+                            <span>Exit</span>
                         </div>
                     </div>
                 </div>
-            )}
+            </div>
         </div>
     );
 }

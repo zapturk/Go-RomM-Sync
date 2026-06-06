@@ -73,6 +73,26 @@ const getTargetFirmware = (firmwares: types.Firmware[], id: number): types.Firmw
     return firmwares.find(f => f.id === id) || null;
 };
 
+enum SyncAction {
+    Upload,
+    Download,
+    None
+}
+
+const determineSyncAction = (local?: any, server?: any): SyncAction => {
+    if (!local) {
+        return server ? SyncAction.Download : SyncAction.None;
+    }
+    if (!server) {
+        return SyncAction.Upload;
+    }
+    const localTime = getItemTime(local);
+    const serverTime = getItemTime(server);
+    if (localTime > serverTime) return SyncAction.Upload;
+    if (serverTime > localTime) return SyncAction.Download;
+    return SyncAction.None;
+};
+
 const handleEscapeKey = (
     e: KeyboardEvent,
     isPickerOpen: boolean,
@@ -153,17 +173,10 @@ function useGameSavesAndStates(
             const local = localList.find(s => s.name === name);
             const serverClean = serverList.find(s => s.file_name.replace(TIMESTAMP_REGEX, "") === name);
 
-            if (local && serverClean) {
-                const localTime = new Date(local.updated_at || "").getTime();
-                const serverTime = new Date(serverClean.updated_at || "").getTime();
-                if (localTime > serverTime) {
-                    await uploadFn(gameId, local.core, local.name).catch(console.error);
-                } else if (serverTime > localTime) {
-                    await downloadFn(gameId, serverClean.id, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
-                }
-            } else if (local && !serverClean) {
+            const action = determineSyncAction(local, serverClean);
+            if (action === SyncAction.Upload && local) {
                 await uploadFn(gameId, local.core, local.name).catch(console.error);
-            } else if (!local && serverClean) {
+            } else if (action === SyncAction.Download && serverClean) {
                 await downloadFn(gameId, serverClean.id, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
             }
         }
@@ -849,6 +862,38 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     );
 }
 
+const handleDownloadButtonArrowPress = (direction: string, hasSaves: boolean, onFocusSaves: () => void) => {
+    if (direction === 'left') return false;
+    if (direction === 'right') {
+        if (hasSaves) onFocusSaves();
+        return false;
+    }
+    return direction === 'down';
+};
+
+const handleDownloadButtonMouseEnter = (isDownloading: boolean, isDisabled: boolean) => {
+    if (!getMouseActive()) return;
+    if (isDownloading || !isDisabled) {
+        setFocus('download-button');
+    }
+};
+
+const getDownloadBtnClassName = (focused: boolean, isBtnDisabled: boolean, isDownloading: boolean) => {
+    let className = "btn download-btn";
+    if (focused) className += " focused";
+    if (isBtnDisabled) className += " disabled";
+    if (isDownloading) className += " cancel-mode";
+    return className;
+};
+
+const getDownloadBtnIconAndText = (isDownloading: boolean, isExtracting: boolean) => {
+    const icon = isDownloading ? <TrashIcon /> : <DownloadIcon />;
+    let text = "Download to Library";
+    if (isDownloading) text = "Cancel Download";
+    if (isExtracting) text = "Extracting...";
+    return { icon, text };
+};
+
 function InnerDownloadButton({ isDisabled, isDownloading, isExtracting, hasSaves, onDownload, onCancel, onFocusSaves }: {
     isDisabled: boolean;
     isDownloading: boolean;
@@ -858,36 +903,29 @@ function InnerDownloadButton({ isDisabled, isDownloading, isExtracting, hasSaves
     onCancel: () => void;
     onFocusSaves: () => void;
 }) {
+    const handleAction = isDownloading ? onCancel : onDownload;
+
     const { ref, focused } = useFocusable({
         focusKey: 'download-button',
-        onArrowPress: (direction: string) => {
-            if (direction === 'right' && hasSaves) {
-                onFocusSaves();
-                return false;
-            }
-            if (direction === 'left') return false;
-            return direction === 'down';
-        },
-        onEnterPress: isDownloading ? onCancel : onDownload
+        onArrowPress: (direction: string) => handleDownloadButtonArrowPress(direction, hasSaves, onFocusSaves),
+        onEnterPress: handleAction
     });
+
+    const isBtnDisabled = isDisabled && !isDownloading;
+    const btnClassName = getDownloadBtnClassName(focused, isBtnDisabled, isDownloading);
+    const { icon, text } = getDownloadBtnIconAndText(isDownloading, isExtracting);
 
     return (
         <button
             ref={ref}
-            className={`btn download-btn ${focused ? 'focused' : ''} ${isDisabled && !isDownloading ? 'disabled' : ''} ${isDownloading ? 'cancel-mode' : ''}`}
-            disabled={isDisabled && !isDownloading}
-            onMouseEnter={() => {
-                if (getMouseActive() && (!isDisabled || isDownloading)) {
-                    setFocus('download-button');
-                }
-            }}
-            onClick={isDownloading ? onCancel : onDownload}
+            className={btnClassName}
+            disabled={isBtnDisabled}
+            onMouseEnter={() => handleDownloadButtonMouseEnter(isDownloading, isDisabled)}
+            onClick={handleAction}
         >
             <div className="btn-content">
-                {isDownloading ? <TrashIcon /> : <DownloadIcon />}
-                <span>
-                    {isExtracting ? "Extracting..." : isDownloading ? "Cancel Download" : "Download to Library"}
-                </span>
+                {icon}
+                <span>{text}</span>
             </div>
         </button>
     );
