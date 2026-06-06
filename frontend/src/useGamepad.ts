@@ -26,6 +26,63 @@ const STICK_THRESHOLD = 0.5;
 // Delay between inputs in ms
 const INPUT_DELAY = 150;
 
+const DPAD_MAPPING = {
+    [BUTTON_MAPPING.DPAD_UP]: 'ArrowUp',
+    [BUTTON_MAPPING.DPAD_DOWN]: 'ArrowDown',
+    [BUTTON_MAPPING.DPAD_LEFT]: 'ArrowLeft',
+    [BUTTON_MAPPING.DPAD_RIGHT]: 'ArrowRight',
+};
+
+function handleDPad(gp: Gamepad, trigger: (key: string) => void) {
+    const buttons = gp.buttons;
+    if (!buttons) return;
+    for (const [btnIdStr, key] of Object.entries(DPAD_MAPPING)) {
+        const btn = buttons[parseInt(btnIdStr)];
+        if (btn && btn.pressed) {
+            trigger(key);
+        }
+    }
+}
+
+function handleAxes(gp: Gamepad, trigger: (key: string) => void) {
+    if (gp.axes[1] < -STICK_THRESHOLD) trigger('ArrowUp');
+    if (gp.axes[1] > STICK_THRESHOLD) trigger('ArrowDown');
+    if (gp.axes[0] < -STICK_THRESHOLD) trigger('ArrowLeft');
+    if (gp.axes[0] > STICK_THRESHOLD) trigger('ArrowRight');
+}
+
+function handleActionButtons(
+    gp: Gamepad,
+    prevButtons: Record<number, boolean>,
+    trigger: (key: string) => void
+): Record<number, boolean> {
+    const currentButtons: Record<number, boolean> = {};
+    const ACTION_BUTTONS = {
+        [BUTTON_MAPPING.A]: 'Enter',
+        [BUTTON_MAPPING.B]: 'Escape',
+        [BUTTON_MAPPING.X]: 'r',
+        [BUTTON_MAPPING.LB]: 'PageUp',
+        [BUTTON_MAPPING.RB]: 'PageDown',
+    };
+
+    for (const [btnIdStr, key] of Object.entries(ACTION_BUTTONS)) {
+        const btnId = parseInt(btnIdStr);
+        const isPressed = gp.buttons[btnId]?.pressed || false;
+        currentButtons[btnId] = isPressed;
+
+        if (prevButtons[btnId] && !isPressed) {
+            trigger(key);
+        }
+    }
+    return currentButtons;
+}
+
+function handleExitCombo(gp: Gamepad) {
+    if (gp.buttons[BUTTON_MAPPING.START]?.pressed && gp.buttons[BUTTON_MAPPING.BACK]?.pressed) {
+        Quit();
+    }
+}
+
 export function useGamepad() {
     const prevButtonsRef = useRef<Record<number, boolean>>({});
     const lastInputTime = useRef(0);
@@ -51,47 +108,11 @@ export function useGamepad() {
         for (const gp of gamepads) {
             if (!gp) continue;
 
-            const prevButtons = prevButtonsRef.current;
-            const currentButtons: Record<number, boolean> = {};
+            handleDPad(gp, triggerKey);
+            handleAxes(gp, triggerKey);
+            const currentButtons = handleActionButtons(gp, prevButtonsRef.current, triggerKey);
+            handleExitCombo(gp);
 
-            // D-PAD
-            if (gp.buttons[BUTTON_MAPPING.DPAD_UP]?.pressed) triggerKey('ArrowUp');
-            if (gp.buttons[BUTTON_MAPPING.DPAD_DOWN]?.pressed) triggerKey('ArrowDown');
-            if (gp.buttons[BUTTON_MAPPING.DPAD_LEFT]?.pressed) triggerKey('ArrowLeft');
-            if (gp.buttons[BUTTON_MAPPING.DPAD_RIGHT]?.pressed) triggerKey('ArrowRight');
-
-            // Left Stick
-            if (gp.axes[1] < -STICK_THRESHOLD) triggerKey('ArrowUp');
-            if (gp.axes[1] > STICK_THRESHOLD) triggerKey('ArrowDown');
-            if (gp.axes[0] < -STICK_THRESHOLD) triggerKey('ArrowLeft');
-            if (gp.axes[0] > STICK_THRESHOLD) triggerKey('ArrowRight');
-
-            // Actions - Trigger on Button Up
-            const ACTION_BUTTONS = {
-                [BUTTON_MAPPING.A]: 'Enter',
-                [BUTTON_MAPPING.B]: 'Escape',
-                [BUTTON_MAPPING.X]: 'r',
-                [BUTTON_MAPPING.LB]: 'PageUp',
-                [BUTTON_MAPPING.RB]: 'PageDown',
-            };
-
-            for (const [btnIdStr, key] of Object.entries(ACTION_BUTTONS)) {
-                const btnId = parseInt(btnIdStr);
-                const isPressed = gp.buttons[btnId]?.pressed || false;
-                currentButtons[btnId] = isPressed;
-
-                // If it was pressed before and is now released
-                if (prevButtons[btnId] && !isPressed) {
-                    triggerKey(key);
-                }
-            }
-
-            // Exit (Start + Select/Back)
-            if (gp.buttons[BUTTON_MAPPING.START]?.pressed && gp.buttons[BUTTON_MAPPING.BACK]?.pressed) {
-                Quit();
-            }
-
-            // Update stored states
             prevButtonsRef.current = currentButtons;
         }
 

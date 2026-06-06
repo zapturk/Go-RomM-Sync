@@ -16,6 +16,24 @@ interface SettingsProps {
     onLogout?: () => void;
 }
 
+interface SettingsRowProps {
+    label: string;
+    desc: string;
+    children: React.ReactNode;
+}
+
+function SettingsRow({ label, desc, children }: SettingsRowProps) {
+    return (
+        <div className="settings-row">
+            <div className="settings-row-info">
+                <span className="settings-row-label">{label}</span>
+                <span className="settings-row-desc">{desc}</span>
+            </div>
+            {children}
+        </div>
+    );
+}
+
 function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [config, setConfig] = useState<types.AppConfig | null>(null);
     const [status, setStatus] = useState("Configure your application settings");
@@ -31,6 +49,10 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [isSyncing, setIsSyncing] = useState(false);
     const [isUpdatingCores, setIsUpdatingCores] = useState(false);
     const [isUpdatingBios, setIsUpdatingBios] = useState(false);
+
+    const { ref: containerRef } = useFocusable({
+        trackChildren: true,
+    });
 
     useEffect(() => {
         GetConfig().then((cfg) => {
@@ -60,6 +82,15 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             unsubscribeConfig();
         };
     }, []);
+
+    // Auto-focus save button on load or when view becomes active
+    useEffect(() => {
+        if (isActive && config) {
+            setTimeout(() => {
+                setFocus('browse-ra-button');
+            }, 100);
+        }
+    }, [isActive, !!config]);
 
     const handleBrowseRA = () => {
         SelectRetroArchExecutable().then((path) => {
@@ -214,130 +245,9 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             });
     };
 
-    const handleInputKeyDown = (e: React.KeyboardEvent) => {
-        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
-            e.stopPropagation();
-        }
-    };
+    const handleTopArrowPress = (direction: string) => direction !== 'up';
 
     if (!config) return <div className="loading-screen"><h2>Loading settings...</h2></div>;
-
-    return (
-        <SettingsForm
-            config={config}
-            isActive={isActive}
-            onLogout={onLogout}
-            raPath={raPath}
-            setRaPath={setRaPath}
-            libPath={libPath}
-            setLibPath={setLibPath}
-            cheevosUser={cheevosUser}
-            setCheevosUser={setCheevosUser}
-            cheevosPass={cheevosPass}
-            setCheevosPass={setCheevosPass}
-            clientToken={clientToken}
-            setClientToken={setClientToken}
-            status={status}
-            setStatus={setStatus}
-            isSaving={isSaving}
-            handleBrowseRA={handleBrowseRA}
-            handleBrowseLib={handleBrowseLib}
-            handleSetDefaultLib={handleSetDefaultLib}
-            handleSave={handleSave}
-            handleLogout={handleLogout}
-            handleClearCache={handleClearCache}
-            offlineMode={offlineMode}
-            handleToggleOffline={handleToggleOffline}
-            handleSyncMetadata={handleSyncMetadata}
-            isSyncing={isSyncing}
-            handleUpdateCores={handleUpdateCores}
-            isUpdatingCores={isUpdatingCores}
-            handleUpdateBios={handleUpdateBios}
-            isUpdatingBios={isUpdatingBios}
-        />
-    );
-}
-
-interface SettingsFormProps {
-    config: types.AppConfig;
-    isActive: boolean;
-    onLogout?: () => void;
-    raPath: string;
-    setRaPath: (v: string) => void;
-    libPath: string;
-    setLibPath: (v: string) => void;
-    cheevosUser: string;
-    setCheevosUser: (v: string) => void;
-    cheevosPass: string;
-    setCheevosPass: (v: string) => void;
-    clientToken: string;
-    setClientToken: (v: string) => void;
-    status: string;
-    setStatus: (v: string) => void;
-    isSaving: boolean;
-    handleBrowseRA: () => void;
-    handleBrowseLib: () => void;
-    handleSetDefaultLib: () => void;
-    handleSave: () => void;
-    handleLogout: () => void;
-    handleClearCache: () => void;
-    offlineMode: boolean;
-    handleToggleOffline: () => void;
-    handleSyncMetadata: () => void;
-    isSyncing: boolean;
-    handleUpdateCores: () => void;
-    isUpdatingCores: boolean;
-    handleUpdateBios: () => void;
-    isUpdatingBios: boolean;
-}
-
-function SettingsForm({
-    isActive,
-    onLogout,
-    raPath,
-    setRaPath,
-    libPath,
-    setLibPath,
-    cheevosUser,
-    setCheevosUser,
-    cheevosPass,
-    setCheevosPass,
-    clientToken,
-    setClientToken,
-    status,
-    setStatus,
-    isSaving,
-    handleBrowseRA,
-    handleBrowseLib,
-    handleSetDefaultLib,
-    handleSave,
-    handleLogout,
-    handleClearCache,
-    offlineMode,
-    handleToggleOffline,
-    handleSyncMetadata,
-    isSyncing,
-    handleUpdateCores,
-    isUpdatingCores,
-    handleUpdateBios,
-    isUpdatingBios
-}: SettingsFormProps) {
-    const { ref: containerRef } = useFocusable({
-        trackChildren: true,
-    });
-
-    // Auto-focus save button on load or when view becomes active
-    useEffect(() => {
-        if (isActive) {
-            setTimeout(() => {
-                setFocus('browse-ra-button');
-            }, 100);
-        }
-    }, [isActive]);
-
-    // Focus management handled by components
-
-    const handleTopArrowPress = (direction: string) => direction !== 'up';
 
     return (
         <div id="settings-page" className="settings-page">
@@ -417,11 +327,7 @@ function SettingsForm({
                     {/* Maintenance Section */}
                     <div className="settings-card">
                         <div className="settings-section-title">Maintenance</div>
-                        <div className="settings-row">
-                            <div className="settings-row-info">
-                                <span className="settings-row-label">Local Image Cache</span>
-                                <span className="settings-row-desc">Refresh game covers and screenshots</span>
-                            </div>
+                        <SettingsRow label="Local Image Cache" desc="Refresh game covers and screenshots">
                             <FocusableButton
                                 focusKey="clear-cache-button"
                                 className={`btn ${isSaving ? 'disabled' : ''}`}
@@ -432,12 +338,8 @@ function SettingsForm({
                             >
                                 Clear Cache
                             </FocusableButton>
-                        </div>
-                        <div className="settings-row">
-                            <div className="settings-row-info">
-                                <span className="settings-row-label">Update Cores</span>
-                                <span className="settings-row-desc">Re-download all downloaded cores for the latest updates</span>
-                            </div>
+                        </SettingsRow>
+                        <SettingsRow label="Update Cores" desc="Re-download all downloaded cores for the latest updates">
                             <FocusableButton
                                 focusKey="update-cores-button"
                                 className={`btn ${isSaving || isUpdatingCores ? 'disabled' : ''}`}
@@ -448,12 +350,8 @@ function SettingsForm({
                             >
                                 {isUpdatingCores ? "Updating..." : "Update Cores"}
                             </FocusableButton>
-                        </div>
-                        <div className="settings-row">
-                            <div className="settings-row-info">
-                                <span className="settings-row-label">Download BIOS</span>
-                                <span className="settings-row-desc">Download latest RetroArch BIOS pack from Abdess/retrobios</span>
-                            </div>
+                        </SettingsRow>
+                        <SettingsRow label="Download BIOS" desc="Download latest RetroArch BIOS pack from Abdess/retrobios">
                             <FocusableButton
                                 focusKey="update-bios-button"
                                 className={`btn ${isSaving || isUpdatingBios ? 'disabled' : ''}`}
@@ -464,17 +362,13 @@ function SettingsForm({
                             >
                                 {isUpdatingBios ? "Downloading..." : "Download BIOS"}
                             </FocusableButton>
-                        </div>
+                        </SettingsRow>
                     </div>
 
                     {/* Offline Support Section */}
                     <div className="settings-card">
                         <div className="settings-section-title">Offline Support</div>
-                        <div className="settings-row">
-                            <div className="settings-row-info">
-                                <span className="settings-row-label">Offline Mode</span>
-                                <span className="settings-row-desc">Enable browsing without server connection</span>
-                            </div>
+                        <SettingsRow label="Offline Mode" desc="Enable browsing without server connection">
                             <FocusableButton
                                 focusKey="offline-toggle-button"
                                 className={`btn ${isSaving ? 'disabled' : ''}`}
@@ -496,12 +390,8 @@ function SettingsForm({
                             >
                                 {offlineMode ? "Enabled" : "Disabled"}
                             </FocusableButton>
-                        </div>
-                        <div className="settings-row">
-                            <div className="settings-row-info">
-                                <span className="settings-row-label">Sync Metadata</span>
-                                <span className="settings-row-desc">Prepare game data for offline use</span>
-                            </div>
+                        </SettingsRow>
+                        <SettingsRow label="Sync Metadata" desc="Prepare game data for offline use">
                             <FocusableButton
                                 focusKey="sync-metadata-button"
                                 className={`btn ${isSaving || isSyncing ? 'disabled' : ''}`}
@@ -512,7 +402,7 @@ function SettingsForm({
                             >
                                 {isSyncing ? "Syncing..." : "Sync Now"}
                             </FocusableButton>
-                        </div>
+                        </SettingsRow>
                     </div>
 
                     {/* RetroAchievements Section */}
