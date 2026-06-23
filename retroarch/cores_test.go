@@ -215,12 +215,12 @@ func TestUpdateAllCores(t *testing.T) {
 
 func TestDSDefaultCore(t *testing.T) {
 	cores := GetCoresForExt(".nds")
-	if len(cores) < 2 || cores[0] != constants.CoreMelonDSDS || cores[1] != constants.CoreNooDS {
-		t.Errorf("Expected default cores [%s, %s] for .nds, got %v", constants.CoreMelonDSDS, constants.CoreNooDS, cores)
+	if len(cores) < 2 || cores[0] != coreMelonDSDS || cores[1] != coreNooDS {
+		t.Errorf("Expected default cores [%s, %s] for .nds, got %v", coreMelonDSDS, coreNooDS, cores)
 	}
 
 	cores = GetCoresForPlatform("nds")
-	if len(cores) < 2 || cores[0] != constants.CoreMelonDSDS || cores[1] != constants.CoreNooDS {
-		t.Errorf("Expected default cores [%s, %s] for platform nds, got %v", constants.CoreMelonDSDS, constants.CoreNooDS, cores)
+	if len(cores) < 2 || cores[0] != coreMelonDSDS || cores[1] != coreNooDS {
+		t.Errorf("Expected default cores [%s, %s] for platform nds, got %v", coreMelonDSDS, coreNooDS, cores)
 	}
 }

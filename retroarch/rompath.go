@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"go-romm-sync/constants"
 	"go-romm-sync/utils/fileio"
 )
 
@@ -64,7 +63,7 @@ func resolveRomPath(ui UIProvider, romPath, platform string) (ext, outRomPath, t
 
 		// Special case: Pico-8 .png carts must be extracted to a .p8 temp file
 		// to prevent RetroArch from routing them to the image-viewer core.
-		if innerExt == ".png" && innerCores[0] == constants.CoreRetro8 {
+		if innerExt == ".png" && innerCores[0] == coreRetro8 {
 			extracted, extractErr := extractZipMember(f, "pico8_*.p8")
 			if extractErr != nil {
 				return ext, romPath, "", extractErr

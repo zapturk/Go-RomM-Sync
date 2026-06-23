@@ -7,14 +7,12 @@ import (
 	"go-romm-sync/types"
 	"os"
 	"path/filepath"
-	"sync"
 )
 
 // ConfigManager handles loading/saving
 type ConfigManager struct {
 	Config     *types.AppConfig
 	ConfigPath string
-	Mu         sync.RWMutex // Thread-safety for UI reads/writes
 }
 
 // NewConfigManager initializes the manager and determines the file path
@@ -42,9 +40,6 @@ func NewConfigManager() *ConfigManager {
 
 // Load reads the config from disk
 func (cm *ConfigManager) Load() error {
-	cm.Mu.Lock()
-	defer cm.Mu.Unlock()
-
 	// 1. Check if file exists
 	if _, err := os.Stat(cm.ConfigPath); os.IsNotExist(err) {
 		return cm.createDefault()
@@ -67,18 +62,13 @@ func (cm *ConfigManager) Load() error {
 	return nil
 }
 
-// GetConfig returns a copy of the current config (Thread-Safe)
+// GetConfig returns a copy of the current config
 func (cm *ConfigManager) GetConfig() types.AppConfig {
-	cm.Mu.RLock()
-	defer cm.Mu.RUnlock()
 	return *cm.Config
 }
 
 // Save writes the current config to disk
 func (cm *ConfigManager) Save(newConfig *types.AppConfig) error {
-	cm.Mu.Lock()
-	defer cm.Mu.Unlock()
-
 	*cm.Config = *newConfig
 
 	// Ensure directory exists
@@ -95,11 +85,8 @@ func (cm *ConfigManager) Save(newConfig *types.AppConfig) error {
 	return os.WriteFile(cm.ConfigPath, data, 0o644)
 }
 
-// Update performs an atomic read-modify-write operation on the config (Thread-Safe)
+// Update performs an atomic read-modify-write operation on the config
 func (cm *ConfigManager) Update(fn func(*types.AppConfig)) error {
-	cm.Mu.Lock()
-	defer cm.Mu.Unlock()
-
 	fn(cm.Config)
 
 	// Ensure directory exists

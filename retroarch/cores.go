@@ -18,6 +18,17 @@ import (
 
 const extZip = ".zip"
 
+// Core names used throughout the retroarch package.
+const (
+	coreRetro8    = "retro8_libretro"
+	coreCitra     = "citra_libretro"
+	coreAzahar    = "azahar_libretro"
+	coreMelonDS   = "melonds_libretro"
+	coreDeSmuME   = "desmume_libretro"
+	coreMelonDSDS = "melondsds_libretro"
+	coreNooDS     = "noods_libretro"
+)
+
 var buildbotBaseURL = constants.URLBuildbotBase
 
 // ExtCoreMap maps file extensions to an ordered list of known-working libretro core
@@ -45,8 +56,8 @@ var ExtCoreMap = map[string][]string{
 	".gba": {"mgba_libretro", "vba_next_libretro"},
 
 	// Nintendo – DS
-	".nds": {constants.CoreMelonDSDS, constants.CoreNooDS, constants.CoreMelonDS, constants.CoreDeSmuME},
-	".dsi": {constants.CoreMelonDSDS, constants.CoreNooDS, constants.CoreMelonDS, constants.CoreDeSmuME},
+	".nds": {coreMelonDSDS, coreNooDS, coreMelonDS, coreDeSmuME},
+	".dsi": {coreMelonDSDS, coreNooDS, coreMelonDS, coreDeSmuME},
 
 	// Nintendo – Virtual Boy
 	".vb": {"beetle_vb_libretro"},
@@ -59,13 +70,13 @@ var ExtCoreMap = map[string][]string{
 	".wia":  {"dolphin_libretro"},
 
 	// Nintendo – 3DS
-	".3ds":  {constants.CoreAzahar, constants.CoreCitra},
-	".3dsx": {constants.CoreAzahar, constants.CoreCitra},
-	".elf":  {constants.CoreAzahar, constants.CoreCitra},
-	".axf":  {constants.CoreAzahar, constants.CoreCitra},
-	".cci":  {constants.CoreAzahar, constants.CoreCitra},
-	".cxi":  {constants.CoreAzahar, constants.CoreCitra},
-	".app":  {constants.CoreAzahar, constants.CoreCitra},
+	".3ds":  {coreAzahar, coreCitra},
+	".3dsx": {coreAzahar, coreCitra},
+	".elf":  {coreAzahar, coreCitra},
+	".axf":  {coreAzahar, coreCitra},
+	".cci":  {coreAzahar, coreCitra},
+	".cxi":  {coreAzahar, coreCitra},
+	".app":  {coreAzahar, coreCitra},
 
 	// Sega – Mega Drive / Genesis
 	".md":  {"genesis_plus_gx_libretro", "picodrive_libretro", "blastem_libretro"},
@@ -130,7 +141,7 @@ var ExtCoreMap = map[string][]string{
 
 	// Pico-8
 	".p8":  {"retro8_libretro"},
-	".png": {constants.CoreRetro8},
+	".png": {coreRetro8},
 }
 
 // CoreMap is derived from ExtCoreMap for backward-compatible single-core lookups

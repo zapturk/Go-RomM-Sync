@@ -1,7 +1,6 @@
 package retroarch
 
 import (
-	"go-romm-sync/constants"
 	"regexp"
 	"strings"
 )
@@ -17,8 +16,8 @@ var PlatformCoreMap = map[string][]string{
 	"nes":          {"nestopia_libretro", "fceumm_libretro", "mesen_libretro"},
 	"snes":         {"snes9x_libretro", "bsnes_libretro"},
 	"n64":          {"mupen64plus_next_libretro", "parallel_n64_libretro"},
-	"nds":          {constants.CoreMelonDSDS, constants.CoreNooDS, constants.CoreMelonDS, constants.CoreDeSmuME},
-	"dsi":          {constants.CoreMelonDSDS, constants.CoreNooDS, constants.CoreMelonDS, constants.CoreDeSmuME},
+	"nds":          {coreMelonDSDS, coreNooDS, coreMelonDS, coreDeSmuME},
+	"dsi":          {coreMelonDSDS, coreNooDS, coreMelonDS, coreDeSmuME},
 	"genesis":      {"genesis_plus_gx_libretro", "picodrive_libretro", "blastem_libretro"},
 	"mastersystem": {"genesis_plus_gx_libretro", "picodrive_libretro"},
 	"gamegear":     {"genesis_plus_gx_libretro"},
@@ -28,7 +27,7 @@ var PlatformCoreMap = map[string][]string{
 	"pce":          {"mednafen_pce_fast_libretro", "mednafen_pce_libretro"},
 	"gamecube":     {"dolphin_libretro"},
 	"wii":          {"dolphin_libretro"},
-	"3ds":          {constants.CoreAzahar, constants.CoreCitra},
+	"3ds":          {coreAzahar, coreCitra},
 	"pico8":        {"retro8_libretro"},
 	"wsc":          {"mednafen_wswan_libretro"},
 	"ngp":          {"mednafen_ngp_libretro"},
