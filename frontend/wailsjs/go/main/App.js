@@ -6,6 +6,10 @@ export function CancelDownload(arg1) {
   return window['go']['main']['App']['CancelDownload'](arg1);
 }
 
+export function CleanupFirmware(arg1) {
+  return window['go']['main']['App']['CleanupFirmware'](arg1);
+}
+
 export function ClearImageCache() {
   return window['go']['main']['App']['ClearImageCache']();
 }
@@ -32,6 +36,10 @@ export function DeleteState(arg1, arg2, arg3) {
 
 export function DownloadFile(arg1, arg2) {
   return window['go']['main']['App']['DownloadFile'](arg1, arg2);
+}
+
+export function DownloadFirmware(arg1, arg2) {
+  return window['go']['main']['App']['DownloadFirmware'](arg1, arg2);
 }
 
 export function DownloadFirmwareContent(arg1, arg2, arg3) {
@@ -160,6 +168,10 @@ export function GetUsername() {
 
 export function Greet(arg1) {
   return window['go']['main']['App']['Greet'](arg1);
+}
+
+export function IsFirmwareDownloaded(arg1, arg2) {
+  return window['go']['main']['App']['IsFirmwareDownloaded'](arg1, arg2);
 }
 
 export function LogErrorf(arg1, arg2) {

@@ -6,6 +6,8 @@ import {io} from '../models';
 
 export function CancelDownload(arg1:number):Promise<void>;
 
+export function CleanupFirmware(arg1:string):Promise<void>;
+
 export function ClearImageCache():Promise<void>;
 
 export function ConfigGetConfig():Promise<types.AppConfig>;
@@ -19,6 +21,8 @@ export function DeleteSave(arg1:number,arg2:string,arg3:string):Promise<void>;
 export function DeleteState(arg1:number,arg2:string,arg3:string):Promise<void>;
 
 export function DownloadFile(arg1:context.Context,arg2:types.Game):Promise<io.ReadCloser>;
+
+export function DownloadFirmware(arg1:string,arg2:types.Firmware):Promise<void>;
 
 export function DownloadFirmwareContent(arg1:context.Context,arg2:number,arg3:string):Promise<io.ReadCloser>;
 
@@ -83,6 +87,8 @@ export function GetStates(arg1:number):Promise<Array<types.FileItem>>;
 export function GetUsername():Promise<string>;
 
 export function Greet(arg1:string):Promise<string>;
+
+export function IsFirmwareDownloaded(arg1:string,arg2:types.Firmware):Promise<boolean>;
 
 export function LogErrorf(arg1:string,arg2:Array<any>):Promise<void>;
 

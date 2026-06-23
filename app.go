@@ -8,13 +8,14 @@ import (
 	"go-romm-sync/config"
 	"go-romm-sync/configsrv"
 	"go-romm-sync/constants"
-	"go-romm-sync/firmware"
 	"go-romm-sync/launcher"
 	"go-romm-sync/library"
 	"go-romm-sync/retroarch"
 	"go-romm-sync/rommsrv"
 	syncSrvPkg "go-romm-sync/sync"
 	"go-romm-sync/types"
+	"go-romm-sync/utils/archive"
+	"go-romm-sync/utils/fileio"
 	"io"
 	"os"
 	"os/exec"
@@ -37,7 +38,6 @@ type App struct {
 	launcher      *launcher.Launcher
 	authSrv       *authsrv.Service
 	coreResolver  *retroarch.CoreResolver
-	firmwareSrv   *firmware.Service
 	assetSrv      *assets.Service
 
 	// Download/Auth protection
@@ -58,7 +58,6 @@ func NewApp(cm *config.ConfigManager) *App {
 	app.syncSrv = syncSrvPkg.New(app, app, app)
 	app.launcher = launcher.New(app)
 	app.authSrv = authsrv.New(app.configManager, app.rommSrv, app)
-	app.firmwareSrv = firmware.New(app, app, app)
 	app.assetSrv = assets.New(app, app.rommSrv.GetClient(), app)
 	app.coreResolver = retroarch.NewCoreResolver(app.librarySrv)
 	return app
@@ -241,9 +240,9 @@ func (a *App) SetPlatformFirmware(platformSlug string, fw *types.Firmware) error
 		return err
 	}
 	if fw.ID == 0 {
-		return a.firmwareSrv.CleanupFirmware(platformSlug)
+		return a.CleanupFirmware(platformSlug)
 	}
-	return a.firmwareSrv.DownloadFirmware(platformSlug, fw)
+	return a.DownloadFirmware(platformSlug, fw)
 }
 
 func (a *App) DownloadRom(id uint) (string, error) {
@@ -416,10 +415,10 @@ func (a *App) checkAndDownloadFirmware(id uint) error {
 		return nil
 	}
 
-	if !a.firmwareSrv.IsFirmwareDownloaded(platformSlug, selectedFw) {
+	if !a.IsFirmwareDownloaded(platformSlug, selectedFw) {
 		a.LogInfof("Firmware %s is missing locally. Attempting to download...", selectedFw.FileName)
 		a.EventsEmit(constants.EventPlayStatus, "Downloading missing firmware for platform...")
-		if err := a.firmwareSrv.DownloadFirmware(platformSlug, selectedFw); err != nil {
+		if err := a.DownloadFirmware(platformSlug, selectedFw); err != nil {
 			a.LogErrorf("Failed to auto-download firmware: %v", err)
 			return err
 		}
@@ -611,10 +610,6 @@ func (a *App) GetLibraryPath() string {
 	return a.configManager.GetConfig().LibraryPath
 }
 
-func (a *App) GetBiosDir() string {
-	return a.firmwareSrv.GetBiosDir()
-}
-
 func (a *App) SaveDefaultLibraryPath(path string) error {
 	cfg := a.configManager.GetConfig()
 	cfg.LibraryPath = path
@@ -675,6 +670,134 @@ func (a *App) RomMDownloadState(ctx context.Context, id uint) (reader io.ReadClo
 
 func (a *App) GetRomDir(game *types.Game) string {
 	return a.librarySrv.GetRomDir(game)
+}
+
+func (a *App) GetBiosDir() string {
+	return filepath.Join(a.configManager.GetConfig().LibraryPath, constants.DirBios)
+}
+
+func (a *App) IsFirmwareDownloaded(platformSlug string, fw *types.Firmware) bool {
+	biosDir := a.GetBiosDir()
+	subDir := ""
+	if platformSlug == "ps2" {
+		subDir = filepath.Join("pcsx2", "bios")
+	}
+	targetDir := filepath.Join(biosDir, subDir)
+
+	canonicalNames := retroarch.GetBiosFilenamesForPlatform(platformSlug)
+	for _, name := range canonicalNames {
+		if _, err := os.Stat(filepath.Join(targetDir, name)); err == nil {
+			return true
+		}
+	}
+
+	expectedName := fw.FileName
+	if md5 := fw.MD5Hash; md5 != "" {
+		if mapped := retroarch.GetBiosFilename(md5); mapped != "" {
+			expectedName = mapped
+		}
+	}
+	if expectedName != "" {
+		if _, err := os.Stat(filepath.Join(targetDir, expectedName)); err == nil {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (a *App) DownloadFirmware(platformSlug string, fw *types.Firmware) error {
+	biosDir := a.GetBiosDir()
+	if err := os.MkdirAll(biosDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create bios directory: %w", err)
+	}
+
+	ctx := context.Background()
+	reader, filename, err := a.rommSrv.GetClient().DownloadFirmwareContent(ctx, fw.ID, fw.FileName)
+	if err != nil {
+		return err
+	}
+	defer fileio.Close(reader, a.LogErrorf, "DownloadFirmware: Failed to close reader")
+
+	tempDir, err := os.MkdirTemp("", "go-romm-sync-bios-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	tempFile := filepath.Join(tempDir, filename)
+	if err := fileio.WriteFileFromReader(tempFile, reader, 0o644); err != nil {
+		return err
+	}
+
+	extracted, err := archive.Extract(tempFile, tempDir)
+	if err != nil {
+		a.LogErrorf("DownloadFirmware: Failed to extract BIOS archive: %v", err)
+	}
+
+	if extracted {
+		a.LogInfof("DownloadFirmware: Extracted BIOS archive %s", filename)
+		return filepath.Walk(tempDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() || path == tempFile {
+				return nil
+			}
+			return a.processBiosFile(path, biosDir, platformSlug, "", "")
+		})
+	}
+
+	return a.processBiosFile(tempFile, biosDir, platformSlug, filename, fw.MD5Hash)
+}
+
+func (a *App) processBiosFile(sourcePath, biosDir, platformSlug, origFilename, providedMD5 string) error {
+	md5 := providedMD5
+	if md5 == "" {
+		var err error
+		md5, err = fileio.GetMD5(sourcePath)
+		if err != nil {
+			a.LogErrorf("processBiosFile: Failed to calculate MD5 for %s: %v", sourcePath, err)
+		}
+	}
+
+	destFilename := filepath.Base(sourcePath)
+	if origFilename != "" {
+		destFilename = origFilename
+	}
+
+	if mappedName := retroarch.GetBiosFilename(md5); mappedName != "" {
+		a.LogInfof("processBiosFile: Mapping BIOS MD5 %s to canonical name %s (orig: %s)", md5, mappedName, destFilename)
+		destFilename = mappedName
+	}
+
+	subDir := ""
+	if platformSlug == "ps2" {
+		subDir = filepath.Join("pcsx2", "bios")
+	}
+
+	targetDir := filepath.Join(biosDir, subDir)
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		a.LogErrorf("processBiosFile: Failed to create target dir %s: %v", targetDir, err)
+	}
+
+	destPath := filepath.Join(targetDir, destFilename)
+	return os.Rename(sourcePath, destPath)
+}
+
+func (a *App) CleanupFirmware(platformSlug string) error {
+	biosDir := a.GetBiosDir()
+	biosNames := retroarch.GetBiosFilenamesForPlatform(platformSlug)
+
+	for _, name := range biosNames {
+		subDir := ""
+		if platformSlug == "ps2" {
+			subDir = filepath.Join("pcsx2", "bios")
+		}
+		path := filepath.Join(biosDir, subDir, name)
+		if _, err := os.Stat(path); err == nil {
+			a.LogInfof("CleanupFirmware: Removing canonical BIOS file %s for platform %s", name, platformSlug)
+			fileio.Remove(path, a.LogErrorf)
+		}
+	}
+	return nil
 }
 
 func (a *App) LogInfof(format string, args ...interface{}) {
