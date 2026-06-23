@@ -9,75 +9,46 @@ import (
 	"testing"
 )
 
-// MockConfigProvider implements ConfigProvider
-type MockConfigProvider struct {
+// mockProvider implements all methods needed by Launcher for testing.
+type mockProvider struct {
 	LibraryPath   string
 	RetroArchPath string
+	Game          types.Game
+	Error         error
+	SelectedExe   string
+	UiError       error
+	LastSavedCore string
+	ResolvedSlug  string
 }
 
-func (m *MockConfigProvider) GetLibraryPath() string {
-	return m.LibraryPath
-}
-
-func (m *MockConfigProvider) GetRetroArchPath() string {
-	return m.RetroArchPath
-}
-
-func (m *MockConfigProvider) GetCheevosCredentials() (username, password string) {
-	return "user", "pass"
-}
-
-func (m *MockConfigProvider) GetBiosDir() string {
-	return ""
-}
-
-// MockRomMProvider implements RomMProvider
-type MockRomMProvider struct {
-	Game  types.Game
-	Error error
-}
-
-func (m *MockRomMProvider) GetRom(id uint) (types.Game, error) {
-	return m.Game, m.Error
-}
-
-// MockUIProvider implements UIProvider
-type MockUIProvider struct {
-	SelectedExe string
-	Error       error
-}
-
-func (m *MockUIProvider) SelectRetroArchExecutable() (string, error) {
-	return m.SelectedExe, m.Error
-}
-
-type MockPreferenceProvider struct{}
-
-func (m *MockPreferenceProvider) SaveLastUsedCore(platformSlug, coreName string) error {
+func (m *mockProvider) GetLibraryPath() string                  { return m.LibraryPath }
+func (m *mockProvider) GetRetroArchPath() string                { return m.RetroArchPath }
+func (m *mockProvider) GetCheevosCredentials() (string, string) { return "user", "pass" }
+func (m *mockProvider) GetBiosDir() string                      { return "" }
+func (m *mockProvider) GetRom(id uint) (types.Game, error)      { return m.Game, m.Error }
+func (m *mockProvider) SaveLastUsedCore(platformSlug, coreName string) error {
+	m.LastSavedCore = coreName
 	return nil
 }
-
-func (m *MockPreferenceProvider) GetResolvedPlatformSlug(game *types.Game) string {
-	return game.Platform.Slug
-}
-
-func (m *MockUIProvider) LogInfof(format string, args ...interface{})      {}
-func (m *MockUIProvider) LogErrorf(format string, args ...interface{})     {}
-func (m *MockUIProvider) EventsEmit(eventName string, args ...interface{}) {}
-func (m *MockUIProvider) WindowHide()                                      {}
-func (m *MockUIProvider) WindowShow()                                      {}
-func (m *MockUIProvider) WindowUnminimise()                                {}
-func (m *MockUIProvider) WindowSetAlwaysOnTop(b bool)                      {}
+func (m *mockProvider) GetResolvedPlatformSlug(game *types.Game) string  { return m.ResolvedSlug }
+func (m *mockProvider) SelectRetroArchExecutable() (string, error)       { return m.SelectedExe, m.UiError }
+func (m *mockProvider) LogInfof(format string, args ...interface{})      {}
+func (m *mockProvider) LogErrorf(format string, args ...interface{})     {}
+func (m *mockProvider) EventsEmit(eventName string, args ...interface{}) {}
+func (m *mockProvider) WindowHide()                                      {}
+func (m *mockProvider) WindowShow()                                      {}
+func (m *mockProvider) WindowUnminimise()                                {}
+func (m *mockProvider) WindowSetAlwaysOnTop(b bool)                      {}
 
 func TestNew(t *testing.T) {
-	l := New(&MockConfigProvider{}, &MockRomMProvider{}, &MockPreferenceProvider{}, &MockUIProvider{})
-	if l.config == nil || l.romm == nil || l.ui == nil {
+	l := New(&mockProvider{})
+	if l.app == nil {
 		t.Errorf("Launcher not initialized correctly")
 	}
 }
 
 func TestSetContext(t *testing.T) {
-	l := New(nil, nil, nil, nil)
+	l := New(&mockProvider{})
 	ctx := context.Background()
 	l.SetContext(ctx)
 	if l.ctx != ctx {
@@ -98,7 +69,7 @@ func TestFindRomPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	l := New(nil, nil, nil, nil)
+	l := New(&mockProvider{})
 	game := &types.Game{FullPath: "test.sfc"}
 	found := l.findRomPath(game, tempDir)
 	if found != romPath {
@@ -117,7 +88,7 @@ func TestFindRomPath(t *testing.T) {
 }
 
 func TestPlayRom_NoLibraryPath(t *testing.T) {
-	l := New(&MockConfigProvider{LibraryPath: ""}, nil, nil, nil)
+	l := New(&mockProvider{LibraryPath: ""})
 	err := l.PlayRom(1)
 	if err == nil || err.Error() != "library path is not configured" {
 		t.Errorf("Expected library path error, got %v", err)
@@ -128,11 +99,16 @@ func TestPlayRom_RomNotFound(t *testing.T) {
 	tempDir, _ := os.MkdirTemp("", "library")
 	defer os.RemoveAll(tempDir)
 
-	cfg := &MockConfigProvider{LibraryPath: tempDir}
-	romm := &MockRomMProvider{
-		Game: types.Game{ID: 1, FullPath: "SNES/Game.sfc"},
+	romDir := filepath.Join(tempDir, "SNES", "1")
+	os.MkdirAll(romDir, 0o755)
+	// Don't create test.sfc — that's why ROM not found should error.
+
+	p := &mockProvider{
+		LibraryPath:   tempDir,
+		RetroArchPath: "/some/path/retroarch",
+		Game:          types.Game{ID: 1, FullPath: "SNES/Game.sfc"},
 	}
-	l := New(cfg, romm, &MockPreferenceProvider{}, &MockUIProvider{})
+	l := New(p)
 
 	err := l.PlayRom(1)
 	if err == nil || !contains(err.Error(), "no valid ROM file found") {
@@ -154,12 +130,13 @@ func TestPlayRom_RetroArchNotConfigured(t *testing.T) {
 	os.MkdirAll(romDir, 0o755)
 	os.WriteFile(filepath.Join(romDir, "test.sfc"), []byte("dummy"), 0o644)
 
-	cfg := &MockConfigProvider{LibraryPath: tempDir, RetroArchPath: ""}
-	romm := &MockRomMProvider{
-		Game: types.Game{ID: 1, FullPath: "SNES/Game.sfc"},
+	p := &mockProvider{
+		LibraryPath:   tempDir,
+		RetroArchPath: "",
+		Game:          types.Game{ID: 1, FullPath: "SNES/Game.sfc"},
+		SelectedExe:   "", // User cancelled
 	}
-	ui := &MockUIProvider{SelectedExe: ""} // User cancelled
-	l := New(cfg, romm, &MockPreferenceProvider{}, ui)
+	l := New(p)
 
 	err := l.PlayRom(1)
 	if err == nil || !strings.Contains(err.Error(), "launch cancelled") {

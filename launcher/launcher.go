@@ -11,54 +11,29 @@ import (
 	"strings"
 )
 
-// ConfigProvider defines the configuration needed for launching games.
-type ConfigProvider interface {
+// provider has everything Launcher needs from App.
+type provider interface {
+	retroarch.UIProvider
+
 	GetLibraryPath() string
 	GetRetroArchPath() string
 	GetCheevosCredentials() (string, string)
 	GetBiosDir() string
-}
-
-// RomMProvider defines the RomM API interactions needed for launching games.
-type RomMProvider interface {
 	GetRom(id uint) (types.Game, error)
-}
-
-// PreferenceProvider defines the interface for saving user preferences.
-type PreferenceProvider interface {
 	SaveLastUsedCore(platformSlug, coreName string) error
 	GetResolvedPlatformSlug(game *types.Game) string
-}
-
-// UIProvider defines the UI interactions needed for launching games.
-type UIProvider interface {
 	SelectRetroArchExecutable() (string, error)
-	LogInfof(format string, args ...interface{})
-	LogErrorf(format string, args ...interface{})
-	EventsEmit(eventName string, args ...interface{})
-	WindowHide()
-	WindowShow()
-	WindowUnminimise()
-	WindowSetAlwaysOnTop(b bool)
 }
 
 // Launcher handles the orchestration of launching a game.
 type Launcher struct {
-	config ConfigProvider
-	romm   RomMProvider
-	prefs  PreferenceProvider
-	ui     UIProvider
-	ctx    context.Context
+	app provider
+	ctx context.Context
 }
 
 // New creates a new Launcher.
-func New(cfg ConfigProvider, romm RomMProvider, prefs PreferenceProvider, ui UIProvider) *Launcher {
-	return &Launcher{
-		config: cfg,
-		romm:   romm,
-		prefs:  prefs,
-		ui:     ui,
-	}
+func New(a provider) *Launcher {
+	return &Launcher{app: a}
 }
 
 // SetContext sets the Wails context for the launcher.
@@ -78,12 +53,12 @@ func (l *Launcher) PlayRomWithCore(id uint, coreOverride string) error {
 }
 
 func (l *Launcher) playRomInternal(id uint, coreOverride string) error {
-	libPath := l.config.GetLibraryPath()
+	libPath := l.app.GetLibraryPath()
 	if libPath == "" {
 		return fmt.Errorf("library path is not configured")
 	}
 
-	game, err := l.romm.GetRom(id)
+	game, err := l.app.GetRom(id)
 	if err != nil {
 		return fmt.Errorf("failed to get ROM info: %w", err)
 	}
@@ -95,9 +70,9 @@ func (l *Launcher) playRomInternal(id uint, coreOverride string) error {
 		return fmt.Errorf("no valid ROM file found in %s, please download it first", romDir)
 	}
 
-	exePath := l.config.GetRetroArchPath()
+	exePath := l.app.GetRetroArchPath()
 	if exePath == "" {
-		exePath, err = l.ui.SelectRetroArchExecutable()
+		exePath, err = l.app.SelectRetroArchExecutable()
 		if err != nil {
 			return fmt.Errorf("retroarch not configured: %w", err)
 		}
@@ -111,7 +86,7 @@ func (l *Launcher) playRomInternal(id uint, coreOverride string) error {
 	}
 
 	// Save preference before launching
-	platformSlug := l.prefs.GetResolvedPlatformSlug(&game)
+	platformSlug := l.app.GetResolvedPlatformSlug(&game)
 	coreToSave := coreOverride
 	if coreToSave == "" {
 		cores := retroarch.GetCoresForPlatform(platformSlug)
@@ -120,11 +95,11 @@ func (l *Launcher) playRomInternal(id uint, coreOverride string) error {
 		}
 	}
 	if coreToSave != "" && platformSlug != "" {
-		_ = l.prefs.SaveLastUsedCore(platformSlug, coreToSave)
+		_ = l.app.SaveLastUsedCore(platformSlug, coreToSave)
 	}
 
-	cheevosUser, cheevosPass := l.config.GetCheevosCredentials()
-	err = retroarch.Launch(l.ui, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platformSlug, l.config.GetBiosDir())
+	cheevosUser, cheevosPass := l.app.GetCheevosCredentials()
+	err = retroarch.Launch(l.app, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platformSlug, l.app.GetBiosDir())
 	if err != nil {
 		return fmt.Errorf("failed to launch game: %w", err)
 	}

@@ -56,7 +56,7 @@ func NewApp(cm *config.ConfigManager) *App {
 	app.rommSrv = rommsrv.New(app)
 	app.librarySrv = library.New(app, app, app)
 	app.syncSrv = syncSrvPkg.New(app, app, app)
-	app.launcher = launcher.New(app, app, app, app)
+	app.launcher = launcher.New(app)
 	app.authSrv = authsrv.New(app.configManager, app.rommSrv, app)
 	app.firmwareSrv = firmware.New(app, app, app)
 	app.assetSrv = assets.New(app, app.rommSrv.GetClient(), app)
