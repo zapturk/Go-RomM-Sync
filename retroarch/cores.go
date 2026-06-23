@@ -185,31 +185,33 @@ func GetCoresFromZip(zipPath string) []string {
 func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 	ui.EventsEmit(constants.EventPlayStatus, fmt.Sprintf("Downloading missing core: %s...", coreFile))
 
-	var osName, archName string
-	switch runtime.GOOS {
-	case constants.OSWindows:
-		osName = constants.OSWindows
-	case constants.OSDarwin:
-		osName = "apple/osx"
-	case constants.OSLinux:
-		osName = constants.OSLinux
-	default:
+	osMap := map[string]string{
+		constants.OSWindows: constants.OSWindows,
+		constants.OSDarwin:  "apple/osx",
+		constants.OSLinux:   constants.OSLinux,
+	}
+
+	osName, ok := osMap[runtime.GOOS]
+	if !ok {
 		return fmt.Errorf("unsupported OS for core downloads: %s", runtime.GOOS)
 	}
 
-	switch arch {
-	case constants.ArchAmd64:
-		archName = "x86_64"
-	case constants.ArchArm64:
-		if runtime.GOOS == constants.OSDarwin {
-			archName = constants.ArchArm64
+	archMap := map[string]string{
+		constants.ArchAmd64: "x86_64",
+		constants.Arch386:   "x86",
+	}
+
+	archName, ok := archMap[arch]
+	if !ok {
+		if arch == constants.ArchArm64 {
+			if runtime.GOOS == constants.OSDarwin {
+				archName = constants.ArchArm64
+			} else {
+				archName = "aarch64"
+			}
 		} else {
-			archName = "aarch64"
+			return fmt.Errorf("unsupported arch for core downloads: %s", arch)
 		}
-	case constants.Arch386:
-		archName = "x86"
-	default:
-		return fmt.Errorf("unsupported arch for core downloads: %s", arch)
 	}
 
 	urlStr := fmt.Sprintf("%s/%s/%s/latest/%s.zip", buildbotBaseURL, osName, archName, coreFile)

@@ -142,7 +142,6 @@ func IdentifyPlatform(input string) string {
 	}
 
 	// 0. Extension-based hint (High Priority)
-	// If the input contains a known GameCube/Wii extension, prioritize it.
 	if strings.Contains(lower, ".rvz") || strings.Contains(lower, ".gcz") || strings.Contains(lower, ".gcm") {
 		return "gamecube"
 	}
@@ -179,7 +178,6 @@ func matchPattern(entry struct {
 	}
 
 	for _, p := range entry.patterns {
-		// Special check for "ds" to ensure it's a word, not a substring
 		if p == "ds" {
 			if dsRegex.MatchString(lower) {
 				return true
