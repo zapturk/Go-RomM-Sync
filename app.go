@@ -679,7 +679,7 @@ func (a *App) GetBiosDir() string {
 func (a *App) IsFirmwareDownloaded(platformSlug string, fw *types.Firmware) bool {
 	biosDir := a.GetBiosDir()
 	subDir := ""
-	if platformSlug == "ps2" {
+	if platformSlug == PlatformPS2 {
 		subDir = filepath.Join("pcsx2", "bios")
 	}
 	targetDir := filepath.Join(biosDir, subDir)
@@ -769,7 +769,7 @@ func (a *App) processBiosFile(sourcePath, biosDir, platformSlug, origFilename, p
 	}
 
 	subDir := ""
-	if platformSlug == "ps2" {
+	if platformSlug == PlatformPS2 {
 		subDir = filepath.Join("pcsx2", "bios")
 	}
 
@@ -788,7 +788,7 @@ func (a *App) CleanupFirmware(platformSlug string) error {
 
 	for _, name := range biosNames {
 		subDir := ""
-		if platformSlug == "ps2" {
+		if platformSlug == PlatformPS2 {
 			subDir = filepath.Join("pcsx2", "bios")
 		}
 		path := filepath.Join(biosDir, subDir, name)
