@@ -877,3 +877,8 @@ func (a *App) Quit() {
 func (a *App) Greet(name string) string {
 	return "Hello! Go-RomM-Sync is ready."
 }
+
+// Platform Slugs
+const (
+	PlatformPS2 = "ps2"
+)
