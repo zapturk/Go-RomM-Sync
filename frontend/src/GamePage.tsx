@@ -8,7 +8,7 @@ import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { GameCover } from "./GameCover";
 import { TrashIcon, FolderIcon, PlayIcon, DownloadIcon } from "./components/Icons";
-import { FileItemRow } from "./FileItemRow";
+import { FileItemRow, getItemName, getItemCore } from "./FileItemRow";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
 import { TIMESTAMP_REGEX, APP_EVENTS } from './constants';
@@ -40,8 +40,7 @@ const formatFileSize = (bytes: number) => {
     }
 };
 
-const getItemName = (item: any) => item.name || item.file_name;
-const getItemCore = (item: any) => item.core || item.emulator;
+
 
 const isMatchingItem = (o: any, name: string, core: string) => 
     getItemName(o) === name && getItemCore(o) === core;

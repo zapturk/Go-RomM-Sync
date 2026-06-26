@@ -40,4 +40,3 @@ if (typeof window !== 'undefined') {
 }
 
 export const getMouseActive = () => currentMode === 'mouse';
-const getInputMode = () => currentMode;

@@ -16,8 +16,7 @@ const isTypingActive = (): boolean => {
     return el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA';
 };
 
-const isRefreshKey = (key: string): boolean => 
-    key === 'r' || key === 'R';
+
 
 const handleLibraryNavigation = (
     e: KeyboardEvent,
@@ -79,7 +78,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     const lastViewedPlatformId = useRef<number | null>(null);
     const [syncTrigger, setSyncTrigger] = useState(0);
     const gridRef = useRef<HTMLDivElement>(null);
-    const [columns, setColumns] = useState(1);
+    const columns = 6;
     const [searchTerm, setSearchTerm] = useState("");
     const [offlineMode, setOfflineMode] = useState(false);
 
@@ -96,9 +95,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         }
     }, [selectedPlatform]);
 
-    useEffect(() => {
-        setColumns(6);
-    }, [selectedPlatform]);
+
 
     const { ref } = useFocusable({
         trackChildren: true
@@ -207,7 +204,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
             if (!isActive) return;
             if (isTypingActive()) return;
 
-            if (isRefreshKey(e.key)) {
+            if (e.key.toLowerCase() === 'r') {
                 e.preventDefault();
                 refreshLibrary();
             }

@@ -120,9 +120,6 @@ export function useGamepad() {
     };
 
     useEffect(() => {
-        window.addEventListener("gamepadconnected", () => {
-        });
-
         // @ts-ignore
         if (window.runtime) {
             // @ts-ignore

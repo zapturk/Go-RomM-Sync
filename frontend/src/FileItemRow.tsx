@@ -128,8 +128,8 @@ const DeleteButton = ({ focusKeyPrefix, onAction, onUpload, onDownload }: Action
     );
 };
 
-const getItemName = (item: any) => item.name || item.file_name;
-const getItemCore = (item: any) => item.core || item.emulator;
+export const getItemName = (item: any) => item.name || item.file_name;
+export const getItemCore = (item: any) => item.core || item.emulator;
 
 const getFocusTarget = (onUpload: any, onDownload: any, onDelete: any, prefix: string) => {
     if (onUpload) return `${prefix}-upload`;
