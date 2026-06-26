@@ -3,6 +3,9 @@ package assets
 import (
 	"fmt"
 	"go-romm-sync/constants"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -241,4 +244,83 @@ func TestTryDownloadPlatformCover(t *testing.T) {
 	if data != nil || ext != "" {
 		t.Errorf("Expected nil data and empty ext for download miss, got %v and %s", data, ext)
 	}
+}
+
+func TestServeHTTP(t *testing.T) {
+	cfg := &MockConfigProvider{Host: "http://localhost"}
+	client := &MockRomMClient{Host: "http://localhost"}
+	ui := &MockUIProvider{}
+	s := New(cfg, client, ui)
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("Failed to get home dir: %v", err)
+	}
+
+	t.Run("Serve Cached Cover", func(t *testing.T) {
+		cacheDir := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.CoversDir)
+		_ = os.MkdirAll(cacheDir, 0o755)
+		cachePath := filepath.Join(cacheDir, "7777.jpg")
+		_ = os.WriteFile(cachePath, []byte("cached image data"), 0o644)
+		defer os.Remove(cachePath)
+
+		req := httptest.NewRequest("GET", "/cache/covers/7777.jpg", nil)
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Expected 200, got %d", resp.StatusCode)
+		}
+		if resp.Header.Get("Content-Type") != "image/jpeg" {
+			t.Errorf("Expected image/jpeg Content-Type, got %s", resp.Header.Get("Content-Type"))
+		}
+		body, _ := io.ReadAll(resp.Body)
+		if string(body) != "cached image data" {
+			t.Errorf("Expected 'cached image data', got %s", string(body))
+		}
+	})
+
+	t.Run("Serve Downloaded Cover", func(t *testing.T) {
+		cacheDir := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, constants.CoversDir)
+		_ = os.MkdirAll(cacheDir, 0o755)
+		cachePath := filepath.Join(cacheDir, "8888.jpg")
+		_ = os.Remove(cachePath)
+		defer os.Remove(cachePath)
+
+		req := httptest.NewRequest("GET", "/cache/covers/8888.jpg?url=/covers/cover.jpg", nil)
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Expected 200, got %d", resp.StatusCode)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		if string(body) != "downloaded image data" {
+			t.Errorf("Expected 'downloaded image data', got %s", string(body))
+		}
+	})
+
+	t.Run("Serve Nonexistent Cover Missing URL", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/cache/covers/9999.jpg", nil)
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("Expected 404, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("Serve Invalid Prefix", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/invalid/covers/7777.jpg", nil)
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("Expected 404, got %d", resp.StatusCode)
+		}
+	})
 }

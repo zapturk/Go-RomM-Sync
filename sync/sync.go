@@ -3,6 +3,8 @@ package sync
 import (
 	"context"
 	"fmt"
+	"go-romm-sync/library"
+	"go-romm-sync/rommsrv"
 	"go-romm-sync/types"
 	"go-romm-sync/utils"
 	"io"
@@ -13,7 +15,6 @@ import (
 
 	"go-romm-sync/constants"
 	"go-romm-sync/utils/archive"
-	"go-romm-sync/utils/fileio"
 )
 
 const (
@@ -27,38 +28,15 @@ const (
 	platformPSP   = "psp"
 )
 
-// LibraryProvider defines the local library interactions needed for syncing.
-type LibraryProvider interface {
-	GetRomDir(game *types.Game) string
-	GetLocalGame(id uint) (types.Game, error)
-	GetBiosDir() string
-}
-
-// RomMProvider defines the RomM API interactions needed for syncing.
-type RomMProvider interface {
-	GetRom(id uint) (types.Game, error)
-	RomMUploadSave(id uint, core, filename string, content []byte) error
-	RomMUploadState(id uint, core, filename string, content []byte) error
-	RomMDownloadSave(ctx context.Context, id uint) (io.ReadCloser, string, error)
-	RomMDownloadState(ctx context.Context, id uint) (io.ReadCloser, string, error)
-}
-
-// UIProvider defines logging and event emission.
-type UIProvider interface {
-	LogInfof(format string, args ...interface{})
-	LogErrorf(format string, args ...interface{})
-	EventsEmit(eventName string, args ...interface{})
-}
-
 // Service manages the synchronization of saves and states.
 type Service struct {
-	library LibraryProvider
-	romm    RomMProvider
-	ui      UIProvider
+	library *library.Service
+	romm    *rommsrv.Service
+	ui      types.UIProvider
 }
 
 // New creates a new Sync service.
-func New(lib LibraryProvider, romm RomMProvider, ui UIProvider) *Service {
+func New(lib *library.Service, romm *rommsrv.Service, ui types.UIProvider) *Service {
 	return &Service{
 		library: lib,
 		romm:    romm,
@@ -292,9 +270,9 @@ func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) erro
 	}
 
 	if subDir == constants.DirSaves {
-		err = s.romm.RomMUploadSave(id, core, filename, content)
+		err = s.romm.GetClient().UploadSave(id, core, filename, content)
 	} else {
-		err = s.romm.RomMUploadState(id, core, filename, content)
+		err = s.romm.GetClient().UploadState(id, core, filename, content)
 	}
 
 	if err != nil {
@@ -369,15 +347,15 @@ func (s *Service) downloadServerAsset(gameID, serverID uint, core, filename, upd
 	var reader io.ReadCloser
 	var serverFilename string
 	if subDir == constants.DirSaves {
-		reader, serverFilename, err = s.romm.RomMDownloadSave(ctx, serverID)
+		reader, serverFilename, err = s.romm.GetClient().DownloadSave(ctx, serverID)
 	} else {
-		reader, serverFilename, err = s.romm.RomMDownloadState(ctx, serverID)
+		reader, serverFilename, err = s.romm.GetClient().DownloadState(ctx, serverID)
 	}
 
 	if err != nil {
 		return fmt.Errorf("failed to download %s from server: %w", subDir, err)
 	}
-	defer fileio.Close(reader, nil, "downloadServerAsset: Failed to close reader")
+	defer reader.Close() //nolint:errcheck
 
 	if filename == "" {
 		filename = serverFilename
@@ -431,7 +409,7 @@ func (s *Service) saveDownloadedAsset(reader io.Reader, destPath, core, filename
 	if err != nil {
 		return fmt.Errorf("failed to create local %s file: %w", subDir, err)
 	}
-	defer fileio.Close(out, nil, "saveDownloadedAsset: Failed to close output file")
+	defer out.Close() //nolint:errcheck
 
 	if _, err := io.Copy(out, reader); err != nil {
 		return fmt.Errorf("failed to write local %s file: %w", subDir, err)

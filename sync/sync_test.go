@@ -2,70 +2,65 @@ package sync
 
 import (
 	"bytes"
-	"context"
+	"encoding/json"
+	"go-romm-sync/config"
+	"go-romm-sync/library"
+	"go-romm-sync/rommsrv"
 	"go-romm-sync/types"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
-// MockLibraryProvider implements LibraryProvider
-type MockLibraryProvider struct {
-	RomDir string
-	Game   types.Game
+type mockRommConfig struct{}
+
+func (m mockRommConfig) GetRomMHost() string      { return "http://localhost" }
+func (m mockRommConfig) GetUsername() string      { return "user" }
+func (m mockRommConfig) GetPassword() string      { return "pass" }
+func (m mockRommConfig) GetClientToken() string   { return "token" }
+
+type mockTransport struct {
+	roundTrip func(*http.Request) (*http.Response, error)
 }
 
-func (m *MockLibraryProvider) GetRomDir(game *types.Game) string {
-	return m.RomDir
+func (t *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return t.roundTrip(req)
 }
 
-func (m *MockLibraryProvider) GetLocalGame(id uint) (types.Game, error) {
-	if m.Game.ID != 0 {
-		return m.Game, nil
-	}
-	return types.Game{ID: id}, nil
-}
-
-func (m *MockLibraryProvider) GetBiosDir() string {
-	return m.RomDir // Use RomDir or a dummy path since we just need it to compile
-}
-
-// MockRomMProvider implements RomMProvider
-type MockRomMProvider struct {
-	Game              types.Game
-	UploadErr         error
-	DownloadCl        io.ReadCloser
-	downloadSaveFunc  func(ctx context.Context, id uint) (io.ReadCloser, string, error)
-	downloadStateFunc func(ctx context.Context, id uint) (io.ReadCloser, string, error)
-}
-
-func (m *MockRomMProvider) GetRom(id uint) (types.Game, error) { return m.Game, nil }
-func (m *MockRomMProvider) RomMUploadSave(id uint, core, filename string, content []byte) error {
-	return m.UploadErr
-}
-func (m *MockRomMProvider) RomMUploadState(id uint, core, filename string, content []byte) error {
-	return m.UploadErr
-}
-func (m *MockRomMProvider) RomMDownloadSave(ctx context.Context, id uint) (reader io.ReadCloser, filename string, err error) {
-	if m.downloadSaveFunc != nil {
-		return m.downloadSaveFunc(ctx, id)
-	}
-	return m.DownloadCl, "save.srm", nil
-}
-func (m *MockRomMProvider) RomMDownloadState(ctx context.Context, id uint) (reader io.ReadCloser, filename string, err error) {
-	if m.downloadStateFunc != nil {
-		return m.downloadStateFunc(ctx, id)
-	}
-	return m.DownloadCl, "state.st0", nil
-}
-
-// MockUIProvider implements UIProvider
 type MockUIProvider struct{}
 
-func (m *MockUIProvider) LogInfof(format string, args ...interface{})      {}
-func (m *MockUIProvider) LogErrorf(format string, args ...interface{})     {}
-func (m *MockUIProvider) EventsEmit(eventName string, args ...interface{}) {}
+func (m *MockUIProvider) LogInfof(format string, args ...interface{})          {}
+func (m *MockUIProvider) LogErrorf(format string, args ...interface{})         {}
+func (m *MockUIProvider) EventsEmit(eventName string, args ...interface{})     {}
+
+func setupServices(tempDir string, gameData []byte, fileData []byte) (*library.Service, *rommsrv.Service, *config.ConfigManager) {
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{LibraryPath: tempDir}
+
+	rommSrv := rommsrv.New(mockRommConfig{})
+	rommSrv.GetClient().APIClient.Transport = &mockTransport{
+		roundTrip: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(gameData)),
+			}, nil
+		},
+	}
+	rommSrv.GetClient().FileClient.Transport = &mockTransport{
+		roundTrip: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(fileData)),
+			}, nil
+		},
+	}
+
+	libSrv := library.New(cm, rommSrv, &MockUIProvider{})
+	return libSrv, rommSrv, cm
+}
 
 func TestValidateAssetPath(t *testing.T) {
 	s := &Service{}
@@ -100,8 +95,10 @@ func TestGetSaves_Empty(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	lib := &MockLibraryProvider{RomDir: tempDir}
-	romm := &MockRomMProvider{Game: types.Game{ID: 1}}
+	game := types.Game{ID: 1, FullPath: "snes/game.sfc"}
+	gameData, _ := json.Marshal(game)
+
+	lib, romm, _ := setupServices(tempDir, gameData, nil)
 	s := New(lib, romm, &MockUIProvider{})
 
 	saves, err := s.GetSaves(1)
@@ -120,8 +117,10 @@ func TestUploadSave_PathTraversal(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	lib := &MockLibraryProvider{RomDir: tempDir}
-	romm := &MockRomMProvider{Game: types.Game{ID: 1}}
+	game := types.Game{ID: 1, FullPath: "snes/game.sfc"}
+	gameData, _ := json.Marshal(game)
+
+	lib, romm, _ := setupServices(tempDir, gameData, nil)
 	s := New(lib, romm, &MockUIProvider{})
 
 	err = s.UploadSave(1, "../../etc", "passwd")
@@ -137,7 +136,8 @@ func TestDeleteGameFile(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	savesDir := filepath.Join(tempDir, "saves", "snes")
+	romDir := filepath.Join(tempDir, "snes", "1")
+	savesDir := filepath.Join(romDir, "saves", "snes")
 	if err := os.MkdirAll(savesDir, 0o755); err != nil {
 		t.Fatalf("failed to create saves dir: %v", err)
 	}
@@ -146,8 +146,10 @@ func TestDeleteGameFile(t *testing.T) {
 		t.Fatalf("failed to write save file: %v", err)
 	}
 
-	lib := &MockLibraryProvider{RomDir: tempDir}
-	romm := &MockRomMProvider{Game: types.Game{ID: 1}}
+	game := types.Game{ID: 1, FullPath: "snes/game.sfc"}
+	gameData, _ := json.Marshal(game)
+
+	lib, romm, _ := setupServices(tempDir, gameData, nil)
 	s := New(lib, romm, &MockUIProvider{})
 
 	err = s.DeleteGameFile(1, "saves", "snes", "game.srm")
@@ -167,7 +169,8 @@ func TestGetSaves_WithFiles(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	savesDir := filepath.Join(tempDir, "saves", "snes")
+	romDir := filepath.Join(tempDir, "snes", "1")
+	savesDir := filepath.Join(romDir, "saves", "snes")
 	if err := os.MkdirAll(savesDir, 0o755); err != nil {
 		t.Fatalf("failed to create saves dir: %v", err)
 	}
@@ -175,8 +178,10 @@ func TestGetSaves_WithFiles(t *testing.T) {
 		t.Fatalf("failed to write save file: %v", err)
 	}
 
-	lib := &MockLibraryProvider{RomDir: tempDir}
-	romm := &MockRomMProvider{Game: types.Game{ID: 1}}
+	game := types.Game{ID: 1, FullPath: "snes/game.sfc"}
+	gameData, _ := json.Marshal(game)
+
+	lib, romm, _ := setupServices(tempDir, gameData, nil)
 	s := New(lib, romm, &MockUIProvider{})
 
 	saves, err := s.GetSaves(1)
@@ -197,13 +202,10 @@ func TestDownloadServerAsset(t *testing.T) {
 
 	fakeServerData := []byte("server data")
 
-	lib := &MockLibraryProvider{RomDir: tempDir}
-	romm := &MockRomMProvider{
-		Game: types.Game{ID: 1},
-	}
-	romm.downloadSaveFunc = func(ctx context.Context, id uint) (io.ReadCloser, string, error) {
-		return io.NopCloser(bytes.NewReader(fakeServerData)), "game.srm", nil
-	}
+	game := types.Game{ID: 1, FullPath: "snes/game.sfc"}
+	gameData, _ := json.Marshal(game)
+
+	lib, romm, _ := setupServices(tempDir, gameData, fakeServerData)
 	s := New(lib, romm, &MockUIProvider{})
 
 	err = s.DownloadServerSave(1, 123, "snes", "game.srm", "")
@@ -211,7 +213,7 @@ func TestDownloadServerAsset(t *testing.T) {
 		t.Fatalf("DownloadServerSave failed: %v", err)
 	}
 
-	localPath := filepath.Join(tempDir, "saves", "snes", "game.srm")
+	localPath := filepath.Join(tempDir, "snes", "1", "saves", "snes", "game.srm")
 	if _, err := os.Stat(localPath); err != nil {
 		t.Errorf("Expected local file to be created at %s", localPath)
 	}
@@ -224,7 +226,8 @@ func TestUploadSave_Success(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	savesDir := filepath.Join(tempDir, "saves", "snes")
+	romDir := filepath.Join(tempDir, "snes", "1")
+	savesDir := filepath.Join(romDir, "saves", "snes")
 	if err := os.MkdirAll(savesDir, 0o755); err != nil {
 		t.Fatalf("failed to create saves dir: %v", err)
 	}
@@ -233,8 +236,27 @@ func TestUploadSave_Success(t *testing.T) {
 		t.Fatalf("failed to write save file: %v", err)
 	}
 
-	lib := &MockLibraryProvider{RomDir: tempDir}
-	romm := &MockRomMProvider{Game: types.Game{ID: 1}}
+	game := types.Game{ID: 1, FullPath: "snes/game.sfc"}
+	gameData, _ := json.Marshal(game)
+
+	lib, romm, _ := setupServices(tempDir, gameData, nil)
+
+	// Mock upload endpoint returning HTTP 200
+	romm.GetClient().APIClient.Transport = &mockTransport{
+		roundTrip: func(req *http.Request) (*http.Response, error) {
+			if req.Method == "POST" {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(bytes.NewReader([]byte("{}"))),
+				}, nil
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(gameData)),
+			}, nil
+		},
+	}
+
 	s := New(lib, romm, &MockUIProvider{})
 
 	err = s.UploadSave(1, "snes", "game.srm")
@@ -250,10 +272,15 @@ func TestGetSaves_DolphinPlatformFilter(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	savesDir := filepath.Join(tempDir, "saves", "dolphin-emu")
+	gameGC := types.Game{ID: 1, PlatformSlug: "gamecube", FullPath: "gamecube/game.iso"}
+	gameWii := types.Game{ID: 2, PlatformSlug: "wii", FullPath: "wii/game.wbfs"}
+	gameGCData, _ := json.Marshal(gameGC)
+
+	lib, romm, _ := setupServices(tempDir, gameGCData, nil)
+	s := New(lib, romm, &MockUIProvider{})
 
 	// Create GameCube save
-	gcDir := filepath.Join(savesDir, "User", "GC", "USA", "Card A")
+	gcDir := filepath.Join(tempDir, "gamecube", "1", "saves", "dolphin-emu", "User", "GC", "USA", "Card A")
 	if err := os.MkdirAll(gcDir, 0o755); err != nil {
 		t.Fatalf("failed to create GC saves dir: %v", err)
 	}
@@ -262,17 +289,12 @@ func TestGetSaves_DolphinPlatformFilter(t *testing.T) {
 	}
 
 	// Create Wii save dir
-	wiiDir := filepath.Join(savesDir, "User", "Wii")
+	wiiDir := filepath.Join(tempDir, "wii", "2", "saves", "dolphin-emu", "User", "Wii")
 	if err := os.MkdirAll(filepath.Join(wiiDir, "title"), 0o755); err != nil {
 		t.Fatalf("failed to create Wii title dir: %v", err)
 	}
 
-	lib := &MockLibraryProvider{RomDir: tempDir}
-	romm := &MockRomMProvider{}
-	s := New(lib, romm, &MockUIProvider{})
-
-	// Test GameCube game (doesn't trigger 'wii' matching)
-	lib.Game = types.Game{ID: 1, PlatformSlug: "gamecube"}
+	// Test GameCube game
 	savesGC, err := s.GetSaves(1)
 	if err != nil {
 		t.Fatalf("Unexpected error for GC check: %v", err)
@@ -281,8 +303,18 @@ func TestGetSaves_DolphinPlatformFilter(t *testing.T) {
 		t.Errorf("Expected 1 GC save, got %v", savesGC)
 	}
 
+	// Mock server to return Wii game details on GetRom
+	gameWiiData, _ := json.Marshal(gameWii)
+	romm.GetClient().APIClient.Transport = &mockTransport{
+		roundTrip: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(gameWiiData)),
+			}, nil
+		},
+	}
+
 	// Test Wii game
-	lib.Game = types.Game{ID: 2, PlatformSlug: "wii"}
 	savesWii, err := s.GetSaves(2)
 	if err != nil {
 		t.Fatalf("Unexpected error for Wii check: %v", err)
@@ -299,20 +331,21 @@ func TestGetSaves_PPSSPP(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
+	game := types.Game{ID: 954, PlatformSlug: "psp", FullPath: "psp/game.iso"}
+	gameData, _ := json.Marshal(game)
+
+	lib, romm, _ := setupServices(tempDir, gameData, nil)
+	s := New(lib, romm, &MockUIProvider{})
+
 	// User's path structure: saves/PPSSPP/PSP/SAVEDATA/ULUS...
 	saveName := "ULUS10374SO10000"
-	savesDir := filepath.Join(tempDir, "saves", "PPSSPP", "PSP", "SAVEDATA", saveName)
+	savesDir := filepath.Join(tempDir, "psp", "954", "saves", "PPSSPP", "PSP", "SAVEDATA", saveName)
 	if err := os.MkdirAll(savesDir, 0o755); err != nil {
 		t.Fatalf("failed to create PPSSPP saves dir: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(savesDir, "PARAM.SFO"), []byte("data"), 0o644); err != nil {
 		t.Fatalf("failed to write save file: %v", err)
 	}
-
-	lib := &MockLibraryProvider{RomDir: tempDir}
-	lib.Game = types.Game{ID: 954, PlatformSlug: "psp"}
-	romm := &MockRomMProvider{}
-	s := New(lib, romm, &MockUIProvider{})
 
 	saves, err := s.GetSaves(954)
 	if err != nil {
@@ -330,16 +363,18 @@ func TestPrepareAssetPath_PPSSPP(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	lib := &MockLibraryProvider{RomDir: tempDir}
-	s := New(lib, &MockRomMProvider{}, &MockUIProvider{})
+	game := types.Game{ID: 954, PlatformSlug: "psp", FullPath: "psp/game.iso"}
+	gameData, _ := json.Marshal(game)
 
-	game := &types.Game{ID: 954, PlatformSlug: "psp"}
-	destPath, err := s.prepareAssetPath(game, "PPSSPP", "ULUS10374SO10000", "saves")
+	lib, romm, _ := setupServices(tempDir, gameData, nil)
+	s := New(lib, romm, &MockUIProvider{})
+
+	destPath, err := s.prepareAssetPath(&game, "PPSSPP", "ULUS10374SO10000", "saves")
 	if err != nil {
 		t.Fatalf("prepareAssetPath failed: %v", err)
 	}
 
-	expected := filepath.Join(tempDir, "saves", "PPSSPP", "PSP", "SAVEDATA", "ULUS10374SO10000")
+	expected := filepath.Join(tempDir, "psp", "954", "saves", "PPSSPP", "PSP", "SAVEDATA", "ULUS10374SO10000")
 	if destPath != expected {
 		t.Errorf("Expected path %s, got %s", expected, destPath)
 	}

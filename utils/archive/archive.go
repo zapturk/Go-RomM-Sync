@@ -81,7 +81,7 @@ func Extract(src, destDir string) (bool, error) {
 		return false, nil
 	}
 
-	return tryExtract(format, src, destDir, false)
+	return tryExtractWithCondition(format, src, destDir, nil)
 }
 
 // ExtractCueBin checks if an archive contains .cue and .bin files and extracts them if it does.
@@ -211,13 +211,6 @@ func sniffRar(buf []byte, n int) string {
 	return ""
 }
 
-func tryExtract(format, src, destDir string, cueBinOnly bool) (bool, error) {
-	if cueBinOnly {
-		return ExtractCueBin(src, destDir)
-	}
-	return tryExtractWithCondition(format, src, destDir, nil)
-}
-
 type archiveEntry interface {
 	Name() string
 	IsDir() bool
@@ -256,7 +249,7 @@ func extractZipWithCondition(src, destDir string, condition func([]archiveEntry)
 		return false, nil
 	}
 
-	return processArchiveEntries(entries, destDir, false)
+	return processArchiveEntries(entries, destDir)
 }
 
 func extract7zWithCondition(src, destDir string, condition func([]archiveEntry) bool) (bool, error) {
@@ -275,26 +268,10 @@ func extract7zWithCondition(src, destDir string, condition func([]archiveEntry) 
 		return false, nil
 	}
 
-	return processArchiveEntries(entries, destDir, false)
+	return processArchiveEntries(entries, destDir)
 }
 
-func processArchiveEntries(entries []archiveEntry, destDir string, cueBinOnly bool) (bool, error) {
-	if cueBinOnly {
-		hasCue := false
-		hasBin := false
-		for _, e := range entries {
-			switch strings.ToLower(filepath.Ext(e.Name())) {
-			case extCue:
-				hasCue = true
-			case extBin:
-				hasBin = true
-			}
-		}
-
-		if !hasCue || !hasBin {
-			return false, nil
-		}
-	}
+func processArchiveEntries(entries []archiveEntry, destDir string) (bool, error) {
 
 	if len(entries) == 0 {
 		return false, nil

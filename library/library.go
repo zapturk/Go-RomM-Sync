@@ -3,45 +3,27 @@ package library
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"go-romm-sync/config"
+	"go-romm-sync/constants"
 	"go-romm-sync/retroarch"
+	"go-romm-sync/rommsrv"
 	"go-romm-sync/types"
 	"go-romm-sync/utils"
+	"go-romm-sync/utils/archive"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"go-romm-sync/utils/archive"
-	"go-romm-sync/utils/fileio"
 	"time"
 )
-
-// ConfigProvider defines the configuration needed for library management.
-type ConfigProvider interface {
-	GetLibraryPath() string
-	SaveDefaultLibraryPath(path string) error
-}
-
-// RomMProvider defines the RomM API interactions needed for library management.
-type RomMProvider interface {
-	GetRom(id uint) (types.Game, error)
-	DownloadFile(ctx context.Context, game *types.Game) (io.ReadCloser, string, error)
-	GetRomDownloadStatus(id uint) (bool, error)
-}
-
-// UIProvider defines logging and event emission.
-type UIProvider interface {
-	LogInfof(format string, args ...interface{})
-	LogErrorf(format string, args ...interface{})
-	EventsEmit(eventName string, args ...interface{})
-}
 
 type ProgressWriter struct {
 	Total       int64
 	Downloaded  int64
 	GameID      uint
-	UI          UIProvider
+	UI          types.UIProvider
 	LastPercent float64
 	LastEmit    time.Time
 }
@@ -66,13 +48,13 @@ func (pw *ProgressWriter) Write(p []byte) (int, error) {
 
 // Service manages the local ROM library.
 type Service struct {
-	config ConfigProvider
-	romm   RomMProvider
-	ui     UIProvider
+	config *config.ConfigManager
+	romm   *rommsrv.Service
+	ui     types.UIProvider
 }
 
 // New creates a new Library service.
-func New(cfg ConfigProvider, romm RomMProvider, ui UIProvider) *Service {
+func New(cfg *config.ConfigManager, romm *rommsrv.Service, ui types.UIProvider) *Service {
 	return &Service{
 		config: cfg,
 		romm:   romm,
@@ -82,14 +64,14 @@ func New(cfg ConfigProvider, romm RomMProvider, ui UIProvider) *Service {
 
 // GetRomDir returns the local directory where a ROM is stored.
 func (s *Service) GetRomDir(game *types.Game) string {
-	libPath := s.config.GetLibraryPath()
+	libPath := s.config.GetConfig().LibraryPath
 	relPath := utils.SanitizePath(filepath.Dir(game.FullPath))
 	return filepath.Join(libPath, relPath, fmt.Sprintf("%d", game.ID))
 }
 
 // DownloadRomToLibrary downloads a ROM directly to the configured library path.
 func (s *Service) DownloadRomToLibrary(ctx context.Context, id uint) error {
-	libPath := s.config.GetLibraryPath()
+	libPath := s.config.GetConfig().LibraryPath
 	if libPath == "" {
 		// This is a bit tricky as the original logic tried to get a default path.
 		// We'll assume the caller handles default path logic or we provide a way to save it.
@@ -101,11 +83,11 @@ func (s *Service) DownloadRomToLibrary(ctx context.Context, id uint) error {
 		return fmt.Errorf("failed to get ROM info: %w", err)
 	}
 
-	reader, _, err := s.romm.DownloadFile(ctx, &game)
+	reader, _, err := s.romm.GetClient().DownloadFile(ctx, &game)
 	if err != nil {
 		return err
 	}
-	defer fileio.Close(reader, nil, "DownloadRomToLibrary: Failed to close reader")
+	defer reader.Close() //nolint:errcheck
 
 	destDir := s.GetRomDir(&game)
 	filename := filepath.Base(game.FullPath)
@@ -129,7 +111,11 @@ func (s *Service) DownloadRomToLibrary(ctx context.Context, id uint) error {
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
-	defer fileio.Close(out, s.ui.LogErrorf, "DownloadRomToLibrary: Failed to close destination file")
+	defer func() {
+		if err := out.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+			s.ui.LogErrorf("DownloadRomToLibrary: Failed to close destination file: %v", err)
+		}
+	}()
 
 	pw := &ProgressWriter{
 		Total:    game.FileSize,
@@ -157,31 +143,33 @@ func (s *Service) postDownloadProcessing(id uint, game *types.Game, destPath, de
 	var extracted bool
 	var err error
 
-	// Try extracting .cue/.bin files
-	extracted, err = archive.ExtractCueBin(destPath, destDir)
-	if err != nil {
-		s.ui.LogErrorf("DownloadRomToLibrary: .cue/.bin extraction failed for %s: %v", destPath, err)
-	} else if extracted {
-		s.ui.LogInfof("DownloadRomToLibrary: Extracted .cue/.bin files from archive: %s", destPath)
+	slug := game.Platform.Slug
+	if slug == "" {
+		slug = game.PlatformSlug
 	}
+	slug = strings.ToLower(slug)
 
-	// Try extracting GameCube files if not already extracted (archive package extracts everything)
-	if !extracted {
+	switch slug {
+	case "ps2":
+		extracted, err = archive.ExtractPS2(destPath, destDir)
+		if err != nil {
+			s.ui.LogErrorf("DownloadRomToLibrary: PS2 extraction failed for %s: %v", destPath, err)
+		} else if extracted {
+			s.ui.LogInfof("DownloadRomToLibrary: Extracted PS2 files from archive: %s", destPath)
+		}
+	case "gamecube":
 		extracted, err = archive.ExtractGameCube(destPath, destDir)
 		if err != nil {
 			s.ui.LogErrorf("DownloadRomToLibrary: GameCube extraction failed for %s: %v", destPath, err)
 		} else if extracted {
 			s.ui.LogInfof("DownloadRomToLibrary: Extracted GameCube files from archive: %s", destPath)
 		}
-	}
-
-	// Try extracting PS2 files if not already extracted
-	if !extracted {
-		extracted, err = archive.ExtractPS2(destPath, destDir)
+	default:
+		extracted, err = archive.ExtractCueBin(destPath, destDir)
 		if err != nil {
-			s.ui.LogErrorf("DownloadRomToLibrary: PS2 extraction failed for %s: %v", destPath, err)
+			s.ui.LogErrorf("DownloadRomToLibrary: .cue/.bin extraction failed for %s: %v", destPath, err)
 		} else if extracted {
-			s.ui.LogInfof("DownloadRomToLibrary: Extracted PS2 files from archive: %s", destPath)
+			s.ui.LogInfof("DownloadRomToLibrary: Extracted .cue/.bin files from archive: %s", destPath)
 		}
 	}
 
@@ -219,7 +207,7 @@ func (s *Service) SaveMetadata(game *types.Game) error {
 
 // GetLocalLibrary scans the library directory and returns a list of games with metadata.
 func (s *Service) GetLocalLibrary(limit, offset, platformID int, search string) ([]types.Game, int, error) {
-	libPath := s.config.GetLibraryPath()
+	libPath := s.config.GetConfig().LibraryPath
 	if libPath == "" {
 		return nil, 0, fmt.Errorf("library path not configured")
 	}
@@ -281,7 +269,7 @@ func (s *Service) GetLocalLibrary(limit, offset, platformID int, search string) 
 
 // GetLocalGame retrieves local metadata for a specific game ID.
 func (s *Service) GetLocalGame(id uint) (types.Game, error) {
-	libPath := s.config.GetLibraryPath()
+	libPath := s.config.GetConfig().LibraryPath
 	var foundGame types.Game
 	var found bool
 
@@ -320,7 +308,7 @@ func (s *Service) GetLocalGame(id uint) (types.Game, error) {
 
 // GetRomDownloadStatus checks if a ROM has been downloaded.
 func (s *Service) GetRomDownloadStatus(id uint) (bool, error) {
-	libPath := s.config.GetLibraryPath()
+	libPath := s.config.GetConfig().LibraryPath
 	if libPath == "" {
 		return false, nil
 	}
@@ -363,7 +351,7 @@ func (s *Service) findRomPath(romDir string) string {
 
 // DeleteRom removes a downloaded ROM.
 func (s *Service) DeleteRom(id uint) error {
-	libPath := s.config.GetLibraryPath()
+	libPath := s.config.GetConfig().LibraryPath
 	if libPath == "" {
 		return fmt.Errorf("library path is not configured")
 	}
@@ -388,4 +376,8 @@ func (s *Service) DeleteRom(id uint) error {
 // FindRomPath is a public wrapper for finding a ROM path.
 func (s *Service) FindRomPath(romDir string) string {
 	return s.findRomPath(romDir)
+}
+
+func (s *Service) GetBiosDir() string {
+	return filepath.Join(s.config.GetConfig().LibraryPath, constants.DirBios)
 }

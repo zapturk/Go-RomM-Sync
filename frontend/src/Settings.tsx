@@ -85,9 +85,14 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             });
         });
 
+        const unsubscribeBiosProgress = EventsOn("bios-download-progress", (progress: number) => {
+            setStatus(`Downloading RetroArch BIOS pack (${progress}%)...`);
+        });
+
         return () => {
             unsubscribeOffline();
             unsubscribeConfig();
+            unsubscribeBiosProgress();
         };
     }, []);
 

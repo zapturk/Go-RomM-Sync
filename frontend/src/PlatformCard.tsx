@@ -24,7 +24,6 @@ export function PlatformCard({ platform, onClick, onEnterPress, syncTrigger = 0,
     const { ref, focused, focusSelf } = useFocusable({
         onEnterPress: onEnterPress || onClick,
         focusKey: `platform-${platform.id}`,
-        onFocus: () => { },
         onArrowPress: (direction: string) => {
             if (isLeftmost && direction === 'left') {
                 return false;

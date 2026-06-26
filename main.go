@@ -29,7 +29,8 @@ func main() {
 		Height:     1080,
 		Fullscreen: true,
 		AssetServer: &assetserver.Options{
-			Assets: distAssets,
+			Assets:  distAssets,
+			Handler: app.assetSrv,
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup:        app.startup,

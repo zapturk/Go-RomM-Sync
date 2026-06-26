@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"go-romm-sync/constants"
-	"go-romm-sync/utils/fileio"
 )
 
 // BiosInfo contains metadata about a BIOS file.
@@ -141,7 +140,9 @@ func UpdateBios(ui UIProvider, exePath string) error {
 		return err
 	}
 	systemDir := GetSystemDir(baseDir)
-	fileio.MkdirAll(systemDir, 0o755, ui.LogErrorf)
+	if err := os.MkdirAll(systemDir, 0o755); err != nil {
+		ui.LogErrorf("MkdirAll failed for %s: %v", systemDir, err)
+	}
 
 	ui.EventsEmit(constants.EventPlayStatus, "Fetching latest BIOS release info...")
 
@@ -149,7 +150,7 @@ func UpdateBios(ui UIProvider, exePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch release info: %w", err)
 	}
-	defer fileio.Close(resp.Body, ui.LogErrorf, "UpdateBios: Failed to close response body")
+	defer resp.Body.Close() //nolint:errcheck
 
 	var release githubRelease
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
@@ -174,7 +175,7 @@ func UpdateBios(ui UIProvider, exePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to download BIOS pack: %w", err)
 	}
-	defer fileio.Close(dlResp.Body, ui.LogErrorf, "UpdateBios: Failed to close download body")
+	defer dlResp.Body.Close() //nolint:errcheck
 
 	if dlResp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to download BIOS pack: HTTP %d", dlResp.StatusCode)
@@ -184,13 +185,23 @@ func UpdateBios(ui UIProvider, exePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
-	defer fileio.Remove(tmpZip.Name(), ui.LogErrorf)
+	defer func() {
+		if err := os.Remove(tmpZip.Name()); err != nil {
+			ui.LogErrorf("Failed to remove temp zip: %v", err)
+		}
+	}()
 
-	if _, err := io.Copy(tmpZip, dlResp.Body); err != nil {
-		fileio.Close(tmpZip, ui.LogErrorf, "UpdateBios: Failed to close temp zip")
+	pw := &progressWriter{
+		total: dlResp.ContentLength,
+		ui:    ui,
+	}
+	destWriter := io.MultiWriter(tmpZip, pw)
+
+	if _, err := io.Copy(destWriter, dlResp.Body); err != nil {
+		_ = tmpZip.Close()
 		return fmt.Errorf("failed to save BIOS pack: %w", err)
 	}
-	fileio.Close(tmpZip, ui.LogErrorf, "UpdateBios: Failed to close temp zip")
+	_ = tmpZip.Close()
 
 	ui.EventsEmit(constants.EventPlayStatus, "Extracting BIOS pack...")
 
@@ -207,7 +218,7 @@ func unzipBios(ui UIProvider, src, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer fileio.Close(r, nil, "unzipBios: Failed to close zip reader")
+	defer r.Close() //nolint:errcheck
 
 	var lastErr error
 	errorCount := 0
@@ -250,15 +261,15 @@ func unzipBios(ui UIProvider, src, dest string) error {
 		}
 		rc, err := f.Open()
 		if err != nil {
-			fileio.Close(outFile, nil, "unzipBios: Failed to close output file")
+			_ = outFile.Close()
 			ui.LogErrorf("failed to open zip member %s: %v", name, err)
 			lastErr = err
 			errorCount++
 			continue
 		}
 		_, err = io.Copy(outFile, rc)
-		fileio.Close(outFile, nil, "unzipBios: Failed to close output file")
-		fileio.Close(rc, nil, "unzipBios: Failed to close zip member")
+		_ = outFile.Close()
+		_ = rc.Close()
 		if err != nil {
 			ui.LogErrorf("failed to extract file %s: %v", name, err)
 			lastErr = err
@@ -272,4 +283,27 @@ func unzipBios(ui UIProvider, src, dest string) error {
 	}
 
 	return nil
+}
+
+type progressWriter struct {
+	total       int64
+	downloaded  int64
+	ui          UIProvider
+	lastPercent int
+}
+
+func (pw *progressWriter) Write(p []byte) (int, error) {
+	n := len(p)
+	pw.downloaded += int64(n)
+	if pw.total > 0 {
+		percent := int(float64(pw.downloaded) / float64(pw.total) * 100)
+		if percent > 100 {
+			percent = 100
+		}
+		if percent > pw.lastPercent {
+			pw.lastPercent = percent
+			pw.ui.EventsEmit("bios-download-progress", percent)
+		}
+	}
+	return n, nil
 }

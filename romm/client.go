@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go-romm-sync/constants"
 	"go-romm-sync/types"
 	"io"
 	"mime/multipart"
@@ -13,9 +14,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"go-romm-sync/constants"
-	"go-romm-sync/utils/fileio"
 )
 
 const (
@@ -64,7 +62,7 @@ func (c *Client) Login(username, password string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to perform login request: %w", err)
 	}
-	defer fileio.Close(resp.Body, nil, "Login: Failed to close response body")
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
@@ -116,7 +114,7 @@ func (c *Client) CreateClientToken(name string, scopes []string) (string, error)
 	if err != nil {
 		return "", fmt.Errorf("failed to perform token request: %w", err)
 	}
-	defer fileio.Close(resp.Body, nil, "CreateClientToken: Failed to close response body")
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusCreated {
 		respBody, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
@@ -203,7 +201,7 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform cover request: %w", err)
 	}
-	defer fileio.Close(resp.Body, nil, "DownloadCover: Failed to close response body")
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("cover fetch failed with status %d", resp.StatusCode)
@@ -258,7 +256,7 @@ func (c *Client) GetRom(id uint) (types.Game, error) {
 	if err != nil {
 		return types.Game{}, fmt.Errorf("failed to perform ROM request: %w", err)
 	}
-	defer fileio.Close(resp.Body, nil, "GetRom: Failed to close response body")
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
@@ -299,7 +297,7 @@ func (c *Client) DownloadFile(ctx context.Context, game *types.Game) (reader io.
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		fileio.Close(resp.Body, nil, "DownloadFile: Failed to close response body")
+		_ = resp.Body.Close()
 		return nil, "", fmt.Errorf("download failed with status %d", resp.StatusCode)
 	}
 
@@ -372,7 +370,7 @@ func (c *Client) uploadAsset(romID uint, emulator, filename string, content []by
 	if err != nil {
 		return fmt.Errorf("failed to perform upload request: %w", err)
 	}
-	defer fileio.Close(resp.Body, nil, "uploadAsset: Failed to close response body")
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		respBody, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
@@ -409,7 +407,7 @@ func fetchAssets[T any](c *Client, urlStr, assetType string) ([]T, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform %s request: %w", assetType, err)
 	}
-	defer fileio.Close(resp.Body, nil, "fetchAssets: Failed to close response body")
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
@@ -463,7 +461,7 @@ func (c *Client) downloadAsset(ctx context.Context, id uint, assetType, fallback
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
-		fileio.Close(resp.Body, nil, "downloadAsset: Failed to close response body")
+		_ = resp.Body.Close()
 		return nil, "", fmt.Errorf("download failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
@@ -512,7 +510,7 @@ func (c *Client) getJSON(urlStr, label string) (json.RawMessage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform %s request: %w", label, err)
 	}
-	defer fileio.Close(resp.Body, nil, label+": Failed to close response body")
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
@@ -594,7 +592,7 @@ func (c *Client) DownloadFirmwareContent(ctx context.Context, id uint, fileName 
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
-		fileio.Close(resp.Body, nil, "DownloadFirmwareContent: Failed to close response body")
+		_ = resp.Body.Close()
 		return nil, "", fmt.Errorf("firmware download failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
