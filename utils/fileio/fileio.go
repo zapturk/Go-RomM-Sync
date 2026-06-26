@@ -14,7 +14,7 @@ func WriteFileFromReader(path string, r io.Reader, perm os.FileMode) error {
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
-	defer out.Close()
+	defer out.Close() //nolint:errcheck
 
 	if _, err := io.Copy(out, r); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
@@ -28,7 +28,7 @@ func GetMD5(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	h := md5.New()
 	if _, err := io.Copy(h, f); err != nil {

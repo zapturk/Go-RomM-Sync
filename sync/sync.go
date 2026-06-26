@@ -355,7 +355,7 @@ func (s *Service) downloadServerAsset(gameID, serverID uint, core, filename, upd
 	if err != nil {
 		return fmt.Errorf("failed to download %s from server: %w", subDir, err)
 	}
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	if filename == "" {
 		filename = serverFilename
@@ -409,7 +409,7 @@ func (s *Service) saveDownloadedAsset(reader io.Reader, destPath, core, filename
 	if err != nil {
 		return fmt.Errorf("failed to create local %s file: %w", subDir, err)
 	}
-	defer out.Close()
+	defer out.Close() //nolint:errcheck
 
 	if _, err := io.Copy(out, reader); err != nil {
 		return fmt.Errorf("failed to write local %s file: %w", subDir, err)

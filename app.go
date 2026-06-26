@@ -236,7 +236,7 @@ func (a *App) getOfflinePlatforms(limit, offset int) (types.LibraryResult[types.
 		}
 		platformMap[game.PlatformID] = platform
 	}
-	var platforms []types.Platform
+	platforms := make([]types.Platform, 0, len(platformMap))
 	for _, p := range platformMap {
 		platforms = append(platforms, p)
 	}

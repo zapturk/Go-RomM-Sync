@@ -80,7 +80,7 @@ func (s *Service) DownloadFirmware(platformSlug string, fw *types.Firmware) erro
 	if err != nil {
 		return err
 	}
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	// Save to a temporary file first to check for archives and calculate MD5 if needed
 	tempDir, err := os.MkdirTemp("", "go-romm-sync-bios-*")

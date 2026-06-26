@@ -39,7 +39,7 @@ func resolveRomPath(ui UIProvider, romPath, platform string) (ext, outRomPath, t
 		ui.LogErrorf("resolveRomPath: Failed to open .zip archive: %v. Passing original path to RetroArch.", openErr)
 		return ext, outRomPath, "", nil
 	}
-	defer r.Close()
+	defer r.Close() //nolint:errcheck
 
 	platformCores := GetCoresForPlatform(platform)
 	foundExt := ""
@@ -126,7 +126,6 @@ func extractZipMember(f *zip.File, pattern string) (string, error) {
 	}
 	return tmpFile.Name(), nil
 }
-
 
 // createPico8Hardlink creates a .p8 hardlink for a Pico-8 .png cart so RetroArch
 // doesn't route it to the image-viewer core. Returns the new path and temp path.

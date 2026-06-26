@@ -211,7 +211,6 @@ func sniffRar(buf []byte, n int) string {
 	return ""
 }
 
-
 type archiveEntry interface {
 	Name() string
 	IsDir() bool

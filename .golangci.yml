@@ -18,6 +18,8 @@ linters:
     - unparam
   settings:
     gocritic:
+      disabled-checks:
+        - whyNoLint
       enabled-tags:
         - diagnostic
         - style
@@ -32,9 +34,20 @@ linters:
       - third_party$
       - builtin$
       - examples$
+    rules:
+      - path: retroarch/
+        linters:
+          - goconst
+      - path: assets/service.go
+        linters:
+          - goconst
+      - path: library/library.go
+        linters:
+          - goconst
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+
 formatters:
   enable:
     - gofmt

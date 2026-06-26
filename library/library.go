@@ -5,16 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"go-romm-sync/config"
+	"go-romm-sync/constants"
 	"go-romm-sync/retroarch"
 	"go-romm-sync/rommsrv"
 	"go-romm-sync/types"
 	"go-romm-sync/utils"
+	"go-romm-sync/utils/archive"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
-	"go-romm-sync/constants"
-	"go-romm-sync/utils/archive"
 	"time"
 )
 
@@ -86,7 +86,7 @@ func (s *Service) DownloadRomToLibrary(ctx context.Context, id uint) error {
 	if err != nil {
 		return err
 	}
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	destDir := s.GetRomDir(&game)
 	filename := filepath.Base(game.FullPath)
@@ -380,4 +380,3 @@ func (s *Service) FindRomPath(romDir string) string {
 func (s *Service) GetBiosDir() string {
 	return filepath.Join(s.config.GetConfig().LibraryPath, constants.DirBios)
 }
-

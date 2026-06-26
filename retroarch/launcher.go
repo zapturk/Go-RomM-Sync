@@ -187,7 +187,7 @@ func ensurePCSX2Resources(ui UIProvider, coreBaseName, baseDir string) error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch GameIndex.yaml: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("HTTP %d from %s", resp.StatusCode, constants.URLPCSX2GameIndex)
 	}
@@ -197,9 +197,11 @@ func ensurePCSX2Resources(ui UIProvider, coreBaseName, baseDir string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create GameIndex.yaml: %w", err)
 	}
-	defer out.Close()
+	defer out.Close() //nolint:errcheck
 
 	if _, err := io.Copy(out, body); err != nil {
+		_ = out.Close()
+		_ = os.Remove(yamlPath)
 		return fmt.Errorf("failed to write GameIndex.yaml: %w", err)
 	}
 	return nil

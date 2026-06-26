@@ -22,4 +22,3 @@ type UIProvider interface {
 	LogErrorf(format string, args ...interface{})
 	EventsEmit(eventName string, args ...interface{})
 }
-

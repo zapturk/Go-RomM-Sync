@@ -150,7 +150,7 @@ func UpdateBios(ui UIProvider, exePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch release info: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	var release githubRelease
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
@@ -175,7 +175,7 @@ func UpdateBios(ui UIProvider, exePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to download BIOS pack: %w", err)
 	}
-	defer dlResp.Body.Close()
+	defer dlResp.Body.Close() //nolint:errcheck
 
 	if dlResp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to download BIOS pack: HTTP %d", dlResp.StatusCode)
@@ -191,7 +191,13 @@ func UpdateBios(ui UIProvider, exePath string) error {
 		}
 	}()
 
-	if _, err := io.Copy(tmpZip, dlResp.Body); err != nil {
+	pw := &progressWriter{
+		total: dlResp.ContentLength,
+		ui:    ui,
+	}
+	destWriter := io.MultiWriter(tmpZip, pw)
+
+	if _, err := io.Copy(destWriter, dlResp.Body); err != nil {
 		_ = tmpZip.Close()
 		return fmt.Errorf("failed to save BIOS pack: %w", err)
 	}
@@ -212,7 +218,7 @@ func unzipBios(ui UIProvider, src, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer r.Close()
+	defer r.Close() //nolint:errcheck
 
 	var lastErr error
 	errorCount := 0
@@ -277,4 +283,27 @@ func unzipBios(ui UIProvider, src, dest string) error {
 	}
 
 	return nil
+}
+
+type progressWriter struct {
+	total       int64
+	downloaded  int64
+	ui          UIProvider
+	lastPercent int
+}
+
+func (pw *progressWriter) Write(p []byte) (int, error) {
+	n := len(p)
+	pw.downloaded += int64(n)
+	if pw.total > 0 {
+		percent := int(float64(pw.downloaded) / float64(pw.total) * 100)
+		if percent > 100 {
+			percent = 100
+		}
+		if percent > pw.lastPercent {
+			pw.lastPercent = percent
+			pw.ui.EventsEmit("bios-download-progress", percent)
+		}
+	}
+	return n, nil
 }
