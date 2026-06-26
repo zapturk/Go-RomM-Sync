@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"go-romm-sync/constants"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,29 +56,44 @@ func (s *Service) GetCover(romID uint, coverURL string) (string, error) {
 		return "", fmt.Errorf("failed to create cache dir: %w", err)
 	}
 
-	ext := filepath.Ext(coverURL)
-	if ext == "" {
-		ext = ".jpg"
+	extensions := []string{".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"}
+	urlExt := strings.ToLower(filepath.Ext(coverURL))
+	if urlExt != "" {
+		// Prioritize the extension from the cover URL
+		extensions = append([]string{urlExt}, extensions...)
 	}
-	filename := fmt.Sprintf("%d%s", romID, ext)
-	cachePath := filepath.Join(cacheDir, filename)
 
 	var data []byte
-	if _, err := os.Stat(cachePath); err == nil {
-		data, err = os.ReadFile(cachePath)
-		if err != nil {
-			return "", fmt.Errorf("failed to read cached cover: %w", err)
+	var foundExt string
+
+	for _, ext := range extensions {
+		p := filepath.Join(cacheDir, fmt.Sprintf("%d%s", romID, ext))
+		if _, err := os.Stat(p); err == nil {
+			if d, err := os.ReadFile(p); err == nil {
+				data = d
+				foundExt = ext
+				break
+			}
 		}
-	} else {
+	}
+
+	if data == nil {
+		var err error
 		data, err = s.client.DownloadCover(coverURL)
 		if err != nil {
 			return "", fmt.Errorf("failed to download cover: %w", err)
 		}
 
+		ext := urlExt
+		if ext == "" {
+			ext = ".jpg"
+		}
+		cachePath := filepath.Join(cacheDir, fmt.Sprintf("%d%s", romID, ext))
 		_ = os.WriteFile(cachePath, data, 0o644)
+		foundExt = ext
 	}
 
-	return toDataURI(data, ext), nil
+	return toDataURI(data, foundExt), nil
 }
 
 // GetPlatformCover returns the data URI for the platform cover, using a local cache.
@@ -192,4 +208,108 @@ func (s *Service) ClearCache() error {
 	}
 
 	return nil
+}
+
+// ServeHTTP implements http.Handler to serve cached game covers and platform icons directly, proxying downloads if not cached.
+func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	println("[ServeHTTP] Request received for path:", path, "query:", r.URL.RawQuery)
+	if !strings.HasPrefix(path, "/cache/") {
+		println("[ServeHTTP] Prefix /cache/ not matched, returning 404")
+		http.NotFound(w, r)
+		return
+	}
+
+	// Determine cache directory and target ID based on path
+	var cacheSubdir string
+	switch {
+	case strings.HasPrefix(path, "/cache/covers/"):
+		cacheSubdir = constants.CoversDir
+		path = strings.TrimPrefix(path, "/cache/covers/")
+	case strings.HasPrefix(path, "/cache/platforms/"):
+		cacheSubdir = constants.PlatformsDir
+		path = strings.TrimPrefix(path, "/cache/platforms/")
+	default:
+		println("[ServeHTTP] Subdir covers/platforms not matched, returning 404")
+		http.NotFound(w, r)
+		return
+	}
+
+	// Remove any extension from path to get the ID string
+	idStr := path
+	if idx := strings.Index(idStr, "."); idx != -1 {
+		idStr = idStr[:idx]
+	}
+
+	if idStr == "" {
+		println("[ServeHTTP] Empty ID, returning 404")
+		http.NotFound(w, r)
+		return
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		http.Error(w, "Home dir not found", http.StatusInternalServerError)
+		return
+	}
+	cacheDir := filepath.Join(homeDir, constants.AppDir, constants.CacheDir, cacheSubdir)
+
+	// Look in local cache first
+	var data []byte
+	var foundExt string
+	extensions := []string{".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".ico"}
+
+	coverURL := r.URL.Query().Get("url")
+	urlExt := strings.ToLower(filepath.Ext(coverURL))
+	if urlExt != "" {
+		extensions = append([]string{urlExt}, extensions...)
+	}
+
+	for _, ext := range extensions {
+		p := filepath.Join(cacheDir, idStr+ext)
+		if _, err := os.Stat(p); err == nil {
+			if d, err := os.ReadFile(p); err == nil {
+				data = d
+				foundExt = ext
+				break
+			}
+		}
+	}
+
+	// Serve the cached data if found
+	if data != nil {
+		println("[ServeHTTP] Cache HIT for ID:", idStr, "ext:", foundExt, "size:", len(data))
+		w.Header().Set("Content-Type", getMimeType(foundExt))
+		w.Header().Set("Cache-Control", "public, max-age=31536000") // Cache for 1 year in WebView
+		_, _ = w.Write(data)
+		return
+	}
+
+	println("[ServeHTTP] Cache MISS for ID:", idStr, "coverURL:", coverURL)
+
+	// If not found in cache and we have a cover URL, download and cache it
+	if coverURL != "" {
+		// DownloadCover handles both full URLs and relative paths
+		d, err := s.client.DownloadCover(coverURL)
+		if err == nil {
+			ext := urlExt
+			if ext == "" {
+				ext = ".jpg"
+			}
+			_ = os.MkdirAll(cacheDir, 0o755)
+			cachePath := filepath.Join(cacheDir, idStr+ext)
+			_ = os.WriteFile(cachePath, d, 0o644)
+
+			println("[ServeHTTP] Downloaded and cached cover for ID:", idStr, "ext:", ext, "size:", len(d))
+			w.Header().Set("Content-Type", getMimeType(ext))
+			w.Header().Set("Cache-Control", "public, max-age=31536000")
+			_, _ = w.Write(d)
+			return
+		} else {
+			println("[ServeHTTP] Failed to download cover for ID:", idStr, "err:", err.Error())
+		}
+	}
+
+	println("[ServeHTTP] Not found on cache and no/failed download, returning 404")
+	http.NotFound(w, r)
 }

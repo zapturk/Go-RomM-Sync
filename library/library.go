@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go-romm-sync/config"
 	"go-romm-sync/constants"
@@ -111,7 +112,7 @@ func (s *Service) DownloadRomToLibrary(ctx context.Context, id uint) error {
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
 	defer func() {
-		if err := out.Close(); err != nil {
+		if err := out.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
 			s.ui.LogErrorf("DownloadRomToLibrary: Failed to close destination file: %v", err)
 		}
 	}()

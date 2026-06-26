@@ -168,3 +168,8 @@ func (s *Service) GetServerSaves(id uint) ([]types.ServerSave, error) {
 func (s *Service) GetServerStates(id uint) ([]types.ServerState, error) {
 	return s.client.GetStates(id)
 }
+
+// DownloadCover downloads a cover image from RomM using the active client.
+func (s *Service) DownloadCover(url string) ([]byte, error) {
+	return s.client.DownloadCover(url)
+}

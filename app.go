@@ -54,7 +54,7 @@ func NewApp(cm *config.ConfigManager) *App {
 	app.syncSrv = syncSrvPkg.New(app.librarySrv, app.rommSrv, app)
 	app.authSrv = authsrv.New(app.configManager, app.rommSrv, app)
 	app.firmwareSrv = firmware.New(app.configManager, app.rommSrv, app)
-	app.assetSrv = assets.New(app, app.rommSrv.GetClient(), app)
+	app.assetSrv = assets.New(app, app.rommSrv, app)
 	app.coreResolver = retroarch.NewCoreResolver(app.librarySrv)
 	return app
 }
@@ -612,7 +612,8 @@ func (a *App) findExactMatch(game *types.Game, romDir string) string {
 }
 
 func (a *App) findPlatformPreferredRom(game *types.Game, romDir string, files []os.DirEntry) string {
-	platformCores := retroarch.GetCoresForPlatform(game.Platform.Slug)
+	platformSlug := a.GetResolvedPlatformSlug(game)
+	platformCores := retroarch.GetCoresForPlatform(platformSlug)
 	for _, file := range files {
 		if file.IsDir() || strings.HasPrefix(file.Name(), ".") {
 			continue
