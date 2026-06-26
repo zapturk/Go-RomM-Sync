@@ -4,42 +4,22 @@ import (
 	"fmt"
 	"os"
 
+	"go-romm-sync/config"
 	"go-romm-sync/constants"
 	"go-romm-sync/retroarch"
+	"go-romm-sync/rommsrv"
 	"go-romm-sync/types"
 )
 
-// ConfigProvider defines the config access needed for auth.
-type ConfigProvider interface {
-	GetConfig() types.AppConfig
-	Update(fn func(*types.AppConfig)) error
-}
-
-// RomMProvider defines the RomM interactions needed for auth.
-type RomMProvider interface {
-	Login() (string, error)
-	GetPlatforms(limit, offset int) ([]types.Platform, int, error)
-	CreateClientToken(name string, scopes []string) (string, error)
-	SetClientToken(token string)
-	ResetClient()
-}
-
-// UIProvider defines logging and event emission needed for auth.
-type UIProvider interface {
-	LogInfof(format string, args ...interface{})
-	LogErrorf(format string, args ...interface{})
-	EventsEmit(eventName string, args ...interface{})
-}
-
 // Service handles authentication and session management.
 type Service struct {
-	config ConfigProvider
-	romm   RomMProvider
-	ui     UIProvider
+	config *config.ConfigManager
+	romm   *rommsrv.Service
+	ui     types.UIProvider
 }
 
 // New creates a new Auth service.
-func New(cfg ConfigProvider, romm RomMProvider, ui UIProvider) *Service {
+func New(cfg *config.ConfigManager, romm *rommsrv.Service, ui types.UIProvider) *Service {
 	return &Service{config: cfg, romm: romm, ui: ui}
 }
 

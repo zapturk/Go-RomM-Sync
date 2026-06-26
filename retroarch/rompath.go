@@ -4,13 +4,11 @@ import (
 	"archive/zip"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"go-romm-sync/constants"
-	"go-romm-sync/utils/fileio"
 )
 
 // resolveRomPath inspects the ROM file and returns:
@@ -41,7 +39,7 @@ func resolveRomPath(ui UIProvider, romPath, platform string) (ext, outRomPath, t
 		ui.LogErrorf("resolveRomPath: Failed to open .zip archive: %v. Passing original path to RetroArch.", openErr)
 		return ext, outRomPath, "", nil
 	}
-	defer fileio.Close(r, nil, "resolveRomPath: Failed to close zip reader")
+	defer r.Close()
 
 	platformCores := GetCoresForPlatform(platform)
 	foundExt := ""
@@ -113,46 +111,28 @@ func extractZipMember(f *zip.File, pattern string) (string, error) {
 
 	rc, err := f.Open()
 	if err != nil {
-		fileio.Close(tmpFile, nil, "extractZipMember: close tmp")
-		fileio.Remove(tmpFile.Name(), nil)
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpFile.Name())
 		return "", fmt.Errorf("failed to open zip member for extraction: %w", err)
 	}
 
 	_, copyErr := io.Copy(tmpFile, rc)
-	fileio.Close(rc, nil, "extractZipMember: close zip member")
-	fileio.Close(tmpFile, nil, "extractZipMember: close tmp file")
+	_ = rc.Close()
+	_ = tmpFile.Close()
 
 	if copyErr != nil {
-		fileio.Remove(tmpFile.Name(), nil)
+		_ = os.Remove(tmpFile.Name())
 		return "", fmt.Errorf("failed to extract zip member: %w", copyErr)
 	}
 	return tmpFile.Name(), nil
 }
 
-// httpGet is a thin wrapper around http.Get so launcher.go doesn't need to
-// import net/http directly.
-func httpGet(url string) (io.ReadCloser, error) {
-	resp, err := http.Get(url) //nolint:bodyclose // caller closes
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		_ = resp.Body.Close()
-		return nil, fmt.Errorf("HTTP %d from %s", resp.StatusCode, url)
-	}
-	return resp.Body, nil
-}
-
-// copyIO copies from src to dst.
-func copyIO(dst io.Writer, src io.Reader) (int64, error) {
-	return io.Copy(dst, src)
-}
 
 // createPico8Hardlink creates a .p8 hardlink for a Pico-8 .png cart so RetroArch
 // doesn't route it to the image-viewer core. Returns the new path and temp path.
 func createPico8Hardlink(ui UIProvider, romPath string) (newPath, tempPath string) {
 	target := romPath + ".p8"
-	fileio.Remove(target, ui.LogErrorf)
+	_ = os.Remove(target)
 	if err := os.Link(romPath, target); err == nil {
 		ui.LogInfof("Launch: Created temporary hardlink %s for Pico-8 .png cart", target)
 		return target, target

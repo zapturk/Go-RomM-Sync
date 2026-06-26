@@ -15,3 +15,11 @@ type AppConfig struct {
 	OfflineMode         bool              `json:"offline_mode"`      // Enable offline mode
 	ClientToken         string            `json:"client_token"`      // Persistent token for the RomM server
 }
+
+// UIProvider defines standard UI logging and event emission behaviors.
+type UIProvider interface {
+	LogInfof(format string, args ...interface{})
+	LogErrorf(format string, args ...interface{})
+	EventsEmit(eventName string, args ...interface{})
+}
+

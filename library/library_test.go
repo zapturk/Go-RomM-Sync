@@ -4,65 +4,47 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"go-romm-sync/config"
+	"go-romm-sync/rommsrv"
 	"go-romm-sync/types"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
-// MockConfigProvider implements ConfigProvider
-type MockConfigProvider struct {
-	LibraryPath string
+type mockRommConfig struct{}
+
+func (m mockRommConfig) GetRomMHost() string      { return "http://localhost" }
+func (m mockRommConfig) GetUsername() string      { return "user" }
+func (m mockRommConfig) GetPassword() string      { return "pass" }
+func (m mockRommConfig) GetClientToken() string   { return "token" }
+
+type mockTransport struct {
+	roundTrip func(*http.Request) (*http.Response, error)
 }
 
-func (m *MockConfigProvider) GetLibraryPath() string {
-	return m.LibraryPath
+func (t *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return t.roundTrip(req)
 }
 
-func (m *MockConfigProvider) SaveDefaultLibraryPath(path string) error {
-	m.LibraryPath = path
-	return nil
-}
-
-// MockRomMProvider implements RomMProvider
-type MockRomMProvider struct {
-	Game  types.Game
-	Error error
-}
-
-func (m *MockRomMProvider) DownloadFile(ctx context.Context, game *types.Game) (reader io.ReadCloser, filename string, err error) {
-	return io.NopCloser(bytes.NewReader([]byte("dummy content"))), "Game.sfc", m.Error
-}
-
-func (m *MockRomMProvider) GetRom(id uint) (types.Game, error) {
-	if m.Error != nil {
-		return types.Game{}, m.Error
-	}
-	if m.Game.ID != id {
-		return types.Game{}, fmt.Errorf("not found")
-	}
-	return m.Game, nil
-}
-
-func (m *MockRomMProvider) GetRomDownloadStatus(id uint) (bool, error) {
-	return id == 1 && m.Error == nil, nil
-}
-
-// MockUIProvider implements UIProvider
 type MockUIProvider struct {
 	LastEvent string
 }
 
-func (m *MockUIProvider) LogInfof(format string, args ...interface{})  {}
-func (m *MockUIProvider) LogErrorf(format string, args ...interface{}) {}
+func (m *MockUIProvider) LogInfof(format string, args ...interface{})      {}
+func (m *MockUIProvider) LogErrorf(format string, args ...interface{})     {}
 func (m *MockUIProvider) EventsEmit(eventName string, args ...interface{}) {
 	m.LastEvent = eventName
 }
 
 func TestNew(t *testing.T) {
-	s := New(&MockConfigProvider{}, &MockRomMProvider{}, &MockUIProvider{})
+	cm := config.NewConfigManager()
+	romm := rommsrv.New(mockRommConfig{})
+	s := New(cm, romm, &MockUIProvider{})
 	if s.config == nil || s.romm == nil || s.ui == nil {
 		t.Errorf("Service not initialized correctly")
 	}
@@ -90,12 +72,18 @@ func TestProgressWriter_Write(t *testing.T) {
 }
 
 func TestGetRomDir(t *testing.T) {
-	cfg := &MockConfigProvider{LibraryPath: "/base"}
-	s := New(cfg, nil, nil)
+	tempDir, _ := os.MkdirTemp("", "library_test_getromdir")
+	defer os.RemoveAll(tempDir)
+
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{LibraryPath: "/base"}
+
+	s := New(cm, nil, nil)
 	game := &types.Game{ID: 1, FullPath: "SNES/Game.sfc"}
 
 	dir := s.GetRomDir(game)
-	expected := filepath.Join(cfg.GetLibraryPath(), "SNES", "1")
+	expected := filepath.Join("/base", "SNES", "1")
 	if dir != expected {
 		t.Errorf("Expected %s, got %s", expected, dir)
 	}
@@ -122,12 +110,25 @@ func TestDeleteRom(t *testing.T) {
 	romDir := filepath.Join(tempDir, "SNES", "1")
 	os.MkdirAll(romDir, 0o755)
 
-	cfg := &MockConfigProvider{LibraryPath: tempDir}
-	romm := &MockRomMProvider{
-		Game: types.Game{ID: 1, FullPath: "SNES/Game.sfc"},
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{LibraryPath: tempDir}
+
+	game := types.Game{ID: 1, FullPath: "SNES/Game.sfc"}
+	gameData, _ := json.Marshal(game)
+
+	rommSrv := rommsrv.New(mockRommConfig{})
+	rommSrv.GetClient().APIClient.Transport = &mockTransport{
+		roundTrip: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(gameData)),
+			}, nil
+		},
 	}
+
 	ui := &MockUIProvider{}
-	s := New(cfg, romm, ui)
+	s := New(cm, rommSrv, ui)
 
 	err := s.DeleteRom(1)
 	if err != nil {
@@ -143,12 +144,33 @@ func TestDownloadRomToLibrary(t *testing.T) {
 	tempDir, _ := os.MkdirTemp("", "library_dl")
 	defer os.RemoveAll(tempDir)
 
-	cfg := &MockConfigProvider{LibraryPath: tempDir}
-	romm := &MockRomMProvider{
-		Game: types.Game{ID: 1, FullPath: "SNES/Game.sfc", FileSize: 100},
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{LibraryPath: tempDir}
+
+	game := types.Game{ID: 1, FullPath: "SNES/Game.sfc", FileSize: 100}
+	gameData, _ := json.Marshal(game)
+
+	rommSrv := rommsrv.New(mockRommConfig{})
+	rommSrv.GetClient().APIClient.Transport = &mockTransport{
+		roundTrip: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(gameData)),
+			}, nil
+		},
 	}
+	rommSrv.GetClient().FileClient.Transport = &mockTransport{
+		roundTrip: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte("dummy content"))),
+			}, nil
+		},
+	}
+
 	ui := &MockUIProvider{}
-	s := New(cfg, romm, ui)
+	s := New(cm, rommSrv, ui)
 
 	err := s.DownloadRomToLibrary(context.Background(), 1)
 	if err != nil {
@@ -169,11 +191,30 @@ func TestGetRomDownloadStatus(t *testing.T) {
 	os.MkdirAll(romDir, 0o755)
 	os.WriteFile(filepath.Join(romDir, "game.sfc"), []byte("data"), 0o644)
 
-	cfg := &MockConfigProvider{LibraryPath: tempDir}
-	romm := &MockRomMProvider{
-		Game: types.Game{ID: 1, FullPath: "SNES/Game.sfc"},
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{LibraryPath: tempDir}
+
+	game1 := types.Game{ID: 1, FullPath: "SNES/Game.sfc"}
+	game2 := types.Game{ID: 2, FullPath: "SNES/Game2.sfc"}
+
+	rommSrv := rommsrv.New(mockRommConfig{})
+	rommSrv.GetClient().APIClient.Transport = &mockTransport{
+		roundTrip: func(req *http.Request) (*http.Response, error) {
+			var respData []byte
+			if req.URL.Path == "/api/roms/1" {
+				respData, _ = json.Marshal(game1)
+			} else {
+				respData, _ = json.Marshal(game2)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(respData)),
+			}, nil
+		},
 	}
-	s := New(cfg, romm, &MockUIProvider{})
+
+	s := New(cm, rommSrv, &MockUIProvider{})
 
 	status, err := s.GetRomDownloadStatus(1)
 	if err != nil {
@@ -190,21 +231,37 @@ func TestGetRomDownloadStatus(t *testing.T) {
 	}
 }
 
-
-// Tests moved to firmware package
-
 func TestDownloadRomToLibrary_Cleanup(t *testing.T) {
 	tempDir, _ := os.MkdirTemp("", "library_cleanup_test")
 	defer os.RemoveAll(tempDir)
 
-	cfg := &MockConfigProvider{LibraryPath: tempDir}
-	romm := &MockRomMProviderWithError{
-		MockRomMProvider: MockRomMProvider{
-			Game: types.Game{ID: 1, FullPath: "SNES/Game.sfc", FileSize: 100},
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{LibraryPath: tempDir}
+
+	game := types.Game{ID: 1, FullPath: "SNES/Game.sfc", FileSize: 100}
+	gameData, _ := json.Marshal(game)
+
+	rommSrv := rommsrv.New(mockRommConfig{})
+	rommSrv.GetClient().APIClient.Transport = &mockTransport{
+		roundTrip: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(gameData)),
+			}, nil
 		},
 	}
+	rommSrv.GetClient().FileClient.Transport = &mockTransport{
+		roundTrip: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(&errorReader{}),
+			}, nil
+		},
+	}
+
 	ui := &MockUIProvider{}
-	s := New(cfg, romm, ui)
+	s := New(cm, rommSrv, ui)
 
 	err := s.DownloadRomToLibrary(context.Background(), 1)
 	if err == nil {
@@ -215,14 +272,6 @@ func TestDownloadRomToLibrary_Cleanup(t *testing.T) {
 	if _, err := os.Stat(destPath); err == nil {
 		t.Errorf("Expected partial ROM file at %s to be deleted on failure", destPath)
 	}
-}
-
-type MockRomMProviderWithError struct {
-	MockRomMProvider
-}
-
-func (m *MockRomMProviderWithError) DownloadFile(ctx context.Context, game *types.Game) (io.ReadCloser, string, error) {
-	return io.NopCloser(&errorReader{}), "Game.sfc", nil
 }
 
 type errorReader struct {
@@ -263,10 +312,13 @@ func TestPostDownloadProcessing_ExtractionInterference(t *testing.T) {
 	zw.Close()
 	zipFile.Close()
 
-	cfg := &MockConfigProvider{LibraryPath: tempDir}
-	romm := &MockRomMProvider{}
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{LibraryPath: tempDir}
+
+	rommSrv := rommsrv.New(mockRommConfig{})
 	ui := &MockUIProvider{}
-	s := New(cfg, romm, ui)
+	s := New(cm, rommSrv, ui)
 
 	game := &types.Game{ID: 1, FullPath: "GameCube/game.zip"}
 	destDir := filepath.Join(tempDir, "GameCube", "1")

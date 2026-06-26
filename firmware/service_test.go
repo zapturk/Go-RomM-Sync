@@ -3,60 +3,63 @@ package firmware
 import (
 	"archive/zip"
 	"bytes"
-	"context"
+	"go-romm-sync/config"
+	"go-romm-sync/rommsrv"
 	"go-romm-sync/types"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
-type MockConfigProvider struct {
-	LibraryPath string
+type mockRommConfig struct{}
+
+func (m mockRommConfig) GetRomMHost() string      { return "http://localhost" }
+func (m mockRommConfig) GetUsername() string      { return "user" }
+func (m mockRommConfig) GetPassword() string      { return "pass" }
+func (m mockRommConfig) GetClientToken() string   { return "token" }
+
+type mockTransport struct {
+	roundTrip func(*http.Request) (*http.Response, error)
 }
 
-func (m *MockConfigProvider) GetLibraryPath() string {
-	return m.LibraryPath
-}
-
-type MockRomMProvider struct {
-	Error error
-}
-
-func (m *MockRomMProvider) DownloadFirmwareContent(ctx context.Context, id uint, fileName string) (io.ReadCloser, string, error) {
-	return io.NopCloser(bytes.NewReader([]byte("dummy firmware"))), fileName, m.Error
-}
-
-type MockRomMProviderWithContent struct {
-	Content []byte
-	Name    string
-}
-
-func (m *MockRomMProviderWithContent) DownloadFirmwareContent(ctx context.Context, id uint, fileName string) (io.ReadCloser, string, error) {
-	return io.NopCloser(bytes.NewReader(m.Content)), m.Name, nil
+func (t *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return t.roundTrip(req)
 }
 
 type MockUIProvider struct{}
 
-func (m *MockUIProvider) LogInfof(format string, args ...interface{})  {}
-func (m *MockUIProvider) LogErrorf(format string, args ...interface{}) {}
+func (m *MockUIProvider) LogInfof(format string, args ...interface{})          {}
+func (m *MockUIProvider) LogErrorf(format string, args ...interface{})         {}
+func (m *MockUIProvider) EventsEmit(eventName string, args ...interface{})     {}
 
 func TestDownloadFirmware(t *testing.T) {
 	tempDir, _ := os.MkdirTemp("", "firmware_test")
 	defer os.RemoveAll(tempDir)
 
-	cfg := &MockConfigProvider{LibraryPath: tempDir}
-	// Sega CD (U) BIOS MD5
-	md5 := "baca1df271d7c11fe50087c0358f4eb5"
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{LibraryPath: tempDir}
+
+	rommSrv := rommsrv.New(mockRommConfig{})
+	rommSrv.GetClient().FileClient.Transport = &mockTransport{
+		roundTrip: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte("dummy firmware"))),
+			}, nil
+		},
+	}
+
 	fw := &types.Firmware{
 		ID:       1,
 		FileName: "scd_v2.21.bin",
-		MD5Hash:  md5,
+		MD5Hash:  "baca1df271d7c11fe50087c0358f4eb5",
 	}
 
-	romm := &MockRomMProvider{}
 	ui := &MockUIProvider{}
-	s := New(cfg, romm, ui)
+	s := New(cm, rommSrv, ui)
 
 	err := s.DownloadFirmware("segacd", fw)
 	if err != nil {
@@ -74,7 +77,9 @@ func TestDownloadFirmware_Compressed(t *testing.T) {
 	tempDir, _ := os.MkdirTemp("", "firmware_test_zip")
 	defer os.RemoveAll(tempDir)
 
-	cfg := &MockConfigProvider{LibraryPath: tempDir}
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{LibraryPath: tempDir}
 
 	// Create a dummy ZIP file
 	zipBuffer := new(bytes.Buffer)
@@ -84,18 +89,23 @@ func TestDownloadFirmware_Compressed(t *testing.T) {
 	f.Write([]byte("some bios content"))
 	zw.Close()
 
+	rommSrv := rommsrv.New(mockRommConfig{})
+	rommSrv.GetClient().FileClient.Transport = &mockTransport{
+		roundTrip: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(zipBuffer.Bytes())),
+			}, nil
+		},
+	}
+
 	fw := &types.Firmware{
 		ID:       1,
 		FileName: "bios_package.zip",
 	}
 
-	// Mock RomM to return the zip content
-	romm := &MockRomMProviderWithContent{
-		Content: zipBuffer.Bytes(),
-		Name:    "bios_package.zip",
-	}
 	ui := &MockUIProvider{}
-	s := New(cfg, romm, ui)
+	s := New(cm, rommSrv, ui)
 
 	err := s.DownloadFirmware("nds", fw)
 	if err != nil {
@@ -113,8 +123,11 @@ func TestCleanupFirmware(t *testing.T) {
 	tempDir, _ := os.MkdirTemp("", "firmware_test_cleanup")
 	defer os.RemoveAll(tempDir)
 
-	cfg := &MockConfigProvider{LibraryPath: tempDir}
-	s := New(cfg, nil, &MockUIProvider{})
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{LibraryPath: tempDir}
+
+	s := New(cm, nil, &MockUIProvider{})
 
 	biosDir := filepath.Join(tempDir, "bios")
 	os.MkdirAll(biosDir, 0o755)
@@ -148,8 +161,11 @@ func TestIsFirmwareDownloaded(t *testing.T) {
 	tempDir, _ := os.MkdirTemp("", "firmware_test_is_downloaded")
 	defer os.RemoveAll(tempDir)
 
-	cfg := &MockConfigProvider{LibraryPath: tempDir}
-	s := New(cfg, nil, &MockUIProvider{})
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{LibraryPath: tempDir}
+
+	s := New(cm, nil, &MockUIProvider{})
 
 	biosDir := filepath.Join(tempDir, "bios")
 	os.MkdirAll(biosDir, 0o755)

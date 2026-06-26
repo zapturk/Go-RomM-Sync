@@ -13,7 +13,6 @@ import (
 	"sync/atomic"
 
 	"go-romm-sync/constants"
-	"go-romm-sync/utils/fileio"
 )
 
 const extZip = ".zip"
@@ -159,7 +158,7 @@ func GetCoresFromZip(zipPath string) []string {
 	if err != nil {
 		return nil
 	}
-	defer fileio.Close(r, nil, "GetCoresFromZip: Failed to close zip reader")
+	defer r.Close()
 
 	var cores []string
 	seen := make(map[string]bool)
@@ -218,7 +217,7 @@ func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 	if err != nil {
 		return fmt.Errorf("failed to download core: %w", err)
 	}
-	defer fileio.Close(resp.Body, ui.LogErrorf, "DownloadCore: Failed to close response body")
+	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("core download failed with status 404 from %s", urlStr)
@@ -227,18 +226,24 @@ func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 		return fmt.Errorf("core download failed with status %d from %s", resp.StatusCode, urlStr)
 	}
 
-	fileio.MkdirAll(coresDir, 0o755, ui.LogErrorf)
+	if err := os.MkdirAll(coresDir, 0o755); err != nil {
+		ui.LogErrorf("MkdirAll failed for %s: %v", coresDir, err)
+	}
 	zipPath := filepath.Join(coresDir, coreFile+extZip)
 	out, err := os.Create(zipPath)
 	if err != nil {
 		return fmt.Errorf("failed to create core zip: %w", err)
 	}
 	_, err = io.Copy(out, resp.Body)
-	fileio.Close(out, nil, "DownloadCore: Failed to close core zip file")
+	_ = out.Close()
 	if err != nil {
 		return fmt.Errorf("failed to save core zip: %w", err)
 	}
-	defer fileio.Remove(zipPath, ui.LogErrorf)
+	defer func() {
+		if err := os.Remove(zipPath); err != nil {
+			ui.LogErrorf("Failed to remove core zip: %v", err)
+		}
+	}()
 
 	err = unzipCore(zipPath, coresDir)
 	if err != nil {
@@ -255,7 +260,7 @@ func unzipCore(src, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer fileio.Close(r, nil, "unzipCore: Failed to close zip reader")
+	defer r.Close()
 
 	for _, f := range r.File {
 		fpath := filepath.Join(dest, f.Name)
@@ -263,7 +268,7 @@ func unzipCore(src, dest string) error {
 			return fmt.Errorf("illegal file path: %s", fpath)
 		}
 		if f.FileInfo().IsDir() {
-			fileio.MkdirAll(fpath, 0o755, nil)
+			_ = os.MkdirAll(fpath, 0o755)
 			continue
 		}
 		if err := os.MkdirAll(filepath.Dir(fpath), 0o755); err != nil {
@@ -275,12 +280,12 @@ func unzipCore(src, dest string) error {
 		}
 		rc, err := f.Open()
 		if err != nil {
-			fileio.Close(outFile, nil, "unzipCore: Failed to close output file")
+			_ = outFile.Close()
 			return err
 		}
 		_, err = io.Copy(outFile, rc)
-		fileio.Close(outFile, nil, "unzipCore: Failed to close output file")
-		fileio.Close(rc, nil, "unzipCore: Failed to close zip member")
+		_ = outFile.Close()
+		_ = rc.Close()
 		if err != nil {
 			return err
 		}

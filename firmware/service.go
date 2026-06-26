@@ -3,43 +3,28 @@ package firmware
 import (
 	"context"
 	"fmt"
+	"go-romm-sync/config"
 	"go-romm-sync/constants"
 	"go-romm-sync/retroarch"
+	"go-romm-sync/rommsrv"
 	"go-romm-sync/types"
 	"go-romm-sync/utils/archive"
 	"go-romm-sync/utils/fileio"
-	"io"
 	"os"
 	"path/filepath"
 )
 
 const platformPS2 = "ps2"
 
-// ConfigProvider defines the configuration needed for firmware management.
-type ConfigProvider interface {
-	GetLibraryPath() string
-}
-
-// RomMProvider defines the RomM API interactions needed for firmware management.
-type RomMProvider interface {
-	DownloadFirmwareContent(ctx context.Context, id uint, fileName string) (io.ReadCloser, string, error)
-}
-
-// UIProvider defines logging functionality.
-type UIProvider interface {
-	LogInfof(format string, args ...interface{})
-	LogErrorf(format string, args ...interface{})
-}
-
 // Service manages BIOS and firmware files.
 type Service struct {
-	config ConfigProvider
-	romm   RomMProvider
-	ui     UIProvider
+	config *config.ConfigManager
+	romm   *rommsrv.Service
+	ui     types.UIProvider
 }
 
 // New creates a new Firmware service.
-func New(cfg ConfigProvider, romm RomMProvider, ui UIProvider) *Service {
+func New(cfg *config.ConfigManager, romm *rommsrv.Service, ui types.UIProvider) *Service {
 	return &Service{
 		config: cfg,
 		romm:   romm,
@@ -49,7 +34,7 @@ func New(cfg ConfigProvider, romm RomMProvider, ui UIProvider) *Service {
 
 // GetBiosDir returns the local directory where BIOS files are stored.
 func (s *Service) GetBiosDir() string {
-	return filepath.Join(s.config.GetLibraryPath(), constants.DirBios)
+	return filepath.Join(s.config.GetConfig().LibraryPath, constants.DirBios)
 }
 
 // IsFirmwareDownloaded checks if the firmware files are already locally available.
@@ -91,11 +76,11 @@ func (s *Service) DownloadFirmware(platformSlug string, fw *types.Firmware) erro
 	}
 
 	ctx := context.Background()
-	reader, filename, err := s.romm.DownloadFirmwareContent(ctx, fw.ID, fw.FileName)
+	reader, filename, err := s.romm.GetClient().DownloadFirmwareContent(ctx, fw.ID, fw.FileName)
 	if err != nil {
 		return err
 	}
-	defer fileio.Close(reader, s.ui.LogErrorf, "DownloadFirmware: Failed to close reader")
+	defer reader.Close()
 
 	// Save to a temporary file first to check for archives and calculate MD5 if needed
 	tempDir, err := os.MkdirTemp("", "go-romm-sync-bios-*")
@@ -180,7 +165,9 @@ func (s *Service) CleanupFirmware(platformSlug string) error {
 		path := filepath.Join(biosDir, subDir, name)
 		if _, err := os.Stat(path); err == nil {
 			s.ui.LogInfof("CleanupFirmware: Removing canonical BIOS file %s for platform %s", name, platformSlug)
-			fileio.Remove(path, s.ui.LogErrorf)
+			if err := os.Remove(path); err != nil {
+				s.ui.LogErrorf("CleanupFirmware failed for %s: %v", path, err)
+			}
 		}
 	}
 	return nil

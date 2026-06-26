@@ -2,6 +2,8 @@ package retroarch
 
 import (
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,7 +11,6 @@ import (
 	"strings"
 
 	"go-romm-sync/constants"
-	"go-romm-sync/utils/fileio"
 )
 
 // UIProvider defines the UI and logging interactions needed for RetroArch.
@@ -87,10 +88,10 @@ func runRetroArch(ui UIProvider, exePath, baseDir, corePath, romPath, appendConf
 	go func() {
 		defer func() {
 			if appendConfigPath != "" {
-				fileio.Remove(appendConfigPath, ui.LogErrorf)
+				_ = os.Remove(appendConfigPath)
 			}
 			if tempRomPath != "" {
-				fileio.Remove(tempRomPath, ui.LogErrorf)
+				_ = os.Remove(tempRomPath)
 			}
 			ui.EventsEmit(constants.EventGameExited, nil)
 			if runtime.GOOS == constants.OSDarwin {
@@ -147,7 +148,7 @@ func ensureCore(ui UIProvider, corePath, coreFile, coresDir, arch string) error 
 	if coreExists && runtime.GOOS == constants.OSDarwin {
 		if !coreArchMatches(corePath, arch) {
 			ui.LogInfof("Launch: Core %s is wrong architecture for %s — deleting and re-downloading.", coreFile, arch)
-			fileio.Remove(corePath, ui.LogErrorf)
+			_ = os.Remove(corePath)
 			coreExists = false
 		}
 	}
@@ -177,22 +178,28 @@ func ensurePCSX2Resources(ui UIProvider, coreBaseName, baseDir string) error {
 		return nil
 	}
 
-	fileio.MkdirAll(filepath.Dir(yamlPath), 0o755, ui.LogErrorf)
+	if err := os.MkdirAll(filepath.Dir(yamlPath), 0o755); err != nil {
+		ui.LogErrorf("MkdirAll failed for %s: %v", filepath.Dir(yamlPath), err)
+	}
 	ui.EventsEmit(constants.EventPlayStatus, "Downloading PCSX2 GameIndex.yaml...")
 
-	body, err := httpGet(constants.URLPCSX2GameIndex)
+	resp, err := http.Get(constants.URLPCSX2GameIndex)
 	if err != nil {
 		return fmt.Errorf("failed to fetch GameIndex.yaml: %w", err)
 	}
-	defer fileio.Close(body, ui.LogErrorf, "ensurePCSX2Resources: close response")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP %d from %s", resp.StatusCode, constants.URLPCSX2GameIndex)
+	}
+	body := resp.Body
 
 	out, err := os.Create(yamlPath)
 	if err != nil {
 		return fmt.Errorf("failed to create GameIndex.yaml: %w", err)
 	}
-	defer fileio.Close(out, ui.LogErrorf, "ensurePCSX2Resources: close file")
+	defer out.Close()
 
-	if _, err := copyIO(out, body); err != nil {
+	if _, err := io.Copy(out, body); err != nil {
 		return fmt.Errorf("failed to write GameIndex.yaml: %w", err)
 	}
 	return nil
@@ -203,10 +210,14 @@ func prepareLaunchEnv(ui UIProvider, baseDir, romBaseDir, platform, customBiosDi
 	savesDir := filepath.Join(romBaseDir, constants.DirSaves)
 	statesDir := filepath.Join(romBaseDir, constants.DirStates)
 	ui.LogInfof("Launch: Saves dir: %s, States dir: %s", savesDir, statesDir)
-	fileio.MkdirAll(savesDir, 0o755, ui.LogErrorf)
+	if err := os.MkdirAll(savesDir, 0o755); err != nil {
+		ui.LogErrorf("MkdirAll failed for %s: %v", savesDir, err)
+	}
 
 	systemDir := resolveSystemDir(ui, baseDir, platform, customBiosDir)
-	fileio.MkdirAll(systemDir, 0o755, ui.LogErrorf)
+	if err := os.MkdirAll(systemDir, 0o755); err != nil {
+		ui.LogErrorf("MkdirAll failed for %s: %v", systemDir, err)
+	}
 
 	return writeTempConfig(ui, savesDir, statesDir, systemDir, cheevosUser, cheevosPass)
 }
@@ -255,7 +266,7 @@ func writeTempConfig(ui UIProvider, savesDir, statesDir, systemDir, cheevosUser,
 	if _, err := tmpFile.WriteString(content); err != nil {
 		ui.LogErrorf("Launch: Failed to write temporary config: %v", err)
 	}
-	fileio.Close(tmpFile, ui.LogErrorf, "Launch: Failed to close temporary config file")
+	_ = tmpFile.Close()
 	ui.LogInfof("Launch: Created temporary config at: %s with content:\n%s", tmpFile.Name(), content)
 	return tmpFile.Name()
 }
