@@ -213,9 +213,7 @@ func (s *Service) ClearCache() error {
 // ServeHTTP implements http.Handler to serve cached game covers and platform icons directly, proxying downloads if not cached.
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
-	println("[ServeHTTP] Request received for path:", path, "query:", r.URL.RawQuery)
 	if !strings.HasPrefix(path, "/cache/") {
-		println("[ServeHTTP] Prefix /cache/ not matched, returning 404")
 		http.NotFound(w, r)
 		return
 	}
@@ -230,7 +228,6 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		cacheSubdir = constants.PlatformsDir
 		path = strings.TrimPrefix(path, "/cache/platforms/")
 	default:
-		println("[ServeHTTP] Subdir covers/platforms not matched, returning 404")
 		http.NotFound(w, r)
 		return
 	}
@@ -242,7 +239,6 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if idStr == "" {
-		println("[ServeHTTP] Empty ID, returning 404")
 		http.NotFound(w, r)
 		return
 	}
@@ -278,14 +274,11 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Serve the cached data if found
 	if data != nil {
-		println("[ServeHTTP] Cache HIT for ID:", idStr, "ext:", foundExt, "size:", len(data))
 		w.Header().Set("Content-Type", getMimeType(foundExt))
 		w.Header().Set("Cache-Control", "public, max-age=31536000") // Cache for 1 year in WebView
 		_, _ = w.Write(data)
 		return
 	}
-
-	println("[ServeHTTP] Cache MISS for ID:", idStr, "coverURL:", coverURL)
 
 	// If not found in cache and we have a cover URL, download and cache it
 	if coverURL != "" {
@@ -300,16 +293,12 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			cachePath := filepath.Join(cacheDir, idStr+ext)
 			_ = os.WriteFile(cachePath, d, 0o644)
 
-			println("[ServeHTTP] Downloaded and cached cover for ID:", idStr, "ext:", ext, "size:", len(d))
 			w.Header().Set("Content-Type", getMimeType(ext))
 			w.Header().Set("Cache-Control", "public, max-age=31536000")
 			_, _ = w.Write(d)
 			return
-		} else {
-			println("[ServeHTTP] Failed to download cover for ID:", idStr, "err:", err.Error())
 		}
 	}
 
-	println("[ServeHTTP] Not found on cache and no/failed download, returning 404")
 	http.NotFound(w, r)
 }

@@ -17,7 +17,6 @@ const isTypingActive = (): boolean => {
 };
 
 
-
 const handleLibraryNavigation = (
     e: KeyboardEvent,
     selectedGameId: number | null,
@@ -94,8 +93,6 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
             setSearchTerm("");
         }
     }, [selectedPlatform]);
-
-
 
     const { ref } = useFocusable({
         trackChildren: true
