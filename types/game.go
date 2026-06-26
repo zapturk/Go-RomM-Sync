@@ -31,8 +31,8 @@ type FileItem struct {
 	UpdatedAt string `json:"updated_at"` // ISO8601 string
 }
 
-// ServerSave represents a save file on the RomM server
-type ServerSave struct {
+// ServerAsset represents a save or state file on the RomM server
+type ServerAsset struct {
 	ID        uint   `json:"id"`
 	FileName  string `json:"file_name"`
 	FullPath  string `json:"full_path"`
@@ -41,12 +41,12 @@ type ServerSave struct {
 	FileSize  int64  `json:"file_size_bytes"`
 }
 
-// ServerState represents a save state on the RomM server
+// ServerSave is a wrapper for ServerAsset representing a save file on the RomM server
+type ServerSave struct {
+	ServerAsset
+}
+
+// ServerState is a wrapper for ServerAsset representing a save state on the RomM server
 type ServerState struct {
-	ID        uint   `json:"id"`
-	FileName  string `json:"file_name"`
-	FullPath  string `json:"full_path"`
-	Emulator  string `json:"emulator"`
-	UpdatedAt string `json:"updated_at"` // ISO8601 string
-	FileSize  int64  `json:"file_size_bytes"`
+	ServerAsset
 }

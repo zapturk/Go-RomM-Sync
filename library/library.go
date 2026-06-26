@@ -142,31 +142,33 @@ func (s *Service) postDownloadProcessing(id uint, game *types.Game, destPath, de
 	var extracted bool
 	var err error
 
-	// Try extracting .cue/.bin files
-	extracted, err = archive.ExtractCueBin(destPath, destDir)
-	if err != nil {
-		s.ui.LogErrorf("DownloadRomToLibrary: .cue/.bin extraction failed for %s: %v", destPath, err)
-	} else if extracted {
-		s.ui.LogInfof("DownloadRomToLibrary: Extracted .cue/.bin files from archive: %s", destPath)
+	slug := game.Platform.Slug
+	if slug == "" {
+		slug = game.PlatformSlug
 	}
+	slug = strings.ToLower(slug)
 
-	// Try extracting GameCube files if not already extracted (archive package extracts everything)
-	if !extracted {
+	switch slug {
+	case "ps2":
+		extracted, err = archive.ExtractPS2(destPath, destDir)
+		if err != nil {
+			s.ui.LogErrorf("DownloadRomToLibrary: PS2 extraction failed for %s: %v", destPath, err)
+		} else if extracted {
+			s.ui.LogInfof("DownloadRomToLibrary: Extracted PS2 files from archive: %s", destPath)
+		}
+	case "gamecube":
 		extracted, err = archive.ExtractGameCube(destPath, destDir)
 		if err != nil {
 			s.ui.LogErrorf("DownloadRomToLibrary: GameCube extraction failed for %s: %v", destPath, err)
 		} else if extracted {
 			s.ui.LogInfof("DownloadRomToLibrary: Extracted GameCube files from archive: %s", destPath)
 		}
-	}
-
-	// Try extracting PS2 files if not already extracted
-	if !extracted {
-		extracted, err = archive.ExtractPS2(destPath, destDir)
+	default:
+		extracted, err = archive.ExtractCueBin(destPath, destDir)
 		if err != nil {
-			s.ui.LogErrorf("DownloadRomToLibrary: PS2 extraction failed for %s: %v", destPath, err)
+			s.ui.LogErrorf("DownloadRomToLibrary: .cue/.bin extraction failed for %s: %v", destPath, err)
 		} else if extracted {
-			s.ui.LogInfof("DownloadRomToLibrary: Extracted PS2 files from archive: %s", destPath)
+			s.ui.LogInfof("DownloadRomToLibrary: Extracted .cue/.bin files from archive: %s", destPath)
 		}
 	}
 
