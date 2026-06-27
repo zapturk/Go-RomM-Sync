@@ -9,6 +9,7 @@ import (
 	"go-romm-sync/types"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -186,6 +187,21 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 	targetURL := coverURL
 	if !strings.HasPrefix(coverURL, "http") {
 		targetURL = c.BaseURL + coverURL
+	}
+
+	// Validate URL before fetching to prevent SSRF
+	parsed, err := url.Parse(targetURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return nil, fmt.Errorf("invalid cover URL scheme: %s", targetURL)
+	}
+	if parsed.Host != "" {
+		host := parsed.Hostname()
+		if net.ParseIP(host) != nil {
+			return nil, fmt.Errorf("cover URL targets private/reserved IP: %s", targetURL)
+		}
+		if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+			return nil, fmt.Errorf("cover URL targets localhost: %s", targetURL)
+		}
 	}
 
 	req, err := http.NewRequest("GET", targetURL, http.NoBody)
@@ -502,7 +518,6 @@ func (c *Client) shouldSendToken(targetURL string) bool {
 
 // getJSON performs an authenticated GET and returns the raw JSON body.
 func (c *Client) getJSON(urlStr, label string) (json.RawMessage, error) {
-	fmt.Printf("[RomM Client] GET request: %s (label: %s)\n", urlStr, label)
 	req, err := http.NewRequest("GET", urlStr, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create %s request: %w", label, err)

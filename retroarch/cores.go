@@ -229,7 +229,7 @@ func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 
 	urlStr := fmt.Sprintf("%s/%s/%s/latest/%s.zip", buildbotBaseURL, osName, archName, coreFile)
 
-	resp, err := http.Get(urlStr) //nolint:bodyclose // body is closed via fileio.Close wrapper below
+	resp, err := httpTimeoutClient.Get(urlStr)
 	if err != nil {
 		return fmt.Errorf("failed to download core: %w", err)
 	}

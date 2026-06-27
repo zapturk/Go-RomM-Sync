@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { GetLibrary, GetPlatforms, Quit, GetConfig, LogInfof } from "../wailsjs/go/main/App";
+import { GetLibrary, GetPlatforms, Quit, GetConfig } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { GamePage } from "./GamePage";
@@ -81,6 +81,11 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     const [searchTerm, setSearchTerm] = useState("");
     const [offlineMode, setOfflineMode] = useState(false);
     const requestCounter = useRef(0);
+    const isMountedRef = useRef(true);
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => { isMountedRef.current = false; };
+    }, []);
 
     // Pagination state
     const [offset, setOffset] = useState(0);
@@ -90,7 +95,6 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
     const PAGE_SIZE = 30;
 
     const selectPlatform = (platformName: string | null) => {
-        LogInfof("selectPlatform: platformName=%s", [platformName || "null"]);
         setGames([]);
         setOffset(0);
         setTotalGames(0);
@@ -125,42 +129,40 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         const myRequestId = requestCounter.current;
 
         GetConfig().then(cfg => {
-            if (myRequestId !== requestCounter.current) return;
+            if (myRequestId !== requestCounter.current || !isMountedRef.current) return;
             setOfflineMode(cfg.offline_mode || false);
         });
 
-        LogInfof("refreshLibrary: selectedPlatform=%s, platformsCount=%d, currentOffset=%d, currentSearch=%s", [selectedPlatform || "null", platforms.length, currentOffset, currentSearch]);
         const activePlatform = platforms.find(p => p.name === selectedPlatform);
         const platformId = activePlatform?.id || 0;
-        LogInfof("refreshLibrary resolved: platformId=%d (activePlatform=%s)", [platformId, activePlatform ? activePlatform.name : "null"]);
 
         const gamesPromise = GetLibrary(PAGE_SIZE, currentOffset, platformId, currentSearch)
             .then((result) => {
-                if (myRequestId !== requestCounter.current) return;
+                if (myRequestId !== requestCounter.current || !isMountedRef.current) return;
                 setGames(result.items || []);
                 setTotalGames(result.total || 0);
             })
             .catch((err) => {
-                if (myRequestId !== requestCounter.current) return;
+                if (myRequestId !== requestCounter.current || !isMountedRef.current) return;
                 console.error("Failed to fetch library:", err);
                 setStatus("Error: " + err);
             });
 
         const platformsPromise = GetPlatforms(PAGE_SIZE, currentPlatformOffset)
             .then((result) => {
-                if (myRequestId !== requestCounter.current) return;
+                if (myRequestId !== requestCounter.current || !isMountedRef.current) return;
                 setPlatforms(result.items || []);
                 setTotalPlatforms(result.total || 0);
                 setStatus("Ready");
             })
             .catch((err) => {
-                if (myRequestId !== requestCounter.current) return;
+                if (myRequestId !== requestCounter.current || !isMountedRef.current) return;
                 console.error("Failed to fetch platforms:", err);
                 setStatus("Error: " + err);
             });
 
         Promise.allSettled([gamesPromise, platformsPromise]).finally(() => {
-            if (myRequestId !== requestCounter.current) return;
+            if (myRequestId !== requestCounter.current || !isMountedRef.current) return;
             setIsLoading(false);
         });
     };

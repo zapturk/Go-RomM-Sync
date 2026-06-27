@@ -6,6 +6,7 @@ import (
 	"go-romm-sync/constants"
 	"go-romm-sync/types"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -112,6 +113,18 @@ func TestGetLibrary(t *testing.T) {
 }
 
 func TestDownloadCover(t *testing.T) {
+	// customDialer resolves test hostnames (romm.local, cdn.local) to 127.0.0.1
+	customDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, p, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, err
+		}
+		if host == "romm.local" || host == "cdn.local" {
+			host = "127.0.0.1"
+		}
+		return net.Dial("tcp", net.JoinHostPort(host, p))
+	}
+
 	t.Run("internal URL - sends auth", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Header.Get("Authorization") != "Bearer test-token" {
@@ -121,8 +134,11 @@ func TestDownloadCover(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewClient(server.URL)
+		port := strings.TrimPrefix(server.URL, "http://127.0.0.1:")
+
+		client := NewClient("http://romm.local:" + port)
 		client.Token = "test-token"
+		client.FileClient = &http.Client{Transport: &http.Transport{DialContext: customDialer}}
 
 		data, err := client.DownloadCover("/cover.jpg")
 		if err != nil {
@@ -142,10 +158,13 @@ func TestDownloadCover(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewClient("http://romm.internal")
-		client.Token = "test-token"
+		port := strings.TrimPrefix(server.URL, "http://127.0.0.1:")
 
-		data, err := client.DownloadCover(server.URL + "/cover.png")
+		client := NewClient("http://romm.local")
+		client.Token = "test-token"
+		client.FileClient = &http.Client{Transport: &http.Transport{DialContext: customDialer}}
+
+		data, err := client.DownloadCover("http://cdn.local:" + port + "/cover.png")
 		if err != nil || string(data) != "external image" {
 			t.Errorf("External fetch failed: %v", err)
 		}
