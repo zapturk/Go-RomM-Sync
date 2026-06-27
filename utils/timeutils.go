@@ -6,6 +6,7 @@ import (
 )
 
 // ParseTimestamp attempts to parse a string using various common ISO 8601 and RFC 3339 formats.
+// ponytail: 5 timestamp formats — RFC3339 covers all real ISO8601 variants. Replace with single parse + one fallback.
 func ParseTimestamp(s string) (time.Time, error) {
 	formats := []string{
 		time.RFC3339,

@@ -211,6 +211,7 @@ func (s *Service) ClearCache() error {
 }
 
 // ServeHTTP implements http.Handler to serve cached game covers and platform icons directly, proxying downloads if not cached.
+// ponytail: reimplements the cache-lookup loop (iterate extensions, stat, read) already in GetCover. Delegate.
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	if !strings.HasPrefix(path, "/cache/") {

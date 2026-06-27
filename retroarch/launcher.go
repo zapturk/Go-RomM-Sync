@@ -167,6 +167,7 @@ func ensureCore(ui UIProvider, corePath, coreFile, coresDir, arch string) error 
 	return nil
 }
 
+// ponytail: bare http.Get — no timeout. Use a client.
 // ensurePCSX2Resources downloads the PCSX2 GameIndex.yaml if it is missing.
 func ensurePCSX2Resources(ui UIProvider, coreBaseName, baseDir string) error {
 	if coreBaseName != "pcsx2_libretro" {
@@ -183,7 +184,7 @@ func ensurePCSX2Resources(ui UIProvider, coreBaseName, baseDir string) error {
 	}
 	ui.EventsEmit(constants.EventPlayStatus, "Downloading PCSX2 GameIndex.yaml...")
 
-	resp, err := http.Get(constants.URLPCSX2GameIndex)
+	resp, err := httpTimeoutClient.Get(constants.URLPCSX2GameIndex)
 	if err != nil {
 		return fmt.Errorf("failed to fetch GameIndex.yaml: %w", err)
 	}

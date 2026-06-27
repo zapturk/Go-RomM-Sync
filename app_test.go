@@ -309,7 +309,7 @@ func TestAppExhaustiveWrappers(t *testing.T) {
 	app.DeleteSave(1, "core", "file")
 	app.DeleteState(1, "core", "file")
 	app.ValidateAssetPath("core", "file")
-	app.PlayRom(1)
+	app.PlayRomWithCore(1, "")
 	app.Logout()
 
 	// Provider implementations

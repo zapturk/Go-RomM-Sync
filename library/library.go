@@ -19,6 +19,7 @@ import (
 	"time"
 )
 
+// ponytail: nearly identical to retroarch.progressWriter (same io.Writer + percent-based event emission). Share one.
 type ProgressWriter struct {
 	Total       int64
 	Downloaded  int64

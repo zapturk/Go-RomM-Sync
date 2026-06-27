@@ -134,6 +134,7 @@ type githubRelease struct {
 	} `json:"assets"`
 }
 
+// ponytail: bare http.Get — no timeout, no auth. Use Client.FileClient.
 func UpdateBios(ui UIProvider, exePath string) error {
 	baseDir, _, err := resolveRetroArchPaths(exePath)
 	if err != nil {
@@ -146,7 +147,7 @@ func UpdateBios(ui UIProvider, exePath string) error {
 
 	ui.EventsEmit(constants.EventPlayStatus, "Fetching latest BIOS release info...")
 
-	resp, err := http.Get(constants.URLRetroBiosLatestRelease) //nolint:bodyclose // body closed in defer
+	resp, err := httpTimeoutClient.Get(constants.URLRetroBiosLatestRelease) //nolint:bodyclose // body closed in defer
 	if err != nil {
 		return fmt.Errorf("failed to fetch release info: %w", err)
 	}
@@ -171,7 +172,7 @@ func UpdateBios(ui UIProvider, exePath string) error {
 
 	ui.EventsEmit(constants.EventPlayStatus, "Downloading BIOS pack...")
 
-	dlResp, err := http.Get(downloadURL) //nolint:bodyclose // body closed in defer
+	dlResp, err := httpTimeoutClient.Get(downloadURL) //nolint:bodyclose // body closed in defer
 	if err != nil {
 		return fmt.Errorf("failed to download BIOS pack: %w", err)
 	}
@@ -285,6 +286,7 @@ func unzipBios(ui UIProvider, src, dest string) error {
 	return nil
 }
 
+// ponytail: nearly identical to library.ProgressWriter (same io.Writer + percent-based event emission). Share one.
 type progressWriter struct {
 	total       int64
 	downloaded  int64

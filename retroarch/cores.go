@@ -132,6 +132,7 @@ var ExtCoreMap = map[string][]string{
 	".png": {constants.CoreRetro8},
 }
 
+// ponytail: derived map duplicating ExtCoreMap[ext][0]. Delete and inline at call sites (findPlatformPreferredRom, findAnyRom).
 // CoreMap is derived from ExtCoreMap for backward-compatible single-core lookups
 // (used by the launcher to resolve the extension → default core).
 var CoreMap = func() map[string]string {
@@ -180,6 +181,7 @@ func GetCoresFromZip(zipPath string) []string {
 	return cores
 }
 
+// ponytail: simple constant translators — could be inlined where called.
 func getOSName() (string, error) {
 	switch runtime.GOOS {
 	case constants.OSWindows:
@@ -193,6 +195,7 @@ func getOSName() (string, error) {
 	}
 }
 
+// ponytail: simple constant translator — could be inlined where called.
 func getArchName(arch string) (string, error) {
 	switch arch {
 	case constants.ArchAmd64:
@@ -210,6 +213,7 @@ func getArchName(arch string) (string, error) {
 }
 
 // DownloadCore fetches a missing core from Libretro buildbot
+// ponytail: bare http.Get — no timeout, no auth awareness. Use Client.FileClient.
 func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 	ui.EventsEmit(constants.EventPlayStatus, fmt.Sprintf("Downloading missing core: %s...", coreFile))
 
@@ -225,7 +229,7 @@ func DownloadCore(ui UIProvider, coreFile, coresDir, arch string) error {
 
 	urlStr := fmt.Sprintf("%s/%s/%s/latest/%s.zip", buildbotBaseURL, osName, archName, coreFile)
 
-	resp, err := http.Get(urlStr) //nolint:bodyclose // body is closed via fileio.Close wrapper below
+	resp, err := httpTimeoutClient.Get(urlStr)
 	if err != nil {
 		return fmt.Errorf("failed to download core: %w", err)
 	}

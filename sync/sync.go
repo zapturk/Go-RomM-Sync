@@ -249,8 +249,7 @@ func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) erro
 	cleanPath := filepath.Clean(filePath)
 	cleanBase := filepath.Clean(baseDir)
 
-	rel, err := filepath.Rel(cleanBase, cleanPath)
-	if err != nil || strings.HasPrefix(rel, "..") {
+	if !utils.IsSafePath(cleanBase, cleanPath) {
 		return fmt.Errorf("invalid path traversal detected")
 	}
 
@@ -304,8 +303,7 @@ func (s *Service) DeleteGameFile(id uint, subDir, core, filename string) error {
 	cleanPath := filepath.Clean(filePath)
 	cleanBase := filepath.Clean(baseDir)
 
-	rel, err := filepath.Rel(cleanBase, cleanPath)
-	if err != nil || strings.HasPrefix(rel, "..") {
+	if !utils.IsSafePath(cleanBase, cleanPath) {
 		return fmt.Errorf("invalid path traversal detected")
 	}
 
@@ -434,8 +432,7 @@ func (s *Service) prepareAssetPath(game *types.Game, core, filename, subDir stri
 	core = remapCorePath(core)
 	destDir := filepath.Join(baseDir, core)
 
-	rel, err := filepath.Rel(baseDir, destDir)
-	if err != nil || strings.HasPrefix(rel, "..") {
+	if !utils.IsSafePath(baseDir, destDir) {
 		return "", fmt.Errorf("invalid path traversal detected")
 	}
 

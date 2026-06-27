@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [
     react(),
+    // ponytail: middleware returns 404 for /cache/ paths during dev — unnecessary, dev server won't serve those.
     {
       name: 'wails-cache-bypass',
       configureServer(server) {

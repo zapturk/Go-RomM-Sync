@@ -190,10 +190,6 @@ export function OpenGameFolder(arg1) {
   return window['go']['main']['App']['OpenGameFolder'](arg1);
 }
 
-export function PlayRom(arg1) {
-  return window['go']['main']['App']['PlayRom'](arg1);
-}
-
 export function PlayRomWithCore(arg1, arg2) {
   return window['go']['main']['App']['PlayRomWithCore'](arg1, arg2);
 }

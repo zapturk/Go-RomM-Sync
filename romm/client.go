@@ -9,6 +9,7 @@ import (
 	"go-romm-sync/types"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -31,6 +32,7 @@ type Client struct {
 	FileClient *http.Client // For large file downloads (2h timeout)
 }
 
+// ponytail: two http.Clients (60s vs 2h) — consider merging into one client with per-call timeout.
 // NewClient creates a new RomM API client
 func NewClient(baseURL string) *Client {
 	return &Client{
@@ -175,6 +177,32 @@ func (c *Client) buildLibraryURL(limit, offset, platformID int, search string) (
 	return u.String(), nil
 }
 
+func isPrivateOrLocal(ip net.IP) bool {
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
+}
+
+func validateCoverURL(targetURL string) error {
+	parsed, err := url.Parse(targetURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return fmt.Errorf("invalid cover URL scheme: %s", targetURL)
+	}
+	if parsed.Host != "" {
+		host := parsed.Hostname()
+		if ips, err := net.LookupIP(host); err == nil {
+			for _, ip := range ips {
+				if isPrivateOrLocal(ip) {
+					return fmt.Errorf("cover URL targets private/reserved IP: %s", targetURL)
+				}
+			}
+		} else if ip := net.ParseIP(host); ip != nil {
+			if isPrivateOrLocal(ip) {
+				return fmt.Errorf("cover URL targets private/reserved IP: %s", targetURL)
+			}
+		}
+	}
+	return nil
+}
+
 // DownloadCover fetches the cover image from the provided URL
 func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 	if c.Token == "" {
@@ -185,6 +213,11 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 	targetURL := coverURL
 	if !strings.HasPrefix(coverURL, "http") {
 		targetURL = c.BaseURL + coverURL
+	}
+
+	// Validate URL before fetching to prevent SSRF
+	if err := validateCoverURL(targetURL); err != nil {
+		return nil, err
 	}
 
 	req, err := http.NewRequest("GET", targetURL, http.NoBody)
@@ -477,6 +510,7 @@ func (c *Client) downloadAsset(ctx context.Context, id uint, assetType, fallback
 	return resp.Body, filename, nil
 }
 
+// ponytail: dead code — only caller is DownloadCover which always hits RomM. Could just always send token.
 // shouldSendToken determines if the authentication token should be sent to the target URL.
 // It returns true if the target URL is relative or if it matches the BaseURL's scheme and host.
 func (c *Client) shouldSendToken(targetURL string) bool {
@@ -524,8 +558,8 @@ func (c *Client) getJSON(urlStr, label string) (json.RawMessage, error) {
 	return raw, nil
 }
 
-// decodePaginated decodes a raw JSON response that may be either a plain array
-// or a paginated envelope object (various field name conventions supported).
+// ponytail: speculatively handles 4 field name variants (total_count, total, count, total_results)
+// plus a fallback to len(items). If the API returns a consistent format, slim to one path.
 func decodePaginated[T any](raw json.RawMessage, label string) (items []T, total int, err error) {
 	// Try plain array first (legacy / non-paginated responses)
 	if err := json.Unmarshal(raw, &items); err == nil {

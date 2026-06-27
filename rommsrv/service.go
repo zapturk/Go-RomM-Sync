@@ -111,10 +111,7 @@ func (s *Service) GetPlatforms(limit, offset int) ([]types.Platform, int, error)
 
 		// 2. Optimization: if we've filled our page OR reached an upper scan limit
 		if (len(supported) >= limit && currentOffset >= totalOnServer) || currentOffset >= maxScan {
-			// Scan remaining server platforms only to get an accurate total count
-			if currentOffset < totalOnServer && currentOffset < maxScan {
-				foundCount += s.countRemainingSupported(totalOnServer, currentOffset, batchSize, maxScan)
-			}
+			// foundCount already tracks the total supported platforms we've scanned.
 			break
 		}
 
@@ -124,25 +121,6 @@ func (s *Service) GetPlatforms(limit, offset int) ([]types.Platform, int, error)
 	}
 
 	return supported, foundCount, nil
-}
-
-// countRemainingSupported continues scanning platforms from the server just to update the supported count.
-func (s *Service) countRemainingSupported(totalOnServer, startOffset, batchSize, maxScan int) int {
-	additionalCount := 0
-	currentOffset := startOffset
-	for currentOffset < totalOnServer && currentOffset < maxScan {
-		batch, _, err := s.client.GetPlatforms(batchSize, currentOffset)
-		if err != nil || len(batch) == 0 {
-			break
-		}
-		for _, p := range batch {
-			if isPlatformSupported(p) {
-				additionalCount++
-			}
-		}
-		currentOffset += len(batch)
-	}
-	return additionalCount
 }
 
 func isPlatformSupported(p types.Platform) bool {

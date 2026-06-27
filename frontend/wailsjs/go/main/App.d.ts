@@ -98,8 +98,6 @@ export function OpenFileDialog(arg1:string,arg2:Array<string>):Promise<string>;
 
 export function OpenGameFolder(arg1:types.Game):Promise<void>;
 
-export function PlayRom(arg1:number):Promise<void>;
-
 export function PlayRomWithCore(arg1:number,arg2:string):Promise<void>;
 
 export function Quit():Promise<void>;
