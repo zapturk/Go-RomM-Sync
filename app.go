@@ -178,6 +178,7 @@ func (a *App) ClearImageCache() error {
 }
 
 func (a *App) GetLibrary(limit, offset, platformID int, search string) (types.LibraryResult[types.Game], error) {
+	a.LogInfof("GetLibrary: limit=%d, offset=%d, platformID=%d, search=%q", limit, offset, platformID, search)
 	for {
 		cfg := a.configManager.GetConfig()
 		if cfg.OfflineMode {
@@ -198,6 +199,7 @@ func (a *App) GetLibrary(limit, offset, platformID int, search string) (types.Li
 }
 
 func (a *App) GetPlatforms(limit, offset int) (types.LibraryResult[types.Platform], error) {
+	a.LogInfof("GetPlatforms: limit=%d, offset=%d", limit, offset)
 	for {
 		cfg := a.configManager.GetConfig()
 		if cfg.OfflineMode {

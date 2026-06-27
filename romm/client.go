@@ -500,6 +500,7 @@ func (c *Client) shouldSendToken(targetURL string) bool {
 
 // getJSON performs an authenticated GET and returns the raw JSON body.
 func (c *Client) getJSON(urlStr, label string) (json.RawMessage, error) {
+	fmt.Printf("[RomM Client] GET request: %s (label: %s)\n", urlStr, label)
 	req, err := http.NewRequest("GET", urlStr, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create %s request: %w", label, err)
