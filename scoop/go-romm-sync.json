@@ -1,13 +1,13 @@
 {
-    "version": "0.3.4",
+    "version": "0.3.6",
     "description": "A seamless bridge between RomM and RetroArch for a console-like gaming experience.",
     "homepage": "https://github.com/zapturk/Go-RomM-Sync",
     "license": "GPL-3.0-only",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/zapturk/Go-RomM-Sync/releases/download/v0.3.4/go-romm-sync-windows-amd64.zip",
+            "url": "https://github.com/zapturk/Go-RomM-Sync/releases/download/v0.3.6/go-romm-sync-windows-amd64.zip",
             "bin": "go-romm-sync.exe",
-            "hash": "sha256:a4dd59a99110649b3df03965978049dba00e5e22ff6f1886b299d3e6668f49de",
+            "hash": "sha256:2ac170b42b4b9069391f06ca39ec12170b777927135d3fc64fa99dfb1ba39457",
             "shortcuts": [
                 [
                     "go-romm-sync.exe",
