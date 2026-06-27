@@ -54,4 +54,3 @@ func IsSafePath(baseDir, targetPath string) bool {
 	}
 	return true
 }
-
