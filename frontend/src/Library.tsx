@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { GetLibrary, GetPlatforms, Quit, GetConfig } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
@@ -120,7 +120,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
         trackChildren: true
     });
 
-    const refreshLibrary = (currentOffset: number = offset, currentPlatformOffset: number = platformOffset, currentSearch: string = searchTerm) => {
+    const refreshLibrary = useCallback((currentOffset: number = offset, currentPlatformOffset: number = platformOffset, currentSearch: string = searchTerm) => {
         setIsLoading(true);
         setStatus("Syncing...");
         setSyncTrigger(prev => prev + 1);
@@ -165,7 +165,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
             if (myRequestId !== requestCounter.current || !isMountedRef.current) return;
             setIsLoading(false);
         });
-    };
+    }, [offset, platformOffset, searchTerm, platforms, selectedPlatform]);
 
     const handlePageChange = (newOffset: number) => {
         setOffset(newOffset);
@@ -228,7 +228,7 @@ function Library({ onOpenSettings, isActive = true }: LibraryProps) {
             }
         });
         return () => unsubscribe();
-    }, [platformOffset, searchTerm]);
+    }, [refreshLibrary]);
 
     // Handle "Refresh" (R key)
     useEffect(() => {
