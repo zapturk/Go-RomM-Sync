@@ -196,11 +196,16 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 	}
 	if parsed.Host != "" {
 		host := parsed.Hostname()
-		if net.ParseIP(host) != nil {
-			return nil, fmt.Errorf("cover URL targets private/reserved IP: %s", targetURL)
-		}
-		if host == "localhost" || host == "127.0.0.1" || host == "::1" {
-			return nil, fmt.Errorf("cover URL targets localhost: %s", targetURL)
+		if ips, err := net.LookupIP(host); err == nil {
+			for _, ip := range ips {
+				if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() {
+					return nil, fmt.Errorf("cover URL targets private/reserved IP: %s", targetURL)
+				}
+			}
+		} else if ip := net.ParseIP(host); ip != nil {
+			if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() {
+				return nil, fmt.Errorf("cover URL targets private/reserved IP: %s", targetURL)
+			}
 		}
 	}
 
