@@ -134,6 +134,7 @@ type githubRelease struct {
 	} `json:"assets"`
 }
 
+// ponytail: bare http.Get — no timeout, no auth. Use Client.FileClient.
 func UpdateBios(ui UIProvider, exePath string) error {
 	baseDir, _, err := resolveRetroArchPaths(exePath)
 	if err != nil {
@@ -285,6 +286,7 @@ func unzipBios(ui UIProvider, src, dest string) error {
 	return nil
 }
 
+// ponytail: nearly identical to library.ProgressWriter (same io.Writer + percent-based event emission). Share one.
 type progressWriter struct {
 	total       int64
 	downloaded  int64

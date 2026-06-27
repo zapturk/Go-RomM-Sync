@@ -126,6 +126,7 @@ func (s *Service) GetPlatforms(limit, offset int) ([]types.Platform, int, error)
 	return supported, foundCount, nil
 }
 
+// ponytail: speculative optimization — makes extra API calls just to compute accurate "supported" total.
 // countRemainingSupported continues scanning platforms from the server just to update the supported count.
 func (s *Service) countRemainingSupported(totalOnServer, startOffset, batchSize, maxScan int) int {
 	additionalCount := 0

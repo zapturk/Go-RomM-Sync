@@ -31,6 +31,7 @@ type Client struct {
 	FileClient *http.Client // For large file downloads (2h timeout)
 }
 
+// ponytail: two http.Clients (60s vs 2h) — consider merging into one client with per-call timeout.
 // NewClient creates a new RomM API client
 func NewClient(baseURL string) *Client {
 	return &Client{
@@ -477,6 +478,7 @@ func (c *Client) downloadAsset(ctx context.Context, id uint, assetType, fallback
 	return resp.Body, filename, nil
 }
 
+// ponytail: dead code — only caller is DownloadCover which always hits RomM. Could just always send token.
 // shouldSendToken determines if the authentication token should be sent to the target URL.
 // It returns true if the target URL is relative or if it matches the BaseURL's scheme and host.
 func (c *Client) shouldSendToken(targetURL string) bool {
@@ -525,8 +527,8 @@ func (c *Client) getJSON(urlStr, label string) (json.RawMessage, error) {
 	return raw, nil
 }
 
-// decodePaginated decodes a raw JSON response that may be either a plain array
-// or a paginated envelope object (various field name conventions supported).
+// ponytail: speculatively handles 4 field name variants (total_count, total, count, total_results)
+// plus a fallback to len(items). If the API returns a consistent format, slim to one path.
 func decodePaginated[T any](raw json.RawMessage, label string) (items []T, total int, err error) {
 	// Try plain array first (legacy / non-paginated responses)
 	if err := json.Unmarshal(raw, &items); err == nil {

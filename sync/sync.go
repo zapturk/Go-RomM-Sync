@@ -289,6 +289,7 @@ func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) erro
 }
 
 // DeleteGameFile deletes a local save or state file.
+// ponytail: path-traversal guard duplicated from uploadServerAsset. Extract one helper.
 func (s *Service) DeleteGameFile(id uint, subDir, core, filename string) error {
 	game, err := s.library.GetLocalGame(id)
 	if err != nil {

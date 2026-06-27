@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+// ponytail: complex function — filepath.Clean + simple "starts with .." check covers the safety requirement.
 // SanitizePath ensures a path received from a server is safe for use in local operations.
 // It removes any directory traversal segments (..) and ensures the path is clean.
 func SanitizePath(path string) string {

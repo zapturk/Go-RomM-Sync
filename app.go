@@ -514,6 +514,7 @@ func (a *App) PlayRom(id uint) error {
 	return nil
 }
 
+// ponytail: 90% identical to PlayRom — differs only by coreOverride. Extract shared `playCore` helper.
 func (a *App) PlayRomWithCore(id uint, coreOverride string) error {
 	if err := a.checkAndDownloadFirmware(id); err != nil {
 		a.LogErrorf("Firmware check failed: %v", err)
