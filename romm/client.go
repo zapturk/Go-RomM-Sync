@@ -177,6 +177,32 @@ func (c *Client) buildLibraryURL(limit, offset, platformID int, search string) (
 	return u.String(), nil
 }
 
+func isPrivateOrLocal(ip net.IP) bool {
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
+}
+
+func validateCoverURL(targetURL string) error {
+	parsed, err := url.Parse(targetURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return fmt.Errorf("invalid cover URL scheme: %s", targetURL)
+	}
+	if parsed.Host != "" {
+		host := parsed.Hostname()
+		if ips, err := net.LookupIP(host); err == nil {
+			for _, ip := range ips {
+				if isPrivateOrLocal(ip) {
+					return fmt.Errorf("cover URL targets private/reserved IP: %s", targetURL)
+				}
+			}
+		} else if ip := net.ParseIP(host); ip != nil {
+			if isPrivateOrLocal(ip) {
+				return fmt.Errorf("cover URL targets private/reserved IP: %s", targetURL)
+			}
+		}
+	}
+	return nil
+}
+
 // DownloadCover fetches the cover image from the provided URL
 func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 	if c.Token == "" {
@@ -190,23 +216,8 @@ func (c *Client) DownloadCover(coverURL string) ([]byte, error) {
 	}
 
 	// Validate URL before fetching to prevent SSRF
-	parsed, err := url.Parse(targetURL)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return nil, fmt.Errorf("invalid cover URL scheme: %s", targetURL)
-	}
-	if parsed.Host != "" {
-		host := parsed.Hostname()
-		if ips, err := net.LookupIP(host); err == nil {
-			for _, ip := range ips {
-				if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() {
-					return nil, fmt.Errorf("cover URL targets private/reserved IP: %s", targetURL)
-				}
-			}
-		} else if ip := net.ParseIP(host); ip != nil {
-			if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() {
-				return nil, fmt.Errorf("cover URL targets private/reserved IP: %s", targetURL)
-			}
-		}
+	if err := validateCoverURL(targetURL); err != nil {
+		return nil, err
 	}
 
 	req, err := http.NewRequest("GET", targetURL, http.NoBody)
