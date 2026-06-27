@@ -454,65 +454,6 @@ func (a *App) checkAndDownloadFirmware(id uint) error {
 	return nil
 }
 
-func (a *App) PlayRom(id uint) error {
-	if err := a.checkAndDownloadFirmware(id); err != nil {
-		a.LogErrorf("Firmware check failed: %v", err)
-	}
-	libPath := a.GetLibraryPath()
-	if libPath == "" {
-		return fmt.Errorf("library path is not configured")
-	}
-
-	game, err := a.GetRom(id)
-	if err != nil {
-		return fmt.Errorf("failed to get ROM info: %w", err)
-	}
-	// 2. Find local ROM path
-	relDir := utils.SanitizePath(filepath.Dir(game.FullPath))
-	romDir := filepath.Join(libPath, relDir, fmt.Sprintf("%d", game.ID))
-	romPath := a.findRomPath(&game, romDir)
-	if romPath == "" {
-		return fmt.Errorf("no valid ROM file found in %s, please download it first", romDir)
-	}
-
-	// 3. Check if RetroArch is Configured
-	exePath := a.GetRetroArchPath()
-	if exePath == "" {
-		// Prompt user manually if they haven't set it yet
-		exePath, err = a.SelectRetroArchExecutable()
-		if err != nil {
-			return fmt.Errorf("retroarch not configured: %w", err)
-		}
-		if exePath == "" {
-			return fmt.Errorf("launch cancelled: RetroArch executable not selected")
-		}
-	} else {
-		// Verify the configured path exists
-		if _, err := os.Stat(exePath); err != nil {
-			return fmt.Errorf("retroarch executable not found at configured path: %s", exePath)
-		}
-	}
-
-	// 4. Launch the game
-	cheevosUser, cheevosPass := a.GetCheevosCredentials()
-
-	// Resolve and save core preference before launching
-	platformSlug := a.GetResolvedPlatformSlug(&game)
-	cores := retroarch.GetCoresForPlatform(platformSlug)
-	if len(cores) > 0 && platformSlug != "" {
-		_ = a.SaveLastUsedCore(platformSlug, cores[0])
-	}
-
-	// Delegate UI lifecycle to launch helper inside retroarch/manager.go (which handles hiding window, etc.)
-	err = retroarch.Launch(a, exePath, romPath, cheevosUser, cheevosPass, "", platformSlug, a.GetBiosDir())
-	if err != nil {
-		return fmt.Errorf("failed to launch game: %w", err)
-	}
-
-	return nil
-}
-
-// ponytail: 90% identical to PlayRom — differs only by coreOverride. Extract shared `playCore` helper.
 func (a *App) PlayRomWithCore(id uint, coreOverride string) error {
 	if err := a.checkAndDownloadFirmware(id); err != nil {
 		a.LogErrorf("Firmware check failed: %v", err)
