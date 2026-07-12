@@ -2,7 +2,7 @@ module go-romm-sync
 
 go 1.26
 
-toolchain go1.26.0
+toolchain go1.26.5
 
 require (
 	github.com/bodgit/sevenzip v1.6.5
