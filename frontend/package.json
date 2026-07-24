@@ -11,7 +11,7 @@
   "dependencies": {
     "@noriginmedia/norigin-spatial-navigation": "^3.2.1",
     "react": "^19.2.8",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",
