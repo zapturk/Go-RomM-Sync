@@ -106,6 +106,10 @@ export function GetPassword() {
   return window['go']['main']['App']['GetPassword']();
 }
 
+export function GetPlatform(arg1) {
+  return window['go']['main']['App']['GetPlatform'](arg1);
+}
+
 export function GetPlatformCover(arg1, arg2) {
   return window['go']['main']['App']['GetPlatformCover'](arg1, arg2);
 }

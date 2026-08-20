@@ -213,6 +213,43 @@ func (a *App) GetPlatforms(limit, offset int) (types.LibraryResult[types.Platfor
 	}
 }
 
+// GetPlatform fetches a single platform by its ID.
+func (a *App) GetPlatform(platformID uint) (types.Platform, error) {
+	for {
+		cfg := a.configManager.GetConfig()
+		if cfg.OfflineMode {
+			items, _, err := a.librarySrv.GetLocalLibrary(1000, 0, int(platformID), "")
+			if err != nil {
+				return types.Platform{}, err
+			}
+			for i := range items {
+				game := &items[i]
+				if game.PlatformID == platformID {
+					platform := game.Platform
+					if platform.ID == 0 {
+						platform.ID = game.PlatformID
+					}
+					if platform.Name == "" {
+						platform.Name = game.PlatformDisplayName
+					}
+					if platform.Slug == "" {
+						platform.Slug = game.PlatformSlug
+					}
+					return platform, nil
+				}
+			}
+			return types.Platform{ID: platformID}, nil
+		}
+
+		platform, err := a.rommSrv.GetPlatform(platformID)
+		if err != nil {
+			a.handleConnectionError(err)
+			continue
+		}
+		return platform, nil
+	}
+}
+
 func (a *App) getOfflinePlatforms(limit, offset int) (types.LibraryResult[types.Platform], error) {
 	items, _, err := a.librarySrv.GetLocalLibrary(1000, 0, 0, "")
 	if err != nil {

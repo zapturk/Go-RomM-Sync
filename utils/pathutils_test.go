@@ -51,4 +51,3 @@ func TestIsSafePath(t *testing.T) {
 		}
 	}
 }
-

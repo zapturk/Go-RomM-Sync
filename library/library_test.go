@@ -18,10 +18,10 @@ import (
 
 type mockRommConfig struct{}
 
-func (m mockRommConfig) GetRomMHost() string      { return "http://localhost" }
-func (m mockRommConfig) GetUsername() string      { return "user" }
-func (m mockRommConfig) GetPassword() string      { return "pass" }
-func (m mockRommConfig) GetClientToken() string   { return "token" }
+func (m mockRommConfig) GetRomMHost() string    { return "http://localhost" }
+func (m mockRommConfig) GetUsername() string    { return "user" }
+func (m mockRommConfig) GetPassword() string    { return "pass" }
+func (m mockRommConfig) GetClientToken() string { return "token" }
 
 type mockTransport struct {
 	roundTrip func(*http.Request) (*http.Response, error)
@@ -35,8 +35,8 @@ type MockUIProvider struct {
 	LastEvent string
 }
 
-func (m *MockUIProvider) LogInfof(format string, args ...interface{})      {}
-func (m *MockUIProvider) LogErrorf(format string, args ...interface{})     {}
+func (m *MockUIProvider) LogInfof(format string, args ...interface{})  {}
+func (m *MockUIProvider) LogErrorf(format string, args ...interface{}) {}
 func (m *MockUIProvider) EventsEmit(eventName string, args ...interface{}) {
 	m.LastEvent = eventName
 }

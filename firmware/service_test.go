@@ -15,10 +15,10 @@ import (
 
 type mockRommConfig struct{}
 
-func (m mockRommConfig) GetRomMHost() string      { return "http://localhost" }
-func (m mockRommConfig) GetUsername() string      { return "user" }
-func (m mockRommConfig) GetPassword() string      { return "pass" }
-func (m mockRommConfig) GetClientToken() string   { return "token" }
+func (m mockRommConfig) GetRomMHost() string    { return "http://localhost" }
+func (m mockRommConfig) GetUsername() string    { return "user" }
+func (m mockRommConfig) GetPassword() string    { return "pass" }
+func (m mockRommConfig) GetClientToken() string { return "token" }
 
 type mockTransport struct {
 	roundTrip func(*http.Request) (*http.Response, error)
@@ -30,9 +30,9 @@ func (t *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 type MockUIProvider struct{}
 
-func (m *MockUIProvider) LogInfof(format string, args ...interface{})          {}
-func (m *MockUIProvider) LogErrorf(format string, args ...interface{})         {}
-func (m *MockUIProvider) EventsEmit(eventName string, args ...interface{})     {}
+func (m *MockUIProvider) LogInfof(format string, args ...interface{})      {}
+func (m *MockUIProvider) LogErrorf(format string, args ...interface{})     {}
+func (m *MockUIProvider) EventsEmit(eventName string, args ...interface{}) {}
 
 func TestDownloadFirmware(t *testing.T) {
 	tempDir, _ := os.MkdirTemp("", "firmware_test")

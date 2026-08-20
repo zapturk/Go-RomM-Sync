@@ -395,3 +395,46 @@ func TestReadAllWithLimit(t *testing.T) {
 		}
 	})
 }
+
+func TestGetPlatform(t *testing.T) {
+	t.Run("no custom name", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"id": 42, "name": "SNES", "custom_name": "", "slug": "snes"}`))
+		}))
+		defer server.Close()
+
+		client := NewClient(server.URL)
+		client.Token = "test-token"
+
+		platform, err := client.GetPlatform(42)
+		if err != nil {
+			t.Fatalf("GetPlatform failed: %v", err)
+		}
+		if platform.Name != "SNES" {
+			t.Errorf("Expected Name 'SNES', got '%s'", platform.Name)
+		}
+	})
+
+	t.Run("with custom name", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"id": 42, "name": "SNES", "custom_name": "My Custom SNES", "slug": "snes"}`))
+		}))
+		defer server.Close()
+
+		client := NewClient(server.URL)
+		client.Token = "test-token"
+
+		platform, err := client.GetPlatform(42)
+		if err != nil {
+			t.Fatalf("GetPlatform failed: %v", err)
+		}
+		if platform.Name != "My Custom SNES" {
+			t.Errorf("Expected Name 'My Custom SNES', got '%s'", platform.Name)
+		}
+		if platform.CustomName != "My Custom SNES" {
+			t.Errorf("Expected CustomName 'My Custom SNES', got '%s'", platform.CustomName)
+		}
+	})
+}

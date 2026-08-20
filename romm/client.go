@@ -262,7 +262,53 @@ func (c *Client) GetPlatforms(limit, offset int) ([]types.Platform, int, error) 
 		return nil, 0, err
 	}
 
-	return decodePaginated[types.Platform](raw, "platforms")
+	platforms, total, err := decodePaginated[types.Platform](raw, "platforms")
+	if err != nil {
+		return nil, 0, err
+	}
+	for i := range platforms {
+		if platforms[i].CustomName != "" {
+			platforms[i].Name = platforms[i].CustomName
+		}
+	}
+	return platforms, total, nil
+}
+
+// GetPlatform fetches a single platform by its ID
+func (c *Client) GetPlatform(id uint) (types.Platform, error) {
+	if c.Token == "" {
+		return types.Platform{}, fmt.Errorf("not authenticated")
+	}
+
+	urlStr := fmt.Sprintf("%s/api/platforms/%d", c.BaseURL, id)
+	req, err := http.NewRequest("GET", urlStr, http.NoBody)
+	if err != nil {
+		return types.Platform{}, fmt.Errorf("failed to create platform request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	resp, err := c.APIClient.Do(req)
+	if err != nil {
+		return types.Platform{}, fmt.Errorf("failed to perform platform request: %w", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
+		return types.Platform{}, fmt.Errorf("platform fetch failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var platform types.Platform
+	if err := json.NewDecoder(resp.Body).Decode(&platform); err != nil {
+		return types.Platform{}, fmt.Errorf("failed to decode platform response: %w", err)
+	}
+
+	if platform.CustomName != "" {
+		platform.Name = platform.CustomName
+	}
+
+	return platform, nil
 }
 
 // GetFirmware fetches the list of firmware for a given platform
