@@ -99,7 +99,7 @@ func (s *Service) GetPlatforms(limit, offset int) ([]types.Platform, int, error)
 
 		// 1. Collect platforms for the current page
 		for _, p := range batch {
-			if isPlatformSupported(p) {
+			if isPlatformSupported(&p) {
 				if foundCount >= offset && len(supported) < limit {
 					supported = append(supported, p)
 				}
@@ -123,7 +123,7 @@ func (s *Service) GetPlatforms(limit, offset int) ([]types.Platform, int, error)
 	return supported, foundCount, nil
 }
 
-func isPlatformSupported(p types.Platform) bool {
+func isPlatformSupported(p *types.Platform) bool {
 	// Check if supported by RetroArch and has games
 	return p.RomCount > 0 && (retroarch.IdentifyPlatform(p.Name) != "" || retroarch.IdentifyPlatform(p.Slug) != "")
 }
@@ -137,7 +137,6 @@ func (s *Service) GetRom(id uint) (types.Game, error) {
 func (s *Service) GetPlatform(id uint) (types.Platform, error) {
 	return s.client.GetPlatform(id)
 }
-
 
 func (s *Service) GetFirmware(platformID uint) ([]types.Firmware, error) {
 	return s.client.GetFirmware(platformID)

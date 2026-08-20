@@ -255,6 +255,4 @@ func TestGetPlatform(t *testing.T) {
 	}
 }
 
-
-
 // Tests moved to assets package

@@ -250,7 +250,6 @@ func (a *App) GetPlatform(platformID uint) (types.Platform, error) {
 	}
 }
 
-
 func (a *App) getOfflinePlatforms(limit, offset int) (types.LibraryResult[types.Platform], error) {
 	items, _, err := a.librarySrv.GetLocalLibrary(1000, 0, 0, "")
 	if err != nil {

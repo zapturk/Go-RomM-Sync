@@ -292,7 +292,7 @@ func (c *Client) GetPlatform(id uint) (types.Platform, error) {
 	if err != nil {
 		return types.Platform{}, fmt.Errorf("failed to perform platform request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
@@ -310,8 +310,6 @@ func (c *Client) GetPlatform(id uint) (types.Platform, error) {
 
 	return platform, nil
 }
-
-
 
 // GetFirmware fetches the list of firmware for a given platform
 func (c *Client) GetFirmware(platformID uint) ([]types.Firmware, error) {

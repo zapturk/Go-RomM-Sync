@@ -438,4 +438,3 @@ func TestGetPlatform(t *testing.T) {
 		}
 	})
 }
-
