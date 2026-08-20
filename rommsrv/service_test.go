@@ -225,5 +225,36 @@ func TestGetClient(t *testing.T) {
 	}
 }
 
+func TestGetPlatform(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/platforms/7" {
+			t.Errorf("Expected path /api/platforms/7, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id": 7, "name": "Game Boy Color", "slug": "gbc"}`))
+	}))
+	defer server.Close()
+
+	cfg := &MockConfigProvider{Host: server.URL}
+	s := New(cfg)
+	s.client.Token = "test-token"
+
+	platform, err := s.GetPlatform(7)
+	if err != nil {
+		t.Fatalf("GetPlatform failed: %v", err)
+	}
+
+	if platform.ID != 7 {
+		t.Errorf("Expected ID 7, got %d", platform.ID)
+	}
+	if platform.Name != "Game Boy Color" {
+		t.Errorf("Expected Game Boy Color, got %s", platform.Name)
+	}
+	if platform.Slug != "gbc" {
+		t.Errorf("Expected gbc, got %s", platform.Slug)
+	}
+}
+
+
 
 // Tests moved to assets package

@@ -133,6 +133,12 @@ func (s *Service) GetRom(id uint) (types.Game, error) {
 	return s.client.GetRom(id)
 }
 
+// GetPlatform fetches a single platform from RomM.
+func (s *Service) GetPlatform(id uint) (types.Platform, error) {
+	return s.client.GetPlatform(id)
+}
+
+
 func (s *Service) GetFirmware(platformID uint) ([]types.Firmware, error) {
 	return s.client.GetFirmware(platformID)
 }

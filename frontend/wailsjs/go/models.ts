@@ -75,6 +75,7 @@ export namespace types {
 	export class Platform {
 	    id: number;
 	    name: string;
+	    custom_name: string;
 	    slug: string;
 	    url_icon: string;
 	    rom_count: number;
@@ -87,6 +88,7 @@ export namespace types {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
+	        this.custom_name = source["custom_name"];
 	        this.slug = source["slug"];
 	        this.url_icon = source["url_icon"];
 	        this.rom_count = source["rom_count"];

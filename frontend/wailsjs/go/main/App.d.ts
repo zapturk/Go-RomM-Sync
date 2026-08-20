@@ -56,6 +56,8 @@ export function GetLocalGame(arg1:number):Promise<types.Game>;
 
 export function GetPassword():Promise<string>;
 
+export function GetPlatform(arg1:number):Promise<types.Platform>;
+
 export function GetPlatformCover(arg1:number,arg2:string):Promise<string>;
 
 export function GetPlatforms(arg1:number,arg2:number):Promise<types.LibraryResult_go_romm_sync_types_Platform_>;
