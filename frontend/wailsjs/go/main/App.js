@@ -254,6 +254,10 @@ export function SyncOfflineMetadata() {
   return window['go']['main']['App']['SyncOfflineMetadata']();
 }
 
+export function ToggleDisableMetadata() {
+  return window['go']['main']['App']['ToggleDisableMetadata']();
+}
+
 export function ToggleOfflineMode() {
   return window['go']['main']['App']['ToggleOfflineMode']();
 }

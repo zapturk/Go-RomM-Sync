@@ -642,6 +642,11 @@ func (a *App) findAnyRom(romDir string, files []os.DirEntry) string {
 
 func (a *App) ToggleOfflineMode() bool {
 	var newState bool
+	currentConfig := a.configManager.GetConfig()
+	if currentConfig.DisableMetadata {
+		a.LogErrorf("ToggleOfflineMode: Blocked offline mode toggle because DisableMetadata is true")
+		return false
+	}
 	if err := a.configManager.Update(func(cfg *types.AppConfig) {
 		cfg.OfflineMode = !cfg.OfflineMode
 		newState = cfg.OfflineMode
@@ -652,6 +657,29 @@ func (a *App) ToggleOfflineMode() bool {
 		wailsRuntime.EventsEmit(a.ctx, "offline-mode-changed", newState)
 	}
 	return newState
+}
+
+func (a *App) ToggleDisableMetadata() (bool, error) {
+	currentConfig := a.configManager.GetConfig()
+	targetState := !currentConfig.DisableMetadata
+
+	err := a.configManager.Update(func(cfg *types.AppConfig) {
+		cfg.DisableMetadata = targetState
+		if targetState {
+			cfg.OfflineMode = false
+		}
+	})
+	if err != nil {
+		a.LogErrorf("Failed to update config during ToggleDisableMetadata: %v", err)
+		return currentConfig.DisableMetadata, err
+	}
+
+	if targetState && a.ctx != nil {
+		wailsRuntime.EventsEmit(a.ctx, "offline-mode-changed", false)
+	}
+
+	a.LogInfof("ToggleDisableMetadata: Successfully changed DisableMetadata to %t", targetState)
+	return targetState, nil
 }
 
 func (a *App) handleConnectionError(err error) {

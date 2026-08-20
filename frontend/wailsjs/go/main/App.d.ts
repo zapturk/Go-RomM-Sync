@@ -130,6 +130,8 @@ export function SetPlatformFirmware(arg1:string,arg2:types.Firmware):Promise<voi
 
 export function SyncOfflineMetadata():Promise<void>;
 
+export function ToggleDisableMetadata():Promise<boolean>;
+
 export function ToggleOfflineMode():Promise<boolean>;
 
 export function ToggleUsePlatformFolder():Promise<boolean>;

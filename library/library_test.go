@@ -515,3 +515,43 @@ func TestCleanupOrphanedRoms(t *testing.T) {
 		t.Errorf("Orphaned directory was not deleted")
 	}
 }
+
+func TestDisableMetadata(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "library_disable_metadata_test")
+	defer os.RemoveAll(tempDir)
+
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{
+		LibraryPath:     tempDir,
+		DisableMetadata: true,
+	}
+
+	ui := &MockUIProvider{}
+	s := New(cm, nil, ui)
+
+	game := types.Game{
+		ID:           77,
+		Title:        "No Metadata Game",
+		FullPath:     "nes/nometadata.nes",
+		PlatformSlug: "nes",
+	}
+
+	// 1. Create a ROM file
+	idDir := filepath.Join(tempDir, "nes", "77")
+	os.MkdirAll(idDir, 0o755)
+	romFile := filepath.Join(idDir, "nometadata.nes")
+	os.WriteFile(romFile, []byte("fake rom"), 0o644)
+
+	// 2. Call SaveMetadata
+	err := s.SaveMetadata(&game)
+	if err != nil {
+		t.Fatalf("SaveMetadata failed: %v", err)
+	}
+
+	// 3. Verify metadata.json was NOT written
+	metaFile := filepath.Join(idDir, "metadata.json")
+	if _, err := os.Stat(metaFile); !os.IsNotExist(err) {
+		t.Errorf("Expected metadata.json to NOT exist, but it was created")
+	}
+}

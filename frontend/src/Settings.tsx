@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath,
     Logout, ClearImageCache, ToggleOfflineMode, SyncOfflineMetadata,
-    UpdateRetroArchCores, UpdateRetroArchBios, ToggleUsePlatformFolder,
+    UpdateRetroArchCores, UpdateRetroArchBios, ToggleUsePlatformFolder, ToggleDisableMetadata,
     ScanOrphanedRoms, DeleteOrphanedRoms,
 } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
@@ -47,6 +47,7 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [cheevosPass, setCheevosPass] = useState('');
     const [offlineMode, setOfflineMode] = useState(false);
     const [usePlatformFolder, setUsePlatformFolder] = useState(false);
+    const [disableMetadata, setDisableMetadata] = useState(false);
     const [clientToken, setClientToken] = useState('');
     const [isSyncing, setIsSyncing] = useState(false);
     const [isUpdatingCores, setIsUpdatingCores] = useState(false);
@@ -68,6 +69,7 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                 cheevos_password = '',
                 offline_mode = false,
                 use_platform_folder = false,
+                disable_metadata = false,
                 client_token = ''
             } = cfg || {};
             setConfig(cfg);
@@ -77,6 +79,7 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             setCheevosPass(cheevos_password);
             setOfflineMode(offline_mode);
             setUsePlatformFolder(use_platform_folder);
+            setDisableMetadata(disable_metadata);
             setClientToken(client_token);
         });
     }, []);
@@ -235,6 +238,24 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                 setIsSaving(false);
             });
     };
+    const handleToggleDisableMetadata = () => {
+        setIsSaving(true);
+        setStatus("Updating metadata configuration...");
+        ToggleDisableMetadata()
+            .then((newState: boolean) => {
+                setDisableMetadata(newState);
+                setStatus(`Metadata generation ${newState ? 'disabled' : 'enabled'}.`);
+                if (newState) {
+                    setOfflineMode(false);
+                }
+            })
+            .catch((err: any) => {
+                setStatus(`Error updating metadata setting: ${String(err)}`);
+            })
+            .finally(() => {
+                setIsSaving(false);
+            });
+    };
 
     const handleSyncMetadata = () => {
         setIsSyncing(true);
@@ -343,9 +364,11 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                         libPath={libPath}
                         isSaving={isSaving}
                         usePlatformFolder={usePlatformFolder}
+                        disableMetadata={disableMetadata}
                         handleBrowseLib={handleBrowseLib}
                         handleSetDefaultLib={handleSetDefaultLib}
                         handleTogglePlatformFolder={handleTogglePlatformFolder}
+                        handleToggleDisableMetadata={handleToggleDisableMetadata}
                     />
 
                     <MaintenanceSection
@@ -363,6 +386,7 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                         isSaving={isSaving}
                         isSyncing={isSyncing}
                         offlineMode={offlineMode}
+                        disableMetadata={disableMetadata}
                         handleToggleOffline={handleToggleOffline}
                         handleSyncMetadata={handleSyncMetadata}
                     />
@@ -513,22 +537,31 @@ interface LibrarySectionProps {
     libPath: string;
     isSaving: boolean;
     usePlatformFolder: boolean;
+    disableMetadata: boolean;
     handleBrowseLib: () => void;
     handleSetDefaultLib: () => void;
     handleTogglePlatformFolder: () => void;
+    handleToggleDisableMetadata: () => void;
 }
 
 function LibrarySection({
     libPath,
     isSaving,
     usePlatformFolder,
+    disableMetadata,
     handleBrowseLib,
     handleSetDefaultLib,
-    handleTogglePlatformFolder
+    handleTogglePlatformFolder,
+    handleToggleDisableMetadata
 }: LibrarySectionProps) {
     const toggleStyle = {
         minWidth: '120px',
         backgroundColor: usePlatformFolder ? '#4CAF50' : 'rgba(255,255,255,0.1)',
+    };
+
+    const disableMetaStyle = {
+        minWidth: '120px',
+        backgroundColor: disableMetadata ? '#f44336' : 'rgba(255,255,255,0.1)',
     };
 
     return (
@@ -577,6 +610,19 @@ function LibrarySection({
                     onMouseEnter={() => getMouseActive() && !isSaving && setFocus('platform-folder-toggle-button')}
                 >
                     {usePlatformFolder ? "Enabled" : "Disabled"}
+                </FocusableButton>
+            </SettingsRow>
+            <SettingsRow label="Disable Metadata" desc="Disable generation of metadata.json files (this disables Offline Mode)">
+                <FocusableButton
+                    focusKey="disable-metadata-toggle-button"
+                    className={`btn ${isSaving ? 'disabled' : ''}`}
+                    style={disableMetaStyle}
+                    onClick={handleToggleDisableMetadata}
+                    onEnterPress={handleToggleDisableMetadata}
+                    disabled={isSaving}
+                    onMouseEnter={() => getMouseActive() && !isSaving && setFocus('disable-metadata-toggle-button')}
+                >
+                    {disableMetadata ? "Disabled" : "Enabled"}
                 </FocusableButton>
             </SettingsRow>
         </div>
@@ -682,6 +728,7 @@ interface OfflineSectionProps {
     isSaving: boolean;
     isSyncing: boolean;
     offlineMode: boolean;
+    disableMetadata: boolean;
     handleToggleOffline: () => void;
     handleSyncMetadata: () => void;
 }
@@ -690,41 +737,45 @@ function OfflineSection({
     isSaving,
     isSyncing,
     offlineMode,
+    disableMetadata,
     handleToggleOffline,
     handleSyncMetadata
 }: OfflineSectionProps) {
     const toggleStyle = {
         minWidth: '120px',
-        backgroundColor: offlineMode ? '#4CAF50' : 'rgba(255,255,255,0.1)',
+        backgroundColor: (offlineMode && !disableMetadata) ? '#4CAF50' : 'rgba(255,255,255,0.1)',
     };
 
     return (
         <div className="settings-card">
             <div className="settings-section-title">Offline Support</div>
-            <SettingsRow label="Offline Mode" desc="Enable browsing without server connection">
+            <SettingsRow 
+                label="Offline Mode" 
+                desc={disableMetadata ? "Offline Mode requires metadata.json files (currently disabled)" : "Enable browsing without server connection"}
+            >
                 <FocusableButton
                     focusKey="offline-toggle-button"
-                    className={getBtnClassName(isSaving)}
+                    className={getBtnClassName(isSaving || disableMetadata)}
                     style={toggleStyle}
                     onClick={handleToggleOffline}
                     onEnterPress={handleToggleOffline}
                     onArrowPress={handleOfflineArrowPress}
-                    disabled={isSaving}
-                    onMouseEnter={() => handleHover('offline-toggle-button', isSaving)}
+                    disabled={isSaving || disableMetadata}
+                    onMouseEnter={() => handleHover('offline-toggle-button', isSaving || disableMetadata)}
                 >
-                    {offlineMode ? "Enabled" : "Disabled"}
+                    {disableMetadata ? "Unavailable" : (offlineMode ? "Enabled" : "Disabled")}
                 </FocusableButton>
             </SettingsRow>
-            <SettingsRow label="Sync Metadata" desc="Prepare game data for offline use">
+            <SettingsRow label="Sync Metadata" desc={disableMetadata ? "Sync is unavailable when metadata is disabled" : "Prepare game data for offline use"}>
                 <FocusableButton
                     focusKey="sync-metadata-button"
-                    className={getBtnClassName(isSaving, isSyncing)}
+                    className={getBtnClassName(isSaving || disableMetadata, isSyncing)}
                     onClick={handleSyncMetadata}
                     onEnterPress={handleSyncMetadata}
-                    disabled={isSaving || isSyncing}
-                    onMouseEnter={() => handleHover('sync-metadata-button', isSaving, isSyncing)}
+                    disabled={isSaving || isSyncing || disableMetadata}
+                    onMouseEnter={() => handleHover('sync-metadata-button', isSaving || disableMetadata, isSyncing)}
                 >
-                    {isSyncing ? "Syncing..." : "Sync Now"}
+                    {isSyncing ? "Syncing..." : "Sync Metadata"}
                 </FocusableButton>
             </SettingsRow>
         </div>

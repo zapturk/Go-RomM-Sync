@@ -214,6 +214,9 @@ func (s *Service) postDownloadProcessing(id uint, game *types.Game, destPath, de
 
 // SaveMetadata saves the game metadata to a local JSON file.
 func (s *Service) SaveMetadata(game *types.Game) error {
+	if s.config.GetConfig().DisableMetadata {
+		return nil
+	}
 	destDir := s.GetRomDir(game)
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
