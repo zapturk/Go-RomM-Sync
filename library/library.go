@@ -15,6 +15,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -666,14 +667,6 @@ func migrateSavesAndStates(srcBase, destBase, expectedNameWithoutExt string) {
 	}
 }
 
-// CleanupOrphanedRoms scans the library directory and deletes files/directories not tracked in metadata.
-func (s *Service) CleanupOrphanedRoms() (int, error) {
-	files, err := s.ScanOrphanedRoms()
-	if err != nil {
-		return 0, err
-	}
-	return s.DeleteOrphanedRoms(files)
-}
 
 // ScanOrphanedRoms scans the library directory and returns paths of files not tracked in metadata.
 func (s *Service) ScanOrphanedRoms() ([]string, error) {
@@ -829,13 +822,9 @@ func (s *Service) DeleteOrphanedRoms(files []string) (int, error) {
 		return nil
 	})
 
-	for i := 0; i < len(allDirs); i++ {
-		for j := i + 1; j < len(allDirs); j++ {
-			if len(allDirs[j]) > len(allDirs[i]) {
-				allDirs[i], allDirs[j] = allDirs[j], allDirs[i]
-			}
-		}
-	}
+	sort.Slice(allDirs, func(i, j int) bool {
+		return len(allDirs[i]) > len(allDirs[j])
+	})
 
 	for _, dir := range allDirs {
 		entries, err := os.ReadDir(dir)

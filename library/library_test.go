@@ -483,7 +483,11 @@ func TestCleanupOrphanedRoms(t *testing.T) {
 	os.WriteFile(orphanFlatFile, []byte("fake flat orphan"), 0o644)
 
 	// Run cleanup
-	count, err := s.CleanupOrphanedRoms()
+	files, err := s.ScanOrphanedRoms()
+	if err != nil {
+		t.Fatalf("Scan failed: %v", err)
+	}
+	count, err := s.DeleteOrphanedRoms(files)
 	if err != nil {
 		t.Fatalf("Cleanup failed: %v", err)
 	}

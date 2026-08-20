@@ -965,10 +965,6 @@ func (a *App) ToggleUsePlatformFolder() (bool, error) {
 	return targetState, nil
 }
 
-func (a *App) CleanupOrphanedRoms() (int, error) {
-	return a.librarySrv.CleanupOrphanedRoms()
-}
-
 func (a *App) ScanOrphanedRoms() ([]string, error) {
 	return a.librarySrv.ScanOrphanedRoms()
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath,
     Logout, ClearImageCache, ToggleOfflineMode, SyncOfflineMetadata,
-    UpdateRetroArchCores, UpdateRetroArchBios, ToggleUsePlatformFolder, CleanupOrphanedRoms,
+    UpdateRetroArchCores, UpdateRetroArchBios, ToggleUsePlatformFolder,
     ScanOrphanedRoms, DeleteOrphanedRoms,
 } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";

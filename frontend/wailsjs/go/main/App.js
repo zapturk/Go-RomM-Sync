@@ -6,10 +6,6 @@ export function CancelDownload(arg1) {
   return window['go']['main']['App']['CancelDownload'](arg1);
 }
 
-export function CleanupOrphanedRoms() {
-  return window['go']['main']['App']['CleanupOrphanedRoms']();
-}
-
 export function ClearImageCache() {
   return window['go']['main']['App']['ClearImageCache']();
 }

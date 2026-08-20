@@ -6,8 +6,6 @@ import {io} from '../models';
 
 export function CancelDownload(arg1:number):Promise<void>;
 
-export function CleanupOrphanedRoms():Promise<number>;
-
 export function ClearImageCache():Promise<void>;
 
 export function ConfigGetConfig():Promise<types.AppConfig>;
