@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath,
     Logout, ClearImageCache, ToggleOfflineMode, SyncOfflineMetadata,
-    UpdateRetroArchCores, UpdateRetroArchBios,
+    UpdateRetroArchCores, UpdateRetroArchBios, ToggleUsePlatformFolder, ToggleDisableMetadata,
+    ScanOrphanedRoms, DeleteOrphanedRoms,
 } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
@@ -45,10 +46,15 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [cheevosUser, setCheevosUser] = useState('');
     const [cheevosPass, setCheevosPass] = useState('');
     const [offlineMode, setOfflineMode] = useState(false);
+    const [usePlatformFolder, setUsePlatformFolder] = useState(false);
+    const [disableMetadata, setDisableMetadata] = useState(false);
     const [clientToken, setClientToken] = useState('');
     const [isSyncing, setIsSyncing] = useState(false);
     const [isUpdatingCores, setIsUpdatingCores] = useState(false);
     const [isUpdatingBios, setIsUpdatingBios] = useState(false);
+    const [isCleaningOrphaned, setIsCleaningOrphaned] = useState(false);
+    const [orphanedFiles, setOrphanedFiles] = useState<string[]>([]);
+    const [showCleanupModal, setShowCleanupModal] = useState(false);
 
     const { ref: containerRef } = useFocusable({
         trackChildren: true,
@@ -62,6 +68,8 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                 cheevos_username = '',
                 cheevos_password = '',
                 offline_mode = false,
+                use_platform_folder = false,
+                disable_metadata = false,
                 client_token = ''
             } = cfg || {};
             setConfig(cfg);
@@ -70,6 +78,8 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             setCheevosUser(cheevos_username);
             setCheevosPass(cheevos_password);
             setOfflineMode(offline_mode);
+            setUsePlatformFolder(use_platform_folder);
+            setDisableMetadata(disable_metadata);
             setClientToken(client_token);
         });
     }, []);
@@ -213,6 +223,40 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
         });
     };
 
+    const handleTogglePlatformFolder = () => {
+        setIsSaving(true);
+        setStatus("Migrating ROM library layout...");
+        ToggleUsePlatformFolder()
+            .then((newState: boolean) => {
+                setUsePlatformFolder(newState);
+                setStatus(`Library layout migration complete. Platform folder mode: ${newState ? 'Enabled' : 'Disabled'}.`);
+            })
+            .catch((err: any) => {
+                setStatus(`Error migrating library: ${String(err)}`);
+            })
+            .finally(() => {
+                setIsSaving(false);
+            });
+    };
+    const handleToggleDisableMetadata = () => {
+        setIsSaving(true);
+        setStatus("Updating metadata configuration...");
+        ToggleDisableMetadata()
+            .then((newState: boolean) => {
+                setDisableMetadata(newState);
+                setStatus(`Metadata generation ${newState ? 'disabled' : 'enabled'}.`);
+                if (newState) {
+                    setOfflineMode(false);
+                }
+            })
+            .catch((err: any) => {
+                setStatus(`Error updating metadata setting: ${String(err)}`);
+            })
+            .finally(() => {
+                setIsSaving(false);
+            });
+    };
+
     const handleSyncMetadata = () => {
         setIsSyncing(true);
         setStatus("Syncing metadata for local games...");
@@ -257,6 +301,44 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                 setIsUpdatingBios(false);
             });
     };
+    const handleCleanupOrphaned = () => {
+        setIsCleaningOrphaned(true);
+        setStatus("Scanning library for orphaned files...");
+        ScanOrphanedRoms()
+            .then((files: string[]) => {
+                if (!files || files.length === 0) {
+                    setStatus("No orphaned files found.");
+                    setIsCleaningOrphaned(false);
+                } else {
+                    setOrphanedFiles(files);
+                    setShowCleanupModal(true);
+                    setStatus(`Found ${files.length} orphaned files.`);
+                    setTimeout(() => {
+                        setFocus('cancel-cleanup-btn');
+                    }, 100);
+                }
+            })
+            .catch((err: any) => {
+                setStatus(`Error scanning for orphans: ${String(err)}`);
+                setIsCleaningOrphaned(false);
+            });
+    };
+
+    const handleConfirmCleanup = () => {
+        setShowCleanupModal(false);
+        setStatus("Deleting orphaned files...");
+        DeleteOrphanedRoms(orphanedFiles)
+            .then((count: number) => {
+                setStatus(`Cleanup complete! Deleted ${count} orphaned files.`);
+                setOrphanedFiles([]);
+            })
+            .catch((err: any) => {
+                setStatus(`Error deleting files: ${String(err)}`);
+            })
+            .finally(() => {
+                setIsCleaningOrphaned(false);
+            });
+    };
 
     const handleTopArrowPress = (direction: string) => direction !== 'up';
 
@@ -281,23 +363,30 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                     <LibrarySection
                         libPath={libPath}
                         isSaving={isSaving}
+                        usePlatformFolder={usePlatformFolder}
+                        disableMetadata={disableMetadata}
                         handleBrowseLib={handleBrowseLib}
                         handleSetDefaultLib={handleSetDefaultLib}
+                        handleTogglePlatformFolder={handleTogglePlatformFolder}
+                        handleToggleDisableMetadata={handleToggleDisableMetadata}
                     />
 
                     <MaintenanceSection
                         isSaving={isSaving}
                         isUpdatingCores={isUpdatingCores}
                         isUpdatingBios={isUpdatingBios}
+                        isCleaningOrphaned={isCleaningOrphaned}
                         handleClearCache={handleClearCache}
                         handleUpdateCores={handleUpdateCores}
                         handleUpdateBios={handleUpdateBios}
+                        handleCleanupOrphaned={handleCleanupOrphaned}
                     />
 
                     <OfflineSection
                         isSaving={isSaving}
                         isSyncing={isSyncing}
                         offlineMode={offlineMode}
+                        disableMetadata={disableMetadata}
                         handleToggleOffline={handleToggleOffline}
                         handleSyncMetadata={handleSyncMetadata}
                     />
@@ -360,6 +449,47 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                     <LegendItem buttonAction="south" keyLabel="ENTER" label="OK" />
                 </div>
             </div>
+            {showCleanupModal && (
+                <div className="core-picker-overlay">
+                    <div className="cleanup-modal">
+                        <h3>Confirm Deletion</h3>
+                        <p>The following {orphanedFiles.length} files/folders are not tracked in your local metadata and will be deleted:</p>
+                        <div className="orphaned-list">
+                            {orphanedFiles.map(file => (
+                                <div key={file} className="orphaned-file-item">{file}</div>
+                            ))}
+                        </div>
+                        <div className="modal-actions">
+                            <FocusableButton
+                                focusKey="confirm-cleanup-btn"
+                                className="btn btn-danger"
+                                onClick={handleConfirmCleanup}
+                                onEnterPress={handleConfirmCleanup}
+                                onMouseEnter={() => getMouseActive() && setFocus('confirm-cleanup-btn')}
+                            >
+                                Yes, Delete
+                            </FocusableButton>
+                            <FocusableButton
+                                focusKey="cancel-cleanup-btn"
+                                className="btn"
+                                onClick={() => {
+                                    setShowCleanupModal(false);
+                                    setIsCleaningOrphaned(false);
+                                    setStatus("Configure your application settings");
+                                }}
+                                onEnterPress={() => {
+                                    setShowCleanupModal(false);
+                                    setIsCleaningOrphaned(false);
+                                    setStatus("Configure your application settings");
+                                }}
+                                onMouseEnter={() => getMouseActive() && setFocus('cancel-cleanup-btn')}
+                            >
+                                Cancel
+                            </FocusableButton>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -406,11 +536,34 @@ function EmulatorSection({ raPath, isSaving, handleBrowseRA, handleTopArrowPress
 interface LibrarySectionProps {
     libPath: string;
     isSaving: boolean;
+    usePlatformFolder: boolean;
+    disableMetadata: boolean;
     handleBrowseLib: () => void;
     handleSetDefaultLib: () => void;
+    handleTogglePlatformFolder: () => void;
+    handleToggleDisableMetadata: () => void;
 }
 
-function LibrarySection({ libPath, isSaving, handleBrowseLib, handleSetDefaultLib }: LibrarySectionProps) {
+function LibrarySection({
+    libPath,
+    isSaving,
+    usePlatformFolder,
+    disableMetadata,
+    handleBrowseLib,
+    handleSetDefaultLib,
+    handleTogglePlatformFolder,
+    handleToggleDisableMetadata
+}: LibrarySectionProps) {
+    const toggleStyle = {
+        minWidth: '120px',
+        backgroundColor: usePlatformFolder ? '#4CAF50' : 'rgba(255,255,255,0.1)',
+    };
+
+    const disableMetaStyle = {
+        minWidth: '120px',
+        backgroundColor: disableMetadata ? '#f44336' : 'rgba(255,255,255,0.1)',
+    };
+
     return (
         <div className="settings-card">
             <div className="settings-section-title">Library Configuration</div>
@@ -446,6 +599,32 @@ function LibrarySection({ libPath, isSaving, handleBrowseLib, handleSetDefaultLi
                     </FocusableButton>
                 </div>
             </div>
+            <SettingsRow label="Use Platform Folder" desc="Store ROMs directly in the platform folder, omitting the ID subfolder">
+                <FocusableButton
+                    focusKey="platform-folder-toggle-button"
+                    className={`btn ${isSaving ? 'disabled' : ''}`}
+                    style={toggleStyle}
+                    onClick={handleTogglePlatformFolder}
+                    onEnterPress={handleTogglePlatformFolder}
+                    disabled={isSaving}
+                    onMouseEnter={() => getMouseActive() && !isSaving && setFocus('platform-folder-toggle-button')}
+                >
+                    {usePlatformFolder ? "Enabled" : "Disabled"}
+                </FocusableButton>
+            </SettingsRow>
+            <SettingsRow label="Disable Metadata" desc="Disable generation of metadata.json files (this disables Offline Mode)">
+                <FocusableButton
+                    focusKey="disable-metadata-toggle-button"
+                    className={`btn ${isSaving ? 'disabled' : ''}`}
+                    style={disableMetaStyle}
+                    onClick={handleToggleDisableMetadata}
+                    onEnterPress={handleToggleDisableMetadata}
+                    disabled={isSaving}
+                    onMouseEnter={() => getMouseActive() && !isSaving && setFocus('disable-metadata-toggle-button')}
+                >
+                    {disableMetadata ? "Disabled" : "Enabled"}
+                </FocusableButton>
+            </SettingsRow>
         </div>
     );
 }
@@ -473,18 +652,22 @@ interface MaintenanceSectionProps {
     isSaving: boolean;
     isUpdatingCores: boolean;
     isUpdatingBios: boolean;
+    isCleaningOrphaned: boolean;
     handleClearCache: () => void;
     handleUpdateCores: () => void;
     handleUpdateBios: () => void;
+    handleCleanupOrphaned: () => void;
 }
 
 function MaintenanceSection({
     isSaving,
     isUpdatingCores,
     isUpdatingBios,
+    isCleaningOrphaned,
     handleClearCache,
     handleUpdateCores,
-    handleUpdateBios
+    handleUpdateBios,
+    handleCleanupOrphaned
 }: MaintenanceSectionProps) {
     return (
         <div className="settings-card">
@@ -525,6 +708,18 @@ function MaintenanceSection({
                     {isUpdatingBios ? "Downloading..." : "Download BIOS"}
                 </FocusableButton>
             </SettingsRow>
+            <SettingsRow label="Clean Up Orphaned ROMs" desc="Delete downloaded ROMs/saves not present in metadata database">
+                <FocusableButton
+                    focusKey="cleanup-orphans-button"
+                    className={getBtnClassName(isSaving, isCleaningOrphaned)}
+                    onClick={handleCleanupOrphaned}
+                    onEnterPress={handleCleanupOrphaned}
+                    disabled={isSaving || isCleaningOrphaned}
+                    onMouseEnter={() => handleHover('cleanup-orphans-button', isSaving, isCleaningOrphaned)}
+                >
+                    {isCleaningOrphaned ? "Cleaning..." : "Clean Up"}
+                </FocusableButton>
+            </SettingsRow>
         </div>
     );
 }
@@ -533,6 +728,7 @@ interface OfflineSectionProps {
     isSaving: boolean;
     isSyncing: boolean;
     offlineMode: boolean;
+    disableMetadata: boolean;
     handleToggleOffline: () => void;
     handleSyncMetadata: () => void;
 }
@@ -541,41 +737,45 @@ function OfflineSection({
     isSaving,
     isSyncing,
     offlineMode,
+    disableMetadata,
     handleToggleOffline,
     handleSyncMetadata
 }: OfflineSectionProps) {
     const toggleStyle = {
         minWidth: '120px',
-        backgroundColor: offlineMode ? '#4CAF50' : 'rgba(255,255,255,0.1)',
+        backgroundColor: (offlineMode && !disableMetadata) ? '#4CAF50' : 'rgba(255,255,255,0.1)',
     };
 
     return (
         <div className="settings-card">
             <div className="settings-section-title">Offline Support</div>
-            <SettingsRow label="Offline Mode" desc="Enable browsing without server connection">
+            <SettingsRow 
+                label="Offline Mode" 
+                desc={disableMetadata ? "Offline Mode requires metadata.json files (currently disabled)" : "Enable browsing without server connection"}
+            >
                 <FocusableButton
                     focusKey="offline-toggle-button"
-                    className={getBtnClassName(isSaving)}
+                    className={getBtnClassName(isSaving || disableMetadata)}
                     style={toggleStyle}
                     onClick={handleToggleOffline}
                     onEnterPress={handleToggleOffline}
                     onArrowPress={handleOfflineArrowPress}
-                    disabled={isSaving}
-                    onMouseEnter={() => handleHover('offline-toggle-button', isSaving)}
+                    disabled={isSaving || disableMetadata}
+                    onMouseEnter={() => handleHover('offline-toggle-button', isSaving || disableMetadata)}
                 >
-                    {offlineMode ? "Enabled" : "Disabled"}
+                    {disableMetadata ? "Unavailable" : (offlineMode ? "Enabled" : "Disabled")}
                 </FocusableButton>
             </SettingsRow>
-            <SettingsRow label="Sync Metadata" desc="Prepare game data for offline use">
+            <SettingsRow label="Sync Metadata" desc={disableMetadata ? "Sync is unavailable when metadata is disabled" : "Prepare game data for offline use"}>
                 <FocusableButton
                     focusKey="sync-metadata-button"
-                    className={getBtnClassName(isSaving, isSyncing)}
+                    className={getBtnClassName(isSaving || disableMetadata, isSyncing)}
                     onClick={handleSyncMetadata}
                     onEnterPress={handleSyncMetadata}
-                    disabled={isSaving || isSyncing}
-                    onMouseEnter={() => handleHover('sync-metadata-button', isSaving, isSyncing)}
+                    disabled={isSaving || isSyncing || disableMetadata}
+                    onMouseEnter={() => handleHover('sync-metadata-button', isSaving || disableMetadata, isSyncing)}
                 >
-                    {isSyncing ? "Syncing..." : "Sync Now"}
+                    {isSyncing ? "Syncing..." : "Sync Metadata"}
                 </FocusableButton>
             </SettingsRow>
         </div>

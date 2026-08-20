@@ -1303,3 +1303,61 @@ body.input-keyboard .show-keyboard {
     text-transform: uppercase;
     letter-spacing: 1px;
 }
+
+/* Cleanup Confirmation Modal */
+.cleanup-modal {
+    background: #2a2a2a;
+    width: 550px;
+    max-width: 90vw;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    flex-direction: column;
+    max-height: 80vh;
+}
+
+.cleanup-modal h3 {
+    margin-top: 0;
+    margin-bottom: 12px;
+    color: #fff;
+    font-size: 1.25rem;
+}
+
+.cleanup-modal p {
+    color: #ccc;
+    font-size: 0.95rem;
+    line-height: 1.4;
+    margin-bottom: 16px;
+}
+
+.orphaned-list {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    padding: 12px;
+    overflow-y: auto;
+    flex: 1;
+    margin-bottom: 24px;
+    font-family: monospace;
+    font-size: 0.85rem;
+    color: #ff6b6b;
+    max-height: 250px;
+}
+
+.orphaned-file-item {
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    word-break: break-all;
+}
+
+.orphaned-file-item:last-child {
+    border-bottom: none;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}

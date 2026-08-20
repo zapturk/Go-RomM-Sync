@@ -97,7 +97,7 @@ func TestFindRomPath(t *testing.T) {
 	os.WriteFile(romPath, []byte("zip"), 0o644)
 
 	s := New(nil, nil, nil)
-	found := s.findRomPath(tempDir)
+	found := s.findRomPath(tempDir, nil)
 	if found != romPath {
 		t.Errorf("Expected %s, got %s", romPath, found)
 	}
@@ -344,5 +344,214 @@ func TestPostDownloadProcessing_ExtractionInterference(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(destDir, "game.bin")); err != nil {
 		t.Errorf("Expected game.bin to be extracted")
+	}
+}
+
+func TestMigrateLibrary(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "library_migration_test")
+	defer os.RemoveAll(tempDir)
+
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{
+		LibraryPath:       tempDir,
+		UsePlatformFolder: false,
+	}
+
+	ui := &MockUIProvider{}
+	s := New(cm, nil, ui)
+
+	game := types.Game{
+		ID:           99,
+		Title:        "Test Game",
+		FullPath:     "snes/Test Game.sfc",
+		PlatformSlug: "snes",
+	}
+
+	// 1. Create a game in ID folder format
+	idDir := filepath.Join(tempDir, "snes", "99")
+	os.MkdirAll(idDir, 0o755)
+	romFile := filepath.Join(idDir, "Test Game.sfc")
+	os.WriteFile(romFile, []byte("fake snes rom"), 0o644)
+
+	// Create mock metadata
+	s.SaveMetadata(&game)
+
+	// Save a fake save file
+	saveDir := filepath.Join(idDir, "saves", "snes9x")
+	os.MkdirAll(saveDir, 0o755)
+	saveFile := filepath.Join(saveDir, "Test Game.srm")
+	os.WriteFile(saveFile, []byte("fake save"), 0o644)
+
+	// 2. Migrate to Platform Folder format
+	err := s.MigrateLibrary(true)
+	if err != nil {
+		t.Fatalf("Migration to platform folder failed: %v", err)
+	}
+
+	// Verify ID dir is gone
+	if _, err := os.Stat(idDir); !os.IsNotExist(err) {
+		t.Errorf("Expected ID directory to be removed")
+	}
+
+	// Verify ROM is now in platform folder
+	platformRomFile := filepath.Join(tempDir, "snes", "Test Game.sfc")
+	if _, err := os.Stat(platformRomFile); err != nil {
+		t.Errorf("Expected ROM file to exist at %s: %v", platformRomFile, err)
+	}
+
+	// Verify metadata is now metadata_99.json in platform folder
+	platformMetaFile := filepath.Join(tempDir, "snes", "metadata_99.json")
+	if _, err := os.Stat(platformMetaFile); err != nil {
+		t.Errorf("Expected metadata file to exist at %s: %v", platformMetaFile, err)
+	}
+
+	// Verify save is now in platform/saves/snes9x/Test Game.srm
+	platformSaveFile := filepath.Join(tempDir, "snes", "saves", "snes9x", "Test Game.srm")
+	if _, err := os.Stat(platformSaveFile); err != nil {
+		t.Errorf("Expected save file to exist at %s: %v", platformSaveFile, err)
+	}
+
+	// Update Config to UsePlatformFolder: true for scanning logic
+	cm.Config.UsePlatformFolder = true
+
+	// 3. Migrate back to ID Folder format
+	err = s.MigrateLibrary(false)
+	if err != nil {
+		t.Fatalf("Migration back to ID folder failed: %v", err)
+	}
+
+	// Verify platform ROM and metadata and saves are gone or moved back
+	if _, err := os.Stat(platformRomFile); !os.IsNotExist(err) {
+		t.Errorf("Expected platform ROM file to be moved/removed")
+	}
+	if _, err := os.Stat(platformMetaFile); !os.IsNotExist(err) {
+		t.Errorf("Expected platform metadata file to be moved/removed")
+	}
+	if _, err := os.Stat(platformSaveFile); !os.IsNotExist(err) {
+		t.Errorf("Expected platform save file to be moved/removed")
+	}
+
+	// Verify it's back in the ID folder
+	if _, err := os.Stat(romFile); err != nil {
+		t.Errorf("Expected ROM file to be restored to %s", romFile)
+	}
+	if _, err := os.Stat(filepath.Join(idDir, "metadata.json")); err != nil {
+		t.Errorf("Expected metadata file to be restored to %s", filepath.Join(idDir, "metadata.json"))
+	}
+	if _, err := os.Stat(saveFile); err != nil {
+		t.Errorf("Expected save file to be restored to %s", saveFile)
+	}
+}
+
+func TestCleanupOrphanedRoms(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "library_cleanup_test")
+	defer os.RemoveAll(tempDir)
+
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{
+		LibraryPath:       tempDir,
+		UsePlatformFolder: false,
+	}
+
+	ui := &MockUIProvider{}
+	s := New(cm, nil, ui)
+
+	game := types.Game{
+		ID:           42,
+		Title:        "Tracked Game",
+		FullPath:     "nes/tracked.nes",
+		PlatformSlug: "nes",
+	}
+
+	// 1. Create tracked game files
+	idDir := filepath.Join(tempDir, "nes", "42")
+	os.MkdirAll(idDir, 0o755)
+	romFile := filepath.Join(idDir, "tracked.nes")
+	os.WriteFile(romFile, []byte("fake rom"), 0o644)
+	s.SaveMetadata(&game)
+
+	// 2. Create orphaned files/folders
+	orphanDir := filepath.Join(tempDir, "nes", "999")
+	os.MkdirAll(orphanDir, 0o755)
+	orphanRomFile := filepath.Join(orphanDir, "orphaned_game.nes")
+	os.WriteFile(orphanRomFile, []byte("fake orphan rom"), 0o644)
+
+	// Create an orphaned file directly in platform folder
+	orphanFlatFile := filepath.Join(tempDir, "nes", "orphaned_flat.nes")
+	os.WriteFile(orphanFlatFile, []byte("fake flat orphan"), 0o644)
+
+	// Run cleanup
+	files, err := s.ScanOrphanedRoms()
+	if err != nil {
+		t.Fatalf("Scan failed: %v", err)
+	}
+	count, err := s.DeleteOrphanedRoms(files)
+	if err != nil {
+		t.Fatalf("Cleanup failed: %v", err)
+	}
+
+	if count != 2 {
+		t.Errorf("Expected to delete 2 orphaned files, got %d", count)
+	}
+
+	// Tracked files should remain
+	if _, err := os.Stat(romFile); err != nil {
+		t.Errorf("Tracked ROM was deleted: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(idDir, "metadata.json")); err != nil {
+		t.Errorf("Tracked metadata was deleted: %v", err)
+	}
+
+	// Orphaned files should be gone
+	if _, err := os.Stat(orphanRomFile); !os.IsNotExist(err) {
+		t.Errorf("Orphaned ROM was not deleted")
+	}
+	if _, err := os.Stat(orphanFlatFile); !os.IsNotExist(err) {
+		t.Errorf("Orphaned flat ROM was not deleted")
+	}
+	if _, err := os.Stat(orphanDir); !os.IsNotExist(err) {
+		t.Errorf("Orphaned directory was not deleted")
+	}
+}
+
+func TestDisableMetadata(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "library_disable_metadata_test")
+	defer os.RemoveAll(tempDir)
+
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{
+		LibraryPath:     tempDir,
+		DisableMetadata: true,
+	}
+
+	ui := &MockUIProvider{}
+	s := New(cm, nil, ui)
+
+	game := types.Game{
+		ID:           77,
+		Title:        "No Metadata Game",
+		FullPath:     "nes/nometadata.nes",
+		PlatformSlug: "nes",
+	}
+
+	// 1. Create a ROM file
+	idDir := filepath.Join(tempDir, "nes", "77")
+	os.MkdirAll(idDir, 0o755)
+	romFile := filepath.Join(idDir, "nometadata.nes")
+	os.WriteFile(romFile, []byte("fake rom"), 0o644)
+
+	// 2. Call SaveMetadata
+	err := s.SaveMetadata(&game)
+	if err != nil {
+		t.Fatalf("SaveMetadata failed: %v", err)
+	}
+
+	// 3. Verify metadata.json was NOT written
+	metaFile := filepath.Join(idDir, "metadata.json")
+	if _, err := os.Stat(metaFile); !os.IsNotExist(err) {
+		t.Errorf("Expected metadata.json to NOT exist, but it was created")
 	}
 }
