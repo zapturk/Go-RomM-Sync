@@ -784,7 +784,6 @@ func (s *Service) DeleteOrphanedRoms(files []string) (int, error) {
 	}
 
 	deletedCount := 0
-	var dirsToCheck []string
 
 	for _, file := range files {
 		var fullPath string
@@ -802,11 +801,6 @@ func (s *Service) DeleteOrphanedRoms(files []string) (int, error) {
 		s.ui.LogInfof("DeleteOrphanedRoms: Deleting orphaned file: %s", fullPath)
 		if err := os.Remove(fullPath); err == nil {
 			deletedCount++
-			parent := filepath.Dir(fullPath)
-			for parent != filepath.Clean(libPath) && len(parent) > len(libPath) {
-				dirsToCheck = append(dirsToCheck, parent)
-				parent = filepath.Dir(parent)
-			}
 		} else if !os.IsNotExist(err) {
 			s.ui.LogErrorf("DeleteOrphanedRoms: Failed to delete file %s: %v", fullPath, err)
 		}
