@@ -14,6 +14,7 @@ type AppConfig struct {
 	PlatformFirmware    map[string]uint   `json:"platform_firmware"` // Platform slug -> Selected Firmware ID
 	OfflineMode         bool              `json:"offline_mode"`      // Enable offline mode
 	ClientToken         string            `json:"client_token"`      // Persistent token for the RomM server
+	UsePlatformFolder   bool              `json:"use_platform_folder"` // Store ROMs directly in platform folder
 }
 
 // UIProvider defines standard UI logging and event emission behaviors.

@@ -6,6 +6,10 @@ export function CancelDownload(arg1) {
   return window['go']['main']['App']['CancelDownload'](arg1);
 }
 
+export function CleanupOrphanedRoms() {
+  return window['go']['main']['App']['CleanupOrphanedRoms']();
+}
+
 export function ClearImageCache() {
   return window['go']['main']['App']['ClearImageCache']();
 }
@@ -16,6 +20,10 @@ export function ConfigGetConfig() {
 
 export function ConfigSave(arg1) {
   return window['go']['main']['App']['ConfigSave'](arg1);
+}
+
+export function DeleteOrphanedRoms(arg1) {
+  return window['go']['main']['App']['DeleteOrphanedRoms'](arg1);
 }
 
 export function DeleteRom(arg1) {
@@ -230,6 +238,10 @@ export function SaveLastUsedCore(arg1, arg2) {
   return window['go']['main']['App']['SaveLastUsedCore'](arg1, arg2);
 }
 
+export function ScanOrphanedRoms() {
+  return window['go']['main']['App']['ScanOrphanedRoms']();
+}
+
 export function SelectLibraryPath() {
   return window['go']['main']['App']['SelectLibraryPath']();
 }
@@ -248,6 +260,10 @@ export function SyncOfflineMetadata() {
 
 export function ToggleOfflineMode() {
   return window['go']['main']['App']['ToggleOfflineMode']();
+}
+
+export function ToggleUsePlatformFolder() {
+  return window['go']['main']['App']['ToggleUsePlatformFolder']();
 }
 
 export function UpdateRetroArchBios() {

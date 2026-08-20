@@ -13,6 +13,7 @@ export namespace types {
 	    platform_firmware: Record<string, number>;
 	    offline_mode: boolean;
 	    client_token: string;
+	    use_platform_folder: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppConfig(source);
@@ -32,6 +33,7 @@ export namespace types {
 	        this.platform_firmware = source["platform_firmware"];
 	        this.offline_mode = source["offline_mode"];
 	        this.client_token = source["client_token"];
+	        this.use_platform_folder = source["use_platform_folder"];
 	    }
 	}
 	export class FileItem {

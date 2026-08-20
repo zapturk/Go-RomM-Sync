@@ -74,11 +74,11 @@ func (s *Service) getGameFiles(id uint, subDir string) (items []types.FileItem, 
 		return nil, err
 	}
 
-	items = s.collectCoreFiles(getPlatformSlug(&game), subDir, dirPath, entries)
+	items = s.collectCoreFiles(&game, getPlatformSlug(&game), subDir, dirPath, entries)
 
 	if subDir == constants.DirSaves && getPlatformSlug(&game) == "ps2" {
 		pcsx2Dir := filepath.Join(s.library.GetBiosDir(), "pcsx2", "memcards")
-		if pcsx2Items := s.scanFlatCoreFiles(corePCSX2, pcsx2Dir); len(pcsx2Items) > 0 {
+		if pcsx2Items := s.scanFlatCoreFiles(&game, corePCSX2, pcsx2Dir); len(pcsx2Items) > 0 {
 			items = append(items, pcsx2Items...)
 		}
 	}
@@ -98,7 +98,7 @@ func getPlatformSlug(game *types.Game) string {
 
 // (Deprecated/Removed handleGetFilesError logically)
 
-func (s *Service) collectCoreFiles(platformSlug, subDir, dirPath string, entries []os.DirEntry) []types.FileItem {
+func (s *Service) collectCoreFiles(game *types.Game, platformSlug, subDir, dirPath string, entries []os.DirEntry) []types.FileItem {
 	var items []types.FileItem
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -111,27 +111,27 @@ func (s *Service) collectCoreFiles(platformSlug, subDir, dirPath string, entries
 					UpdatedAt: updatedAt,
 				})
 			} else {
-				items = append(items, s.scanCoreDir(platformSlug, subDir, dirPath, entry.Name())...)
+				items = append(items, s.scanCoreDir(game, platformSlug, subDir, dirPath, entry.Name())...)
 			}
 		}
 	}
 	return items
 }
 
-func (s *Service) scanCoreDir(platformSlug, subDir, dirPath, coreName string) []types.FileItem {
+func (s *Service) scanCoreDir(game *types.Game, platformSlug, subDir, dirPath, coreName string) []types.FileItem {
 	coreDir := filepath.Join(dirPath, coreName)
 	if coreName == coreDolphin {
 		return s.scanDolphinFiles(platformSlug, coreDir)
 	}
 	if platformSlug == platformPSP && (coreName == corePPSSPP || coreName == corePPSSPP_LR) {
-		return s.scanPPSSPPFiles(subDir, coreName, coreDir)
+		return s.scanPPSSPPFiles(game, subDir, coreName, coreDir)
 	}
-	return s.scanFlatCoreFiles(coreName, coreDir)
+	return s.scanFlatCoreFiles(game, coreName, coreDir)
 }
 
-func (s *Service) scanPPSSPPFiles(subDir, coreName, coreDir string) []types.FileItem {
+func (s *Service) scanPPSSPPFiles(game *types.Game, subDir, coreName, coreDir string) []types.FileItem {
 	if subDir != constants.DirSaves {
-		return s.scanFlatCoreFiles(coreName, coreDir)
+		return s.scanFlatCoreFiles(game, coreName, coreDir)
 	}
 
 	saveDataDir := filepath.Join(coreDir, "PSP", "SAVEDATA")
@@ -173,23 +173,37 @@ func (s *Service) scanDolphinFiles(platformSlug, coreDir string) []types.FileIte
 		for _, region := range []string{"USA", "EUR", "JPN"} {
 			cardDir := filepath.Join(gcDir, region, "Card A")
 			relCore := filepath.Join(coreDolphin, "User", "GC", region, "Card A")
-			items = append(items, s.scanFlatCoreFiles(relCore, cardDir)...)
+			items = append(items, s.scanFlatCoreFiles(nil, relCore, cardDir)...)
 		}
 	}
 
 	return items
 }
 
-func (s *Service) scanFlatCoreFiles(coreName, coreDir string) []types.FileItem {
+func (s *Service) scanFlatCoreFiles(game *types.Game, coreName, coreDir string) []types.FileItem {
 	files, err := os.ReadDir(coreDir)
 	if err != nil {
 		return nil
 	}
+
+	var expectedNameWithoutExt string
+	if game != nil {
+		expectedBase := filepath.Base(game.FullPath)
+		expectedNameWithoutExt = strings.TrimSuffix(expectedBase, filepath.Ext(expectedBase))
+	}
+
 	items := make([]types.FileItem, 0, len(files))
 	for _, f := range files {
 		if f.IsDir() || strings.HasPrefix(f.Name(), ".") {
 			continue
 		}
+
+		if game != nil && expectedNameWithoutExt != "" {
+			if !strings.HasPrefix(strings.ToLower(f.Name()), strings.ToLower(expectedNameWithoutExt)) {
+				continue
+			}
+		}
+
 		info, err := f.Info()
 		updatedAt := ""
 		if err == nil {

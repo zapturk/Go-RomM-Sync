@@ -6,11 +6,15 @@ import {io} from '../models';
 
 export function CancelDownload(arg1:number):Promise<void>;
 
+export function CleanupOrphanedRoms():Promise<number>;
+
 export function ClearImageCache():Promise<void>;
 
 export function ConfigGetConfig():Promise<types.AppConfig>;
 
 export function ConfigSave(arg1:types.AppConfig):Promise<void>;
+
+export function DeleteOrphanedRoms(arg1:Array<string>):Promise<number>;
 
 export function DeleteRom(arg1:number):Promise<void>;
 
@@ -118,6 +122,8 @@ export function SaveDefaultLibraryPath(arg1:string):Promise<void>;
 
 export function SaveLastUsedCore(arg1:string,arg2:string):Promise<void>;
 
+export function ScanOrphanedRoms():Promise<Array<string>>;
+
 export function SelectLibraryPath():Promise<string>;
 
 export function SelectRetroArchExecutable():Promise<string>;
@@ -127,6 +133,8 @@ export function SetPlatformFirmware(arg1:string,arg2:types.Firmware):Promise<voi
 export function SyncOfflineMetadata():Promise<void>;
 
 export function ToggleOfflineMode():Promise<boolean>;
+
+export function ToggleUsePlatformFolder():Promise<boolean>;
 
 export function UpdateRetroArchBios():Promise<void>;
 

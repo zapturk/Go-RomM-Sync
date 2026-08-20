@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath,
     Logout, ClearImageCache, ToggleOfflineMode, SyncOfflineMetadata,
-    UpdateRetroArchCores, UpdateRetroArchBios,
+    UpdateRetroArchCores, UpdateRetroArchBios, ToggleUsePlatformFolder, CleanupOrphanedRoms,
+    ScanOrphanedRoms, DeleteOrphanedRoms,
 } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
@@ -45,10 +46,14 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [cheevosUser, setCheevosUser] = useState('');
     const [cheevosPass, setCheevosPass] = useState('');
     const [offlineMode, setOfflineMode] = useState(false);
+    const [usePlatformFolder, setUsePlatformFolder] = useState(false);
     const [clientToken, setClientToken] = useState('');
     const [isSyncing, setIsSyncing] = useState(false);
     const [isUpdatingCores, setIsUpdatingCores] = useState(false);
     const [isUpdatingBios, setIsUpdatingBios] = useState(false);
+    const [isCleaningOrphaned, setIsCleaningOrphaned] = useState(false);
+    const [orphanedFiles, setOrphanedFiles] = useState<string[]>([]);
+    const [showCleanupModal, setShowCleanupModal] = useState(false);
 
     const { ref: containerRef } = useFocusable({
         trackChildren: true,
@@ -62,6 +67,7 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                 cheevos_username = '',
                 cheevos_password = '',
                 offline_mode = false,
+                use_platform_folder = false,
                 client_token = ''
             } = cfg || {};
             setConfig(cfg);
@@ -70,6 +76,7 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             setCheevosUser(cheevos_username);
             setCheevosPass(cheevos_password);
             setOfflineMode(offline_mode);
+            setUsePlatformFolder(use_platform_folder);
             setClientToken(client_token);
         });
     }, []);
@@ -213,6 +220,22 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
         });
     };
 
+    const handleTogglePlatformFolder = () => {
+        setIsSaving(true);
+        setStatus("Migrating ROM library layout...");
+        ToggleUsePlatformFolder()
+            .then((newState: boolean) => {
+                setUsePlatformFolder(newState);
+                setStatus(`Library layout migration complete. Platform folder mode: ${newState ? 'Enabled' : 'Disabled'}.`);
+            })
+            .catch((err: any) => {
+                setStatus(`Error migrating library: ${String(err)}`);
+            })
+            .finally(() => {
+                setIsSaving(false);
+            });
+    };
+
     const handleSyncMetadata = () => {
         setIsSyncing(true);
         setStatus("Syncing metadata for local games...");
@@ -257,6 +280,44 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                 setIsUpdatingBios(false);
             });
     };
+    const handleCleanupOrphaned = () => {
+        setIsCleaningOrphaned(true);
+        setStatus("Scanning library for orphaned files...");
+        ScanOrphanedRoms()
+            .then((files: string[]) => {
+                if (!files || files.length === 0) {
+                    setStatus("No orphaned files found.");
+                    setIsCleaningOrphaned(false);
+                } else {
+                    setOrphanedFiles(files);
+                    setShowCleanupModal(true);
+                    setStatus(`Found ${files.length} orphaned files.`);
+                    setTimeout(() => {
+                        setFocus('cancel-cleanup-btn');
+                    }, 100);
+                }
+            })
+            .catch((err: any) => {
+                setStatus(`Error scanning for orphans: ${String(err)}`);
+                setIsCleaningOrphaned(false);
+            });
+    };
+
+    const handleConfirmCleanup = () => {
+        setShowCleanupModal(false);
+        setStatus("Deleting orphaned files...");
+        DeleteOrphanedRoms(orphanedFiles)
+            .then((count: number) => {
+                setStatus(`Cleanup complete! Deleted ${count} orphaned files.`);
+                setOrphanedFiles([]);
+            })
+            .catch((err: any) => {
+                setStatus(`Error deleting files: ${String(err)}`);
+            })
+            .finally(() => {
+                setIsCleaningOrphaned(false);
+            });
+    };
 
     const handleTopArrowPress = (direction: string) => direction !== 'up';
 
@@ -281,17 +342,21 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                     <LibrarySection
                         libPath={libPath}
                         isSaving={isSaving}
+                        usePlatformFolder={usePlatformFolder}
                         handleBrowseLib={handleBrowseLib}
                         handleSetDefaultLib={handleSetDefaultLib}
+                        handleTogglePlatformFolder={handleTogglePlatformFolder}
                     />
 
                     <MaintenanceSection
                         isSaving={isSaving}
                         isUpdatingCores={isUpdatingCores}
                         isUpdatingBios={isUpdatingBios}
+                        isCleaningOrphaned={isCleaningOrphaned}
                         handleClearCache={handleClearCache}
                         handleUpdateCores={handleUpdateCores}
                         handleUpdateBios={handleUpdateBios}
+                        handleCleanupOrphaned={handleCleanupOrphaned}
                     />
 
                     <OfflineSection
@@ -360,6 +425,47 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                     <LegendItem buttonAction="south" keyLabel="ENTER" label="OK" />
                 </div>
             </div>
+            {showCleanupModal && (
+                <div className="core-picker-overlay">
+                    <div className="cleanup-modal">
+                        <h3>Confirm Deletion</h3>
+                        <p>The following {orphanedFiles.length} files/folders are not tracked in your local metadata and will be deleted:</p>
+                        <div className="orphaned-list">
+                            {orphanedFiles.map(file => (
+                                <div key={file} className="orphaned-file-item">{file}</div>
+                            ))}
+                        </div>
+                        <div className="modal-actions">
+                            <FocusableButton
+                                focusKey="confirm-cleanup-btn"
+                                className="btn btn-danger"
+                                onClick={handleConfirmCleanup}
+                                onEnterPress={handleConfirmCleanup}
+                                onMouseEnter={() => getMouseActive() && setFocus('confirm-cleanup-btn')}
+                            >
+                                Yes, Delete
+                            </FocusableButton>
+                            <FocusableButton
+                                focusKey="cancel-cleanup-btn"
+                                className="btn"
+                                onClick={() => {
+                                    setShowCleanupModal(false);
+                                    setIsCleaningOrphaned(false);
+                                    setStatus("Configure your application settings");
+                                }}
+                                onEnterPress={() => {
+                                    setShowCleanupModal(false);
+                                    setIsCleaningOrphaned(false);
+                                    setStatus("Configure your application settings");
+                                }}
+                                onMouseEnter={() => getMouseActive() && setFocus('cancel-cleanup-btn')}
+                            >
+                                Cancel
+                            </FocusableButton>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -406,11 +512,25 @@ function EmulatorSection({ raPath, isSaving, handleBrowseRA, handleTopArrowPress
 interface LibrarySectionProps {
     libPath: string;
     isSaving: boolean;
+    usePlatformFolder: boolean;
     handleBrowseLib: () => void;
     handleSetDefaultLib: () => void;
+    handleTogglePlatformFolder: () => void;
 }
 
-function LibrarySection({ libPath, isSaving, handleBrowseLib, handleSetDefaultLib }: LibrarySectionProps) {
+function LibrarySection({
+    libPath,
+    isSaving,
+    usePlatformFolder,
+    handleBrowseLib,
+    handleSetDefaultLib,
+    handleTogglePlatformFolder
+}: LibrarySectionProps) {
+    const toggleStyle = {
+        minWidth: '120px',
+        backgroundColor: usePlatformFolder ? '#4CAF50' : 'rgba(255,255,255,0.1)',
+    };
+
     return (
         <div className="settings-card">
             <div className="settings-section-title">Library Configuration</div>
@@ -446,6 +566,19 @@ function LibrarySection({ libPath, isSaving, handleBrowseLib, handleSetDefaultLi
                     </FocusableButton>
                 </div>
             </div>
+            <SettingsRow label="Use Platform Folder" desc="Store ROMs directly in the platform folder, omitting the ID subfolder">
+                <FocusableButton
+                    focusKey="platform-folder-toggle-button"
+                    className={`btn ${isSaving ? 'disabled' : ''}`}
+                    style={toggleStyle}
+                    onClick={handleTogglePlatformFolder}
+                    onEnterPress={handleTogglePlatformFolder}
+                    disabled={isSaving}
+                    onMouseEnter={() => getMouseActive() && !isSaving && setFocus('platform-folder-toggle-button')}
+                >
+                    {usePlatformFolder ? "Enabled" : "Disabled"}
+                </FocusableButton>
+            </SettingsRow>
         </div>
     );
 }
@@ -473,18 +606,22 @@ interface MaintenanceSectionProps {
     isSaving: boolean;
     isUpdatingCores: boolean;
     isUpdatingBios: boolean;
+    isCleaningOrphaned: boolean;
     handleClearCache: () => void;
     handleUpdateCores: () => void;
     handleUpdateBios: () => void;
+    handleCleanupOrphaned: () => void;
 }
 
 function MaintenanceSection({
     isSaving,
     isUpdatingCores,
     isUpdatingBios,
+    isCleaningOrphaned,
     handleClearCache,
     handleUpdateCores,
-    handleUpdateBios
+    handleUpdateBios,
+    handleCleanupOrphaned
 }: MaintenanceSectionProps) {
     return (
         <div className="settings-card">
@@ -523,6 +660,18 @@ function MaintenanceSection({
                     onMouseEnter={() => handleHover('update-bios-button', isSaving, isUpdatingBios)}
                 >
                     {isUpdatingBios ? "Downloading..." : "Download BIOS"}
+                </FocusableButton>
+            </SettingsRow>
+            <SettingsRow label="Clean Up Orphaned ROMs" desc="Delete downloaded ROMs/saves not present in metadata database">
+                <FocusableButton
+                    focusKey="cleanup-orphans-button"
+                    className={getBtnClassName(isSaving, isCleaningOrphaned)}
+                    onClick={handleCleanupOrphaned}
+                    onEnterPress={handleCleanupOrphaned}
+                    disabled={isSaving || isCleaningOrphaned}
+                    onMouseEnter={() => handleHover('cleanup-orphans-button', isSaving, isCleaningOrphaned)}
+                >
+                    {isCleaningOrphaned ? "Cleaning..." : "Clean Up"}
                 </FocusableButton>
             </SettingsRow>
         </div>

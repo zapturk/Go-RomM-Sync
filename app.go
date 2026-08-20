@@ -13,7 +13,6 @@ import (
 	"go-romm-sync/rommsrv"
 	syncSrvPkg "go-romm-sync/sync"
 	"go-romm-sync/types"
-	"go-romm-sync/utils"
 	"io"
 	"os"
 	"os/exec"
@@ -505,8 +504,7 @@ func (a *App) PlayRomWithCore(id uint, coreOverride string) error {
 		return fmt.Errorf("failed to get ROM info: %w", err)
 	}
 
-	relDir := utils.SanitizePath(filepath.Dir(game.FullPath))
-	romDir := filepath.Join(libPath, relDir, fmt.Sprintf("%d", game.ID))
+	romDir := a.librarySrv.GetRomDir(&game)
 	romPath := a.findRomPath(&game, romDir)
 	if romPath == "" {
 		return fmt.Errorf("no valid ROM file found in %s, please download it first", romDir)
@@ -555,6 +553,22 @@ func (a *App) findRomPath(game *types.Game, romDir string) string {
 	files, err := os.ReadDir(romDir)
 	if err != nil {
 		return ""
+	}
+
+	if a.configManager.GetConfig().UsePlatformFolder {
+		expectedBase := filepath.Base(game.FullPath)
+		expectedNameWithoutExt := strings.TrimSuffix(expectedBase, filepath.Ext(expectedBase))
+		var filtered []os.DirEntry
+		for _, file := range files {
+			if file.IsDir() {
+				continue
+			}
+			nameWithoutExt := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
+			if strings.EqualFold(nameWithoutExt, expectedNameWithoutExt) {
+				filtered = append(filtered, file)
+			}
+		}
+		files = filtered
 	}
 
 	if p := a.findCueFile(romDir, files); p != "" {
@@ -927,6 +941,40 @@ func (a *App) OpenDirectoryDialog(title string) (string, error) {
 		return "", nil
 	}
 	return wailsRuntime.OpenDirectoryDialog(a.ctx, options)
+}
+
+func (a *App) ToggleUsePlatformFolder() (bool, error) {
+	currentConfig := a.configManager.GetConfig()
+	targetState := !currentConfig.UsePlatformFolder
+
+	// Run migration
+	if err := a.librarySrv.MigrateLibrary(targetState); err != nil {
+		a.LogErrorf("Failed to migrate library: %v", err)
+		return currentConfig.UsePlatformFolder, err
+	}
+
+	// Save new state
+	if err := a.configManager.Update(func(cfg *types.AppConfig) {
+		cfg.UsePlatformFolder = targetState
+	}); err != nil {
+		a.LogErrorf("Failed to update config during ToggleUsePlatformFolder: %v", err)
+		return currentConfig.UsePlatformFolder, err
+	}
+
+	a.LogInfof("ToggleUsePlatformFolder: Successfully changed UsePlatformFolder to %t", targetState)
+	return targetState, nil
+}
+
+func (a *App) CleanupOrphanedRoms() (int, error) {
+	return a.librarySrv.CleanupOrphanedRoms()
+}
+
+func (a *App) ScanOrphanedRoms() ([]string, error) {
+	return a.librarySrv.ScanOrphanedRoms()
+}
+
+func (a *App) DeleteOrphanedRoms(files []string) (int, error) {
+	return a.librarySrv.DeleteOrphanedRoms(files)
 }
 
 // Lifecycle
