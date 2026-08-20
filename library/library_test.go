@@ -373,7 +373,7 @@ func TestMigrateLibrary(t *testing.T) {
 	os.MkdirAll(idDir, 0o755)
 	romFile := filepath.Join(idDir, "Test Game.sfc")
 	os.WriteFile(romFile, []byte("fake snes rom"), 0o644)
-	
+
 	// Create mock metadata
 	s.SaveMetadata(&game)
 

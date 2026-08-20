@@ -231,6 +231,40 @@ func (s *Service) SaveMetadata(game *types.Game) error {
 	return os.WriteFile(metadataPath, data, 0o644)
 }
 
+func (s *Service) loadAndFilterMetadata(path string, info os.FileInfo, platformID int, search string) (*types.Game, bool) {
+	if info.IsDir() {
+		return nil, false
+	}
+	name := info.Name()
+	isMetadata := name == "metadata.json" || (strings.HasPrefix(name, "metadata_") && strings.HasSuffix(name, ".json"))
+	if !isMetadata {
+		return nil, false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		s.ui.LogErrorf("GetLocalLibrary: Failed to read metadata at %s: %v", path, err)
+		return nil, false
+	}
+
+	var game types.Game
+	if err := json.Unmarshal(data, &game); err != nil {
+		s.ui.LogErrorf("GetLocalLibrary: Failed to unmarshal metadata at %s: %v", path, err)
+		return nil, false
+	}
+
+	if platformID != 0 && int(game.PlatformID) != platformID {
+		return nil, false
+	}
+
+	if search != "" {
+		searchLower := strings.ToLower(search)
+		if !strings.Contains(strings.ToLower(game.Title), searchLower) {
+			return nil, false
+		}
+	}
+	return &game, true
+}
+
 // GetLocalLibrary scans the library directory and returns a list of games with metadata.
 func (s *Service) GetLocalLibrary(limit, offset, platformID int, search string) ([]types.Game, int, error) {
 	libPath := s.config.GetConfig().LibraryPath
@@ -240,39 +274,11 @@ func (s *Service) GetLocalLibrary(limit, offset, platformID int, search string) 
 
 	var games []types.Game
 	err := filepath.Walk(libPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+		if err != nil {
 			return nil
 		}
-
-		name := info.Name()
-		isMetadata := name == "metadata.json" || (strings.HasPrefix(name, "metadata_") && strings.HasSuffix(name, ".json"))
-		if isMetadata {
-			data, err := os.ReadFile(path)
-			if err != nil {
-				s.ui.LogErrorf("GetLocalLibrary: Failed to read metadata at %s: %v", path, err)
-				return nil
-			}
-
-			var game types.Game
-			if err := json.Unmarshal(data, &game); err != nil {
-				s.ui.LogErrorf("GetLocalLibrary: Failed to unmarshal metadata at %s: %v", path, err)
-				return nil
-			}
-
-			// Filter by platform
-			if platformID != 0 && int(game.PlatformID) != platformID {
-				return nil
-			}
-
-			// Filter by search
-			if search != "" {
-				searchLower := strings.ToLower(search)
-				if !strings.Contains(strings.ToLower(game.Title), searchLower) {
-					return nil
-				}
-			}
-
-			games = append(games, game)
+		if game, ok := s.loadAndFilterMetadata(path, info, platformID, search); ok {
+			games = append(games, *game)
 		}
 		return nil
 	})
@@ -400,6 +406,47 @@ func (s *Service) findRomPath(romDir string, game *types.Game) string {
 	return ""
 }
 
+func (s *Service) deleteRomFromPlatformFolder(game *types.Game, romDir string) {
+	expectedBase := filepath.Base(game.FullPath)
+	expectedNameWithoutExt := strings.TrimSuffix(expectedBase, filepath.Ext(expectedBase))
+
+	// 1. Delete ROM files in the platform directory
+	files, err := os.ReadDir(romDir)
+	if err == nil {
+		for _, file := range files {
+			if file.IsDir() {
+				continue
+			}
+			nameWithoutExt := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
+			if strings.EqualFold(nameWithoutExt, expectedNameWithoutExt) {
+				_ = os.Remove(filepath.Join(romDir, file.Name()))
+			}
+		}
+	}
+
+	// 2. Delete metadata file
+	metadataPath := s.GetMetadataPath(game)
+	_ = os.Remove(metadataPath)
+
+	// 3. Delete saves and states
+	for _, subDir := range []string{constants.DirSaves, constants.DirStates} {
+		subDirPath := filepath.Join(romDir, subDir)
+		_ = filepath.Walk(subDirPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			nameWithoutExt := strings.TrimSuffix(info.Name(), filepath.Ext(info.Name()))
+			if strings.EqualFold(nameWithoutExt, expectedNameWithoutExt) {
+				_ = os.RemoveAll(path)
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
+			}
+			return nil
+		})
+	}
+}
+
 // DeleteRom removes a downloaded ROM.
 func (s *Service) DeleteRom(id uint) error {
 	libPath := s.config.GetConfig().LibraryPath
@@ -415,46 +462,7 @@ func (s *Service) DeleteRom(id uint) error {
 	romDir := s.GetRomDir(&game)
 	if _, err := os.Stat(romDir); err == nil {
 		if s.config.GetConfig().UsePlatformFolder {
-			// In flat platform folder format, we must ONLY delete the files belonging to this game,
-			// not the whole platform folder!
-			expectedBase := filepath.Base(game.FullPath)
-			expectedNameWithoutExt := strings.TrimSuffix(expectedBase, filepath.Ext(expectedBase))
-			
-			// 1. Delete ROM files in the platform directory
-			files, err := os.ReadDir(romDir)
-			if err == nil {
-				for _, file := range files {
-					if file.IsDir() {
-						continue
-					}
-					nameWithoutExt := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
-					if strings.EqualFold(nameWithoutExt, expectedNameWithoutExt) {
-						_ = os.Remove(filepath.Join(romDir, file.Name()))
-					}
-				}
-			}
-
-			// 2. Delete metadata file
-			metadataPath := s.GetMetadataPath(&game)
-			_ = os.Remove(metadataPath)
-
-			// 3. Delete saves and states
-			for _, subDir := range []string{constants.DirSaves, constants.DirStates} {
-				subDirPath := filepath.Join(romDir, subDir)
-				_ = filepath.Walk(subDirPath, func(path string, info os.FileInfo, err error) error {
-					if err != nil {
-						return nil
-					}
-					nameWithoutExt := strings.TrimSuffix(info.Name(), filepath.Ext(info.Name()))
-					if strings.EqualFold(nameWithoutExt, expectedNameWithoutExt) {
-						_ = os.RemoveAll(path)
-						if info.IsDir() {
-							return filepath.SkipDir
-						}
-					}
-					return nil
-				})
-			}
+			s.deleteRomFromPlatformFolder(&game, romDir)
 		} else {
 			if err := os.RemoveAll(romDir); err != nil {
 				s.ui.LogErrorf("DeleteRom: Error during RemoveAll for ID %d: %v", id, err)
@@ -476,6 +484,80 @@ func (s *Service) GetBiosDir() string {
 	return filepath.Join(s.config.GetConfig().LibraryPath, constants.DirBios)
 }
 
+func (s *Service) migrateGameToPlatformFolder(game *types.Game, libPath string) {
+	relPath := utils.SanitizePath(filepath.Dir(game.FullPath))
+	platformDir := filepath.Join(libPath, relPath)
+	idDir := filepath.Join(platformDir, fmt.Sprintf("%d", game.ID))
+
+	// Migrate from ID folder (idDir) to platform folder (platformDir)
+	if info, err := os.Stat(idDir); err == nil && info.IsDir() {
+		s.ui.LogInfof("MigrateLibrary: Migrating game %d (%s) to platform folder...", game.ID, game.Title)
+
+		// 1. Move metadata: idDir/metadata.json -> platformDir/metadata_ID.json
+		oldMeta := filepath.Join(idDir, "metadata.json")
+		newMeta := filepath.Join(platformDir, fmt.Sprintf("metadata_%d.json", game.ID))
+		if _, err := os.Stat(oldMeta); err == nil {
+			_ = os.MkdirAll(platformDir, 0o755)
+			_ = os.Rename(oldMeta, newMeta)
+		}
+
+		// 2. Move all other files in idDir to platformDir
+		if err := moveDirectoryContents(idDir, platformDir); err != nil {
+			s.ui.LogErrorf("MigrateLibrary: Failed to move directory contents for game %d: %v", game.ID, err)
+		}
+
+		// 3. Remove the empty ID directory
+		_ = os.Remove(idDir)
+	}
+}
+
+func (s *Service) migrateGameToIDFolder(game *types.Game, libPath string) {
+	relPath := utils.SanitizePath(filepath.Dir(game.FullPath))
+	platformDir := filepath.Join(libPath, relPath)
+	idDir := filepath.Join(platformDir, fmt.Sprintf("%d", game.ID))
+
+	expectedBase := filepath.Base(game.FullPath)
+	expectedNameWithoutExt := strings.TrimSuffix(expectedBase, filepath.Ext(expectedBase))
+
+	// Migrate from platform folder (platformDir) to ID folder (idDir)
+	oldMeta := filepath.Join(platformDir, fmt.Sprintf("metadata_%d.json", game.ID))
+	if _, err := os.Stat(oldMeta); err == nil {
+		s.ui.LogInfof("MigrateLibrary: Migrating game %d (%s) to ID folder...", game.ID, game.Title)
+
+		if err := os.MkdirAll(idDir, 0o755); err != nil {
+			s.ui.LogErrorf("MigrateLibrary: Failed to create ID directory %s: %v", idDir, err)
+			return
+		}
+
+		// 1. Move metadata: platformDir/metadata_ID.json -> idDir/metadata.json
+		newMeta := filepath.Join(idDir, "metadata.json")
+		_ = os.Rename(oldMeta, newMeta)
+
+		// 2. Move ROM files: find files in platformDir matching the ROM name without extension
+		entries, err := os.ReadDir(platformDir)
+		if err == nil {
+			for _, entry := range entries {
+				if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+					continue
+				}
+				nameWithoutExt := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
+				if strings.EqualFold(nameWithoutExt, expectedNameWithoutExt) {
+					srcFile := filepath.Join(platformDir, entry.Name())
+					destFile := filepath.Join(idDir, entry.Name())
+					if err := os.Rename(srcFile, destFile); err != nil {
+						if err := copyFile(srcFile, destFile); err == nil {
+							_ = os.Remove(srcFile)
+						}
+					}
+				}
+			}
+		}
+
+		// 3. Move saves and states from platformDir to idDir
+		migrateSavesAndStates(platformDir, idDir, expectedNameWithoutExt)
+	}
+}
+
 // MigrateLibrary moves installed ROMs between ID folder layout and flat platform folder layout.
 func (s *Service) MigrateLibrary(usePlatformFolder bool) error {
 	libPath := s.config.GetConfig().LibraryPath
@@ -491,73 +573,12 @@ func (s *Service) MigrateLibrary(usePlatformFolder bool) error {
 
 	s.ui.LogInfof("MigrateLibrary: Found %d games to migrate. Target UsePlatformFolder: %t", len(games), usePlatformFolder)
 
-	for _, game := range games {
-		relPath := utils.SanitizePath(filepath.Dir(game.FullPath))
-		platformDir := filepath.Join(libPath, relPath)
-		idDir := filepath.Join(platformDir, fmt.Sprintf("%d", game.ID))
-
-		expectedBase := filepath.Base(game.FullPath)
-		expectedNameWithoutExt := strings.TrimSuffix(expectedBase, filepath.Ext(expectedBase))
-
+	for i := range games {
+		game := &games[i]
 		if usePlatformFolder {
-			// Migrate from ID folder (idDir) to platform folder (platformDir)
-			if info, err := os.Stat(idDir); err == nil && info.IsDir() {
-				s.ui.LogInfof("MigrateLibrary: Migrating game %d (%s) to platform folder...", game.ID, game.Title)
-
-				// 1. Move metadata: idDir/metadata.json -> platformDir/metadata_ID.json
-				oldMeta := filepath.Join(idDir, "metadata.json")
-				newMeta := filepath.Join(platformDir, fmt.Sprintf("metadata_%d.json", game.ID))
-				if _, err := os.Stat(oldMeta); err == nil {
-					_ = os.MkdirAll(platformDir, 0o755)
-					_ = os.Rename(oldMeta, newMeta)
-				}
-
-				// 2. Move all other files in idDir to platformDir
-				if err := moveDirectoryContents(idDir, platformDir); err != nil {
-					s.ui.LogErrorf("MigrateLibrary: Failed to move directory contents for game %d: %v", game.ID, err)
-				}
-
-				// 3. Remove the empty ID directory
-				_ = os.Remove(idDir)
-			}
+			s.migrateGameToPlatformFolder(game, libPath)
 		} else {
-			// Migrate from platform folder (platformDir) to ID folder (idDir)
-			oldMeta := filepath.Join(platformDir, fmt.Sprintf("metadata_%d.json", game.ID))
-			if _, err := os.Stat(oldMeta); err == nil {
-				s.ui.LogInfof("MigrateLibrary: Migrating game %d (%s) to ID folder...", game.ID, game.Title)
-
-				if err := os.MkdirAll(idDir, 0o755); err != nil {
-					s.ui.LogErrorf("MigrateLibrary: Failed to create ID directory %s: %v", idDir, err)
-					continue
-				}
-
-				// 1. Move metadata: platformDir/metadata_ID.json -> idDir/metadata.json
-				newMeta := filepath.Join(idDir, "metadata.json")
-				_ = os.Rename(oldMeta, newMeta)
-
-				// 2. Move ROM files: find files in platformDir matching the ROM name without extension
-				entries, err := os.ReadDir(platformDir)
-				if err == nil {
-					for _, entry := range entries {
-						if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
-							continue
-						}
-						nameWithoutExt := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
-						if strings.EqualFold(nameWithoutExt, expectedNameWithoutExt) {
-							srcFile := filepath.Join(platformDir, entry.Name())
-							destFile := filepath.Join(idDir, entry.Name())
-							if err := os.Rename(srcFile, destFile); err != nil {
-								if err := copyFile(srcFile, destFile); err == nil {
-									_ = os.Remove(srcFile)
-								}
-							}
-						}
-					}
-				}
-
-				// 3. Move saves and states from platformDir to idDir
-				migrateSavesAndStates(platformDir, idDir, expectedNameWithoutExt)
-			}
+			s.migrateGameToIDFolder(game, libPath)
 		}
 	}
 
@@ -597,21 +618,29 @@ func moveDirectoryContents(src, dest string) error {
 	return nil
 }
 
-func copyFile(src, dest string) error {
+func copyFile(src, dest string) (err error) {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() {
+		_ = in.Close()
+	}()
 
 	out, err := os.Create(dest)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() {
+		if closeErr := out.Close(); err == nil {
+			err = closeErr
+		}
+	}()
 
-	_, err = io.Copy(out, in)
-	return err
+	if _, err = io.Copy(out, in); err != nil {
+		return err
+	}
+	return nil
 }
 
 func copyFileOrDir(src, dest string) error {
@@ -670,6 +699,50 @@ func migrateSavesAndStates(srcBase, destBase, expectedNameWithoutExt string) {
 	}
 }
 
+func (s *Service) trackGamePaths(game *types.Game, trackedPaths map[string]bool) {
+	romDir := filepath.Clean(s.GetRomDir(game))
+	metaPath := filepath.Clean(s.GetMetadataPath(game))
+	trackedPaths[metaPath] = true
+
+	romPath := s.findRomPath(romDir, game)
+	if romPath != "" {
+		trackedPaths[filepath.Clean(romPath)] = true
+
+		// For CUE/BIN games, also track the associated BIN files
+		if strings.ToLower(filepath.Ext(romPath)) == ".cue" {
+			expectedBase := filepath.Base(game.FullPath)
+			expectedNameWithoutExt := strings.TrimSuffix(expectedBase, filepath.Ext(expectedBase))
+			files, err := os.ReadDir(romDir)
+			if err == nil {
+				for _, file := range files {
+					if file.IsDir() {
+						continue
+					}
+					nameWithoutExt := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
+					if strings.EqualFold(nameWithoutExt, expectedNameWithoutExt) {
+						trackedPaths[filepath.Clean(filepath.Join(romDir, file.Name()))] = true
+					}
+				}
+			}
+		}
+	}
+
+	for _, subDir := range []string{constants.DirSaves, constants.DirStates} {
+		subDirPath := filepath.Join(romDir, subDir)
+		expectedBase := filepath.Base(game.FullPath)
+		expectedNameWithoutExt := strings.TrimSuffix(expectedBase, filepath.Ext(expectedBase))
+		_ = filepath.Walk(subDirPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			nameWithoutExt := strings.TrimSuffix(info.Name(), filepath.Ext(info.Name()))
+			if strings.EqualFold(nameWithoutExt, expectedNameWithoutExt) {
+				trackedPaths[filepath.Clean(path)] = true
+			}
+			return nil
+		})
+	}
+}
 
 // ScanOrphanedRoms scans the library directory and returns paths of files not tracked in metadata.
 func (s *Service) ScanOrphanedRoms() ([]string, error) {
@@ -686,49 +759,8 @@ func (s *Service) ScanOrphanedRoms() ([]string, error) {
 	trackedPaths := make(map[string]bool)
 	biosDir := filepath.Clean(s.GetBiosDir())
 
-	for _, game := range games {
-		romDir := filepath.Clean(s.GetRomDir(&game))
-		metaPath := filepath.Clean(s.GetMetadataPath(&game))
-		trackedPaths[metaPath] = true
-
-		romPath := s.findRomPath(romDir, &game)
-		if romPath != "" {
-			trackedPaths[filepath.Clean(romPath)] = true
-			
-			// For CUE/BIN games, also track the associated BIN files
-			if strings.ToLower(filepath.Ext(romPath)) == ".cue" {
-				expectedBase := filepath.Base(game.FullPath)
-				expectedNameWithoutExt := strings.TrimSuffix(expectedBase, filepath.Ext(expectedBase))
-				files, err := os.ReadDir(romDir)
-				if err == nil {
-					for _, file := range files {
-						if file.IsDir() {
-							continue
-						}
-						nameWithoutExt := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
-						if strings.EqualFold(nameWithoutExt, expectedNameWithoutExt) {
-							trackedPaths[filepath.Clean(filepath.Join(romDir, file.Name()))] = true
-						}
-					}
-				}
-			}
-		}
-
-		for _, subDir := range []string{constants.DirSaves, constants.DirStates} {
-			subDirPath := filepath.Join(romDir, subDir)
-			expectedBase := filepath.Base(game.FullPath)
-			expectedNameWithoutExt := strings.TrimSuffix(expectedBase, filepath.Ext(expectedBase))
-			_ = filepath.Walk(subDirPath, func(path string, info os.FileInfo, err error) error {
-				if err != nil {
-					return nil
-				}
-				nameWithoutExt := strings.TrimSuffix(info.Name(), filepath.Ext(info.Name()))
-				if strings.EqualFold(nameWithoutExt, expectedNameWithoutExt) {
-					trackedPaths[filepath.Clean(path)] = true
-				}
-				return nil
-			})
-		}
+	for i := range games {
+		s.trackGamePaths(&games[i], trackedPaths)
 	}
 
 	var orphanedFiles []string
@@ -776,43 +808,36 @@ func (s *Service) ScanOrphanedRoms() ([]string, error) {
 	return orphanedFiles, nil
 }
 
-// DeleteOrphanedRoms deletes the specified orphaned files and cleans up any empty directories.
-func (s *Service) DeleteOrphanedRoms(files []string) (int, error) {
-	libPath := s.config.GetConfig().LibraryPath
-	if libPath == "" {
-		return 0, fmt.Errorf("library path is not configured")
+func (s *Service) deleteOrphanedFile(libPath, biosDir, file string) bool {
+	var fullPath string
+	if filepath.IsAbs(file) {
+		fullPath = filepath.Clean(file)
+	} else {
+		fullPath = filepath.Clean(filepath.Join(libPath, file))
 	}
 
-	deletedCount := 0
-
-	for _, file := range files {
-		var fullPath string
-		if filepath.IsAbs(file) {
-			fullPath = filepath.Clean(file)
-		} else {
-			fullPath = filepath.Clean(filepath.Join(libPath, file))
-		}
-
-		if !strings.HasPrefix(fullPath, filepath.Clean(libPath)) || strings.HasPrefix(fullPath, filepath.Clean(s.GetBiosDir())) {
-			s.ui.LogErrorf("DeleteOrphanedRoms: Blocked deletion of unsafe/bios path: %s", fullPath)
-			continue
-		}
-
-		s.ui.LogInfof("DeleteOrphanedRoms: Deleting orphaned file: %s", fullPath)
-		if err := os.Remove(fullPath); err == nil {
-			deletedCount++
-		} else if !os.IsNotExist(err) {
-			s.ui.LogErrorf("DeleteOrphanedRoms: Failed to delete file %s: %v", fullPath, err)
-		}
+	if !strings.HasPrefix(fullPath, libPath) || strings.HasPrefix(fullPath, biosDir) {
+		s.ui.LogErrorf("DeleteOrphanedRoms: Blocked deletion of unsafe/bios path: %s", fullPath)
+		return false
 	}
 
+	s.ui.LogInfof("DeleteOrphanedRoms: Deleting orphaned file: %s", fullPath)
+	if err := os.Remove(fullPath); err == nil {
+		return true
+	} else if !os.IsNotExist(err) {
+		s.ui.LogErrorf("DeleteOrphanedRoms: Failed to delete file %s: %v", fullPath, err)
+	}
+	return false
+}
+
+func (s *Service) cleanEmptyDirectories(libPath, biosDir string) {
 	var allDirs []string
 	_ = filepath.Walk(libPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil || !info.IsDir() {
 			return nil
 		}
 		cleanPath := filepath.Clean(path)
-		if cleanPath == filepath.Clean(libPath) || strings.HasPrefix(cleanPath, filepath.Clean(s.GetBiosDir())) {
+		if cleanPath == filepath.Clean(libPath) || strings.HasPrefix(cleanPath, biosDir) {
 			return nil
 		}
 		allDirs = append(allDirs, cleanPath)
@@ -836,6 +861,26 @@ func (s *Service) DeleteOrphanedRoms(files []string) (int, error) {
 			}
 		}
 	}
+}
+
+// DeleteOrphanedRoms deletes the specified orphaned files and cleans up any empty directories.
+func (s *Service) DeleteOrphanedRoms(files []string) (int, error) {
+	libPath := s.config.GetConfig().LibraryPath
+	if libPath == "" {
+		return 0, fmt.Errorf("library path is not configured")
+	}
+
+	deletedCount := 0
+	biosDir := filepath.Clean(s.GetBiosDir())
+	cleanLibPath := filepath.Clean(libPath)
+
+	for _, file := range files {
+		if s.deleteOrphanedFile(cleanLibPath, biosDir, file) {
+			deletedCount++
+		}
+	}
+
+	s.cleanEmptyDirectories(cleanLibPath, biosDir)
 
 	return deletedCount, nil
 }
