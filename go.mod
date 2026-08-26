@@ -4,7 +4,7 @@ go 1.26.7
 
 require (
 	github.com/bodgit/sevenzip v1.6.5
-	github.com/nwaples/rardecode/v2 v2.3.0
+	github.com/nwaples/rardecode/v2 v2.4.1
 	github.com/wailsapp/wails/v2 v2.13.0
 )
 
