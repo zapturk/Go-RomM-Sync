@@ -137,48 +137,58 @@ func TestFindBiosAssets_NoMatch(t *testing.T) {
 	}
 }
 
-func TestUpdateBios_MultiPart_Integration(t *testing.T) {
-	// 1. Build a valid zip archive in memory
+func createTestBiosZip() (part1, part2 []byte, err error) {
 	zipBuf := new(bytes.Buffer)
 	zw := zip.NewWriter(zipBuf)
 
-	// Add file 1: scph1001.bin
-	f1, err := zw.Create("scph1001.bin")
-	if err != nil {
-		t.Fatalf("failed to create zip entry: %v", err)
+	files := map[string]string{
+		"scph1001.bin":        "playstation-bios-data",
+		"system/gba_bios.bin": "gameboy-advance-bios-data",
+		"dc/dc_boot.bin":      "dreamcast-boot-data",
 	}
-	if _, err := f1.Write([]byte("playstation-bios-data")); err != nil {
-		t.Fatalf("failed to write zip data: %v", err)
-	}
-
-	// Add file 2: system/gba_bios.bin (should be trimmed to gba_bios.bin)
-	f2, err := zw.Create("system/gba_bios.bin")
-	if err != nil {
-		t.Fatalf("failed to create zip entry: %v", err)
-	}
-	if _, err := f2.Write([]byte("gameboy-advance-bios-data")); err != nil {
-		t.Fatalf("failed to write zip data: %v", err)
+	for name, content := range files {
+		f, createErr := zw.Create(name)
+		if createErr != nil {
+			return nil, nil, createErr
+		}
+		if _, writeErr := f.Write([]byte(content)); writeErr != nil {
+			return nil, nil, writeErr
+		}
 	}
 
-	// Add file 3 in a subdirectory: dc/dc_boot.bin
-	f3, err := zw.Create("dc/dc_boot.bin")
-	if err != nil {
-		t.Fatalf("failed to create zip entry: %v", err)
-	}
-	if _, err := f3.Write([]byte("dreamcast-boot-data")); err != nil {
-		t.Fatalf("failed to write zip data: %v", err)
-	}
-
-	if err := zw.Close(); err != nil {
-		t.Fatalf("failed to finalize zip: %v", err)
+	if closeErr := zw.Close(); closeErr != nil {
+		return nil, nil, closeErr
 	}
 
 	zipBytes := zipBuf.Bytes()
 	splitPoint := len(zipBytes) / 2
-	part1Bytes := zipBytes[:splitPoint]
-	part2Bytes := zipBytes[splitPoint:]
+	return zipBytes[:splitPoint], zipBytes[splitPoint:], nil
+}
 
-	// 2. Set up mock HTTP server
+func verifyExtractedBios(t *testing.T, tempDir string) {
+	expected := map[string]string{
+		filepath.Join(tempDir, "scph1001.bin"):      "playstation-bios-data",
+		filepath.Join(tempDir, "gba_bios.bin"):      "gameboy-advance-bios-data",
+		filepath.Join(tempDir, "dc", "dc_boot.bin"): "dreamcast-boot-data",
+	}
+	for path, expectedContent := range expected {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("%s not extracted: %v", filepath.Base(path), err)
+		}
+		if string(content) != expectedContent {
+			t.Errorf("unexpected content for %s: %s", filepath.Base(path), string(content))
+		}
+	}
+}
+
+func TestUpdateBios_MultiPart_Integration(t *testing.T) {
+	part1Bytes, part2Bytes, err := createTestBiosZip()
+	if err != nil {
+		t.Fatalf("failed to build test zip: %v", err)
+	}
+
+	// Set up mock HTTP server
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -211,7 +221,6 @@ func TestUpdateBios_MultiPart_Integration(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// 3. Configure test overrides
 	oldURL := biosReleaseURL
 	biosReleaseURL = server.URL + "/releases/latest"
 	defer func() { biosReleaseURL = oldURL }()
@@ -226,7 +235,6 @@ func TestUpdateBios_MultiPart_Integration(t *testing.T) {
 	overrideSystemDir = tempDir
 	defer func() { overrideSystemDir = oldSysDir }()
 
-	// Create a dummy retroarch binary path so resolveRetroArchPaths succeeds
 	dummyExe := filepath.Join(tempDir, "retroarch")
 	if err := os.WriteFile(dummyExe, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatalf("failed to create dummy exe: %v", err)
@@ -234,38 +242,11 @@ func TestUpdateBios_MultiPart_Integration(t *testing.T) {
 
 	ui := &MockUI{}
 
-	// 4. Run UpdateBios
 	if err := UpdateBios(ui, dummyExe); err != nil {
 		t.Fatalf("UpdateBios failed: %v", err)
 	}
 
-	// 5. Verify extracted files exist and have correct contents
-	scphPath := filepath.Join(tempDir, "scph1001.bin")
-	content, err := os.ReadFile(scphPath)
-	if err != nil {
-		t.Fatalf("scph1001.bin not extracted: %v", err)
-	}
-	if string(content) != "playstation-bios-data" {
-		t.Errorf("unexpected content for scph1001.bin: %s", string(content))
-	}
-
-	gbaPath := filepath.Join(tempDir, "gba_bios.bin")
-	content, err = os.ReadFile(gbaPath)
-	if err != nil {
-		t.Fatalf("gba_bios.bin not extracted: %v", err)
-	}
-	if string(content) != "gameboy-advance-bios-data" {
-		t.Errorf("unexpected content for gba_bios.bin: %s", string(content))
-	}
-
-	dcPath := filepath.Join(tempDir, "dc", "dc_boot.bin")
-	content, err = os.ReadFile(dcPath)
-	if err != nil {
-		t.Fatalf("dc/dc_boot.bin not extracted: %v", err)
-	}
-	if string(content) != "dreamcast-boot-data" {
-		t.Errorf("unexpected content for dc/dc_boot.bin: %s", string(content))
-	}
+	verifyExtractedBios(t, tempDir)
 
 	// 6. Verify UI events
 	if ui.EmittedEvents[constants.EventPlayStatus] == 0 {

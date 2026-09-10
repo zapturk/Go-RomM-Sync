@@ -195,6 +195,63 @@ func findBiosAssets(release *githubRelease) ([]biosAsset, error) {
 	return splitParts, nil
 }
 
+func fetchBiosParts() ([]biosAsset, error) {
+	resp, err := httpTimeoutClient.Get(biosReleaseURL) //nolint:bodyclose // body closed in defer
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch release info: %w", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to fetch release info: HTTP %d", resp.StatusCode)
+	}
+
+	var release githubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return nil, fmt.Errorf("failed to decode release info: %w", err)
+	}
+
+	return findBiosAssets(&release)
+}
+
+func downloadBiosParts(ui UIProvider, parts []biosAsset, dest *os.File) error {
+	totalSize := int64(0)
+	for _, p := range parts {
+		totalSize += p.Size
+	}
+
+	pw := &progressWriter{
+		total: totalSize,
+		ui:    ui,
+	}
+	destWriter := io.MultiWriter(dest, pw)
+
+	for i, part := range parts {
+		if len(parts) > 1 {
+			ui.EventsEmit(constants.EventPlayStatus, fmt.Sprintf("Downloading BIOS pack (part %d of %d)...", i+1, len(parts)))
+		} else {
+			ui.EventsEmit(constants.EventPlayStatus, "Downloading BIOS pack...")
+		}
+
+		dlResp, err := httpDownloadClient.Get(part.BrowserDownloadURL) //nolint:bodyclose // body closed in loop
+		if err != nil {
+			return fmt.Errorf("failed to download BIOS pack: %w", err)
+		}
+
+		if dlResp.StatusCode != http.StatusOK {
+			_ = dlResp.Body.Close()
+			return fmt.Errorf("failed to download BIOS pack: HTTP %d", dlResp.StatusCode)
+		}
+
+		_, copyErr := io.Copy(destWriter, dlResp.Body)
+		_ = dlResp.Body.Close()
+		if copyErr != nil {
+			return fmt.Errorf("failed to save BIOS pack: %w", copyErr)
+		}
+	}
+	return nil
+}
+
 func UpdateBios(ui UIProvider, exePath string) error {
 	baseDir, _, err := resolveRetroArchPaths(exePath)
 	if err != nil {
@@ -206,30 +263,9 @@ func UpdateBios(ui UIProvider, exePath string) error {
 	}
 
 	ui.EventsEmit(constants.EventPlayStatus, "Fetching latest BIOS release info...")
-
-	resp, err := httpTimeoutClient.Get(biosReleaseURL) //nolint:bodyclose // body closed in defer
-	if err != nil {
-		return fmt.Errorf("failed to fetch release info: %w", err)
-	}
-	defer resp.Body.Close() //nolint:errcheck
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to fetch release info: HTTP %d", resp.StatusCode)
-	}
-
-	var release githubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		return fmt.Errorf("failed to decode release info: %w", err)
-	}
-
-	parts, err := findBiosAssets(&release)
+	parts, err := fetchBiosParts()
 	if err != nil {
 		return err
-	}
-
-	totalSize := int64(0)
-	for _, p := range parts {
-		totalSize += p.Size
 	}
 
 	tmpZip, err := os.CreateTemp("", "retrobios_*.zip")
@@ -242,37 +278,9 @@ func UpdateBios(ui UIProvider, exePath string) error {
 		}
 	}()
 
-	pw := &progressWriter{
-		total: totalSize,
-		ui:    ui,
-	}
-	destWriter := io.MultiWriter(tmpZip, pw)
-
-	for i, part := range parts {
-		if len(parts) > 1 {
-			ui.EventsEmit(constants.EventPlayStatus, fmt.Sprintf("Downloading BIOS pack (part %d of %d)...", i+1, len(parts)))
-		} else {
-			ui.EventsEmit(constants.EventPlayStatus, "Downloading BIOS pack...")
-		}
-
-		dlResp, err := httpDownloadClient.Get(part.BrowserDownloadURL) //nolint:bodyclose // body closed in loop
-		if err != nil {
-			_ = tmpZip.Close()
-			return fmt.Errorf("failed to download BIOS pack: %w", err)
-		}
-
-		if dlResp.StatusCode != http.StatusOK {
-			_ = dlResp.Body.Close()
-			_ = tmpZip.Close()
-			return fmt.Errorf("failed to download BIOS pack: HTTP %d", dlResp.StatusCode)
-		}
-
-		_, copyErr := io.Copy(destWriter, dlResp.Body)
-		_ = dlResp.Body.Close()
-		if copyErr != nil {
-			_ = tmpZip.Close()
-			return fmt.Errorf("failed to save BIOS pack: %w", copyErr)
-		}
+	if err := downloadBiosParts(ui, parts, tmpZip); err != nil {
+		_ = tmpZip.Close()
+		return err
 	}
 
 	if err := tmpZip.Close(); err != nil {
@@ -280,7 +288,6 @@ func UpdateBios(ui UIProvider, exePath string) error {
 	}
 
 	ui.EventsEmit(constants.EventPlayStatus, "Extracting BIOS pack...")
-
 	if err := unzipBios(ui, tmpZip.Name(), systemDir); err != nil {
 		return fmt.Errorf("failed to extract BIOS pack: %w", err)
 	}
