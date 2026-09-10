@@ -131,9 +131,8 @@ func GetBiosFilenamesForPlatform(platformSlug string) []string {
 }
 
 var (
-	biosSingleZipRegex = regexp.MustCompile(`(?i)retroarch.*_bios_pack\.zip$`)
-	biosSplitZipRegex  = regexp.MustCompile(`(?i)retroarch.*_bios_pack\.zip\.(\d+)$`)
-	biosReleaseURL     = constants.URLRetroBiosLatestRelease
+	biosPackRegex  = regexp.MustCompile(`(?i)retroarch.*_bios_pack\.zip(?:\.(\d+))?$`)
+	biosReleaseURL = constants.URLRetroBiosLatestRelease
 )
 
 type biosAsset struct {
@@ -152,68 +151,48 @@ type githubRelease struct {
 }
 
 func findBiosAssets(release *githubRelease) ([]biosAsset, error) {
-	var singleAssets []biosAsset
-	splitAssetsByBase := make(map[string][]biosAsset)
+	var splitParts []biosAsset
 
 	for _, asset := range release.Assets {
-		if biosSingleZipRegex.MatchString(asset.Name) {
-			singleAssets = append(singleAssets, biosAsset{
+		match := biosPackRegex.FindStringSubmatch(asset.Name)
+		if len(match) == 0 {
+			continue
+		}
+		if match[1] == "" {
+			return []biosAsset{{
 				Name:               asset.Name,
 				BrowserDownloadURL: asset.BrowserDownloadURL,
 				Size:               asset.Size,
 				PartNumber:         1,
-			})
+			}}, nil
+		}
+		partNum, err := strconv.Atoi(match[1])
+		if err != nil {
 			continue
 		}
-
-		if match := biosSplitZipRegex.FindStringSubmatch(asset.Name); len(match) == 2 {
-			partNum, err := strconv.Atoi(match[1])
-			if err != nil {
-				continue
-			}
-			base := strings.TrimSuffix(asset.Name, "."+match[1])
-			splitAssetsByBase[base] = append(splitAssetsByBase[base], biosAsset{
-				Name:               asset.Name,
-				BrowserDownloadURL: asset.BrowserDownloadURL,
-				Size:               asset.Size,
-				PartNumber:         partNum,
-			})
-		}
-	}
-
-	// If a single complete zip asset is present, prefer it
-	if len(singleAssets) > 0 {
-		return []biosAsset{singleAssets[0]}, nil
-	}
-
-	// If split parts are found, find the set with contiguous parts starting at 1
-	var bestParts []biosAsset
-	for _, parts := range splitAssetsByBase {
-		if len(parts) == 0 {
-			continue
-		}
-		sort.Slice(parts, func(i, j int) bool {
-			return parts[i].PartNumber < parts[j].PartNumber
+		splitParts = append(splitParts, biosAsset{
+			Name:               asset.Name,
+			BrowserDownloadURL: asset.BrowserDownloadURL,
+			Size:               asset.Size,
+			PartNumber:         partNum,
 		})
+	}
 
-		valid := true
-		for i, p := range parts {
-			if p.PartNumber != i+1 {
-				valid = false
-				break
-			}
-		}
+	if len(splitParts) == 0 {
+		return nil, fmt.Errorf("no suitable RetroArch BIOS pack found in the latest release")
+	}
 
-		if valid && len(parts) > len(bestParts) {
-			bestParts = parts
+	sort.Slice(splitParts, func(i, j int) bool {
+		return splitParts[i].PartNumber < splitParts[j].PartNumber
+	})
+
+	for i, p := range splitParts {
+		if p.PartNumber != i+1 {
+			return nil, fmt.Errorf("no suitable RetroArch BIOS pack found in the latest release")
 		}
 	}
 
-	if len(bestParts) > 0 {
-		return bestParts, nil
-	}
-
-	return nil, fmt.Errorf("no suitable RetroArch BIOS pack found in the latest release")
+	return splitParts, nil
 }
 
 func UpdateBios(ui UIProvider, exePath string) error {
@@ -286,10 +265,6 @@ func UpdateBios(ui UIProvider, exePath string) error {
 			_ = dlResp.Body.Close()
 			_ = tmpZip.Close()
 			return fmt.Errorf("failed to download BIOS pack: HTTP %d", dlResp.StatusCode)
-		}
-
-		if pw.total == 0 && dlResp.ContentLength > 0 {
-			pw.total += dlResp.ContentLength
 		}
 
 		_, copyErr := io.Copy(destWriter, dlResp.Body)
