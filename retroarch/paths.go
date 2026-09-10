@@ -12,7 +12,10 @@ import (
 	"go-romm-sync/constants"
 )
 
-var overrideCoresDir string
+var (
+	overrideCoresDir  string
+	overrideSystemDir string
+)
 
 func getCoresDir(baseDir string) string {
 	if overrideCoresDir != "" {
@@ -231,6 +234,9 @@ func resolveRetroArchPaths(exePath string) (baseDir, binaryPath string, err erro
 }
 
 func GetSystemDir(baseDir string) string {
+	if overrideSystemDir != "" {
+		return overrideSystemDir
+	}
 	if homeDir, err := os.UserHomeDir(); err == nil {
 		switch runtime.GOOS {
 		case constants.OSDarwin:
