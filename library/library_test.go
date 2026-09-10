@@ -83,7 +83,7 @@ func TestGetRomDir(t *testing.T) {
 	game := &types.Game{ID: 1, FullPath: "SNES/Game.sfc"}
 
 	dir := s.GetRomDir(game)
-	expected := filepath.Join("/base", "SNES", "1")
+	expected := filepath.FromSlash("/base/SNES/1")
 	if dir != expected {
 		t.Errorf("Expected %s, got %s", expected, dir)
 	}

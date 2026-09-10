@@ -264,7 +264,7 @@ func TestServeHTTP(t *testing.T) {
 		_ = os.WriteFile(cachePath, []byte("cached image data"), 0o644)
 		defer os.Remove(cachePath)
 
-		req := httptest.NewRequest("GET", "/cache/covers/7777.jpg", nil)
+		req := httptest.NewRequest("GET", "/cache/covers/7777.jpg", http.NoBody)
 		w := httptest.NewRecorder()
 		s.ServeHTTP(w, req)
 
@@ -288,7 +288,7 @@ func TestServeHTTP(t *testing.T) {
 		_ = os.Remove(cachePath)
 		defer os.Remove(cachePath)
 
-		req := httptest.NewRequest("GET", "/cache/covers/8888.jpg?url=/covers/cover.jpg", nil)
+		req := httptest.NewRequest("GET", "/cache/covers/8888.jpg?url=/covers/cover.jpg", http.NoBody)
 		w := httptest.NewRecorder()
 		s.ServeHTTP(w, req)
 
@@ -303,7 +303,7 @@ func TestServeHTTP(t *testing.T) {
 	})
 
 	t.Run("Serve Nonexistent Cover Missing URL", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/cache/covers/9999.jpg", nil)
+		req := httptest.NewRequest("GET", "/cache/covers/9999.jpg", http.NoBody)
 		w := httptest.NewRecorder()
 		s.ServeHTTP(w, req)
 
@@ -314,7 +314,7 @@ func TestServeHTTP(t *testing.T) {
 	})
 
 	t.Run("Serve Invalid Prefix", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/invalid/covers/7777.jpg", nil)
+		req := httptest.NewRequest("GET", "/invalid/covers/7777.jpg", http.NoBody)
 		w := httptest.NewRecorder()
 		s.ServeHTTP(w, req)
 
