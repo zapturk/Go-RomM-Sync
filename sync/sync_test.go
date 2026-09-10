@@ -35,12 +35,12 @@ func (m *MockUIProvider) LogInfof(format string, args ...interface{})      {}
 func (m *MockUIProvider) LogErrorf(format string, args ...interface{})     {}
 func (m *MockUIProvider) EventsEmit(eventName string, args ...interface{}) {}
 
-func setupServices(tempDir string, gameData []byte, fileData []byte) (*library.Service, *rommsrv.Service, *config.ConfigManager) {
-	cm := config.NewConfigManager()
+func setupServices(tempDir string, gameData, fileData []byte) (libSrv *library.Service, rommSrv *rommsrv.Service, cm *config.ConfigManager) {
+	cm = config.NewConfigManager()
 	cm.ConfigPath = filepath.Join(tempDir, "config.json")
 	cm.Config = &types.AppConfig{LibraryPath: tempDir}
 
-	rommSrv := rommsrv.New(mockRommConfig{})
+	rommSrv = rommsrv.New(mockRommConfig{})
 	rommSrv.GetClient().APIClient.Transport = &mockTransport{
 		roundTrip: func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
@@ -58,7 +58,7 @@ func setupServices(tempDir string, gameData []byte, fileData []byte) (*library.S
 		},
 	}
 
-	libSrv := library.New(cm, rommSrv, &MockUIProvider{})
+	libSrv = library.New(cm, rommSrv, &MockUIProvider{})
 	return libSrv, rommSrv, cm
 }
 

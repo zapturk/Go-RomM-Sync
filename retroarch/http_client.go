@@ -15,4 +15,3 @@ var httpTimeoutClient = &http.Client{
 var httpDownloadClient = &http.Client{
 	Timeout: 2 * time.Hour,
 }
-

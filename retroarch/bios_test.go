@@ -356,4 +356,3 @@ func TestFindBiosAssets_LiveRelease(t *testing.T) {
 		}
 	}
 }
-
