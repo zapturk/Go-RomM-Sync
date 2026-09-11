@@ -1,0 +1,532 @@
+package retroarch
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"sort"
+	"strconv"
+	"strings"
+
+	"github.com/bodgit/sevenzip"
+
+	"go-romm-sync/constants"
+)
+
+const defaultStableVersion = "1.22.2"
+
+var buildbotStableURL = constants.URLBuildbotStable
+
+// installerProgressWriter tracks download bytes and emits percentage events.
+type installerProgressWriter struct {
+	total       int64
+	downloaded  int64
+	ui          UIProvider
+	lastPercent int
+}
+
+func (pw *installerProgressWriter) Write(p []byte) (int, error) {
+	n := len(p)
+	pw.downloaded += int64(n)
+	if pw.total > 0 {
+		percent := int(float64(pw.downloaded) / float64(pw.total) * 100)
+		if percent > 100 {
+			percent = 100
+		}
+		if percent > pw.lastPercent {
+			pw.lastPercent = percent
+			if pw.ui != nil {
+				pw.ui.EventsEmit("retroarch-install-progress", percent)
+				if percent%10 == 0 || percent == 100 {
+					pw.ui.EventsEmit(constants.EventPlayStatus, fmt.Sprintf("Downloading RetroArch (%d%%)...", percent))
+				}
+			}
+		}
+	}
+	return n, nil
+}
+
+// getLatestStableVersion queries Libretro buildbot to discover the latest stable version directory.
+// Falls back to defaultStableVersion if network or parsing fails.
+func getLatestStableVersion() string {
+	resp, err := httpTimeoutClient.Get(buildbotStableURL + "/")
+	if err != nil {
+		return defaultStableVersion
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusOK {
+		return defaultStableVersion
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return defaultStableVersion
+	}
+
+	re := regexp.MustCompile(`/stable/(\d+\.\d+\.\d+)/`)
+	matches := re.FindAllStringSubmatch(string(body), -1)
+	if len(matches) == 0 {
+		return defaultStableVersion
+	}
+
+	var versions []string
+	seen := make(map[string]bool)
+	for _, m := range matches {
+		v := m[1]
+		if !seen[v] {
+			seen[v] = true
+			versions = append(versions, v)
+		}
+	}
+
+	sort.Slice(versions, func(i, j int) bool {
+		return compareSemVer(versions[i], versions[j]) < 0
+	})
+
+	if len(versions) > 0 {
+		return versions[len(versions)-1]
+	}
+	return defaultStableVersion
+}
+
+// compareSemVer compares two semver strings like "1.22.2" and "1.9.0".
+func compareSemVer(v1, v2 string) int {
+	parts1 := strings.Split(v1, ".")
+	parts2 := strings.Split(v2, ".")
+	maxLen := len(parts1)
+	if len(parts2) > maxLen {
+		maxLen = len(parts2)
+	}
+
+	for i := 0; i < maxLen; i++ {
+		var n1, n2 int
+		if i < len(parts1) {
+			n1, _ = strconv.Atoi(parts1[i])
+		}
+		if i < len(parts2) {
+			n2, _ = strconv.Atoi(parts2[i])
+		}
+		if n1 != n2 {
+			return n1 - n2
+		}
+	}
+	return 0
+}
+
+// getRetroArchDownloadURL constructs the official Libretro buildbot download URL for the current OS/architecture.
+func getRetroArchDownloadURL(version, goos, goarch string) (string, error) {
+	baseURL := fmt.Sprintf("%s/%s", buildbotStableURL, version)
+	switch goos {
+	case constants.OSDarwin:
+		return fmt.Sprintf("%s/apple/osx/universal/RetroArch_Metal.dmg", baseURL), nil
+	case constants.OSWindows:
+		if goarch == constants.Arch386 {
+			return fmt.Sprintf("%s/windows/x86/RetroArch.7z", baseURL), nil
+		}
+		return fmt.Sprintf("%s/windows/x86_64/RetroArch.7z", baseURL), nil
+	case constants.OSLinux:
+		if goarch == constants.Arch386 {
+			return fmt.Sprintf("%s/linux/x86/RetroArch.7z", baseURL), nil
+		}
+		return fmt.Sprintf("%s/linux/x86_64/RetroArch.7z", baseURL), nil
+	default:
+		return "", fmt.Errorf("unsupported operating system for RetroArch download: %s", goos)
+	}
+}
+
+// getDefaultInstallDir returns the base installation directory for the current operating system.
+func getDefaultInstallDir(goos string) (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %w", err)
+	}
+
+	switch goos {
+	case constants.OSDarwin:
+		// Check if /Applications is writable
+		testFile := filepath.Join("/Applications", ".test_write_romm")
+		if err := os.WriteFile(testFile, []byte(""), 0o644); err == nil {
+			_ = os.Remove(testFile)
+			return "/Applications", nil
+		}
+		// Fallback to ~/Applications
+		userAppDir := filepath.Join(homeDir, "Applications")
+		_ = os.MkdirAll(userAppDir, 0o755)
+		return userAppDir, nil
+
+	case constants.OSWindows:
+		localAppData := os.Getenv("LOCALAPPDATA")
+		if localAppData == "" {
+			localAppData = filepath.Join(homeDir, "AppData", "Local")
+		}
+		return filepath.Join(localAppData, "RetroArch"), nil
+
+	case constants.OSLinux:
+		return filepath.Join(homeDir, ".local", "share", "RetroArch"), nil
+
+	default:
+		return "", fmt.Errorf("unsupported OS: %s", goos)
+	}
+}
+
+// DownloadAndInstall downloads, installs, and returns the executable path for RetroArch.
+func DownloadAndInstall(ui UIProvider) (string, error) {
+	goos := runtime.GOOS
+	goarch := runtime.GOARCH
+
+	if ui != nil {
+		ui.EventsEmit(constants.EventPlayStatus, "Finding latest RetroArch release...")
+	}
+
+	version := getLatestStableVersion()
+	downloadURL, err := getRetroArchDownloadURL(version, goos, goarch)
+	if err != nil {
+		return "", err
+	}
+
+	if ui != nil {
+		ui.LogInfof("Downloading RetroArch version %s from %s", version, downloadURL)
+		ui.EventsEmit(constants.EventPlayStatus, fmt.Sprintf("Connecting to download RetroArch %s...", version))
+	}
+
+	// Create a temporary file for the download
+	tmpPattern := "retroarch_dl_*.dmg"
+	if goos != constants.OSDarwin {
+		tmpPattern = "retroarch_dl_*.7z"
+	}
+
+	tmpFile, err := os.CreateTemp("", tmpPattern)
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp download file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	defer func() {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+	}()
+
+	if err := downloadArchive(ui, downloadURL, tmpFile); err != nil {
+		return "", err
+	}
+	_ = tmpFile.Close()
+
+	targetBaseDir, err := getDefaultInstallDir(goos)
+	if err != nil {
+		return "", err
+	}
+
+	var installedPath string
+	switch goos {
+	case constants.OSDarwin:
+		installedPath, err = installDarwin(ui, tmpPath, targetBaseDir)
+	case constants.OSWindows:
+		installedPath, err = installWindows(ui, tmpPath, targetBaseDir)
+	case constants.OSLinux:
+		installedPath, err = installLinux(ui, tmpPath, targetBaseDir)
+	default:
+		return "", fmt.Errorf("unsupported operating system: %s", goos)
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	if ui != nil {
+		ui.EventsEmit(constants.EventPlayStatus, "RetroArch installed successfully!")
+		ui.EventsEmit("retroarch-install-progress", 100)
+		ui.LogInfof("RetroArch successfully installed at: %s", installedPath)
+	}
+
+	return installedPath, nil
+}
+
+// downloadArchive downloads a URL into destFile while reporting progress.
+func downloadArchive(ui UIProvider, urlStr string, destFile *os.File) error {
+	resp, err := httpDownloadClient.Get(urlStr)
+	if err != nil {
+		return fmt.Errorf("failed to download RetroArch: %w", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download failed with HTTP status %d from %s", resp.StatusCode, urlStr)
+	}
+
+	pw := &installerProgressWriter{
+		total: resp.ContentLength,
+		ui:    ui,
+	}
+
+	_, copyErr := io.Copy(io.MultiWriter(destFile, pw), resp.Body)
+	if copyErr != nil {
+		return fmt.Errorf("failed to save download: %w", copyErr)
+	}
+
+	return nil
+}
+
+// installDarwin mounts the DMG, copies RetroArch.app to destination, detaches, and clears quarantine.
+func installDarwin(ui UIProvider, dmgPath, targetBaseDir string) (string, error) {
+	if ui != nil {
+		ui.EventsEmit(constants.EventPlayStatus, "Mounting RetroArch disk image...")
+	}
+
+	tmpMount, err := os.MkdirTemp("", "retroarch_mount_*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary mount directory: %w", err)
+	}
+	defer func() {
+		_ = exec.Command("hdiutil", "detach", tmpMount, "-force", "-quiet").Run()
+		_ = os.RemoveAll(tmpMount)
+	}()
+
+	// Mount DMG
+	mountCmd := exec.Command("hdiutil", "attach", dmgPath, "-mountpoint", tmpMount, "-nobrowse", "-quiet")
+	if out, err := mountCmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("failed to mount DMG: %v (output: %s)", err, string(out))
+	}
+
+	// Locate RetroArch.app inside mount point
+	srcApp := filepath.Join(tmpMount, "RetroArch.app")
+	if _, err := os.Stat(srcApp); err != nil {
+		// Try case-insensitive search
+		entries, readErr := os.ReadDir(tmpMount)
+		if readErr == nil {
+			for _, e := range entries {
+				if strings.HasSuffix(strings.ToLower(e.Name()), ".app") {
+					srcApp = filepath.Join(tmpMount, e.Name())
+					break
+				}
+			}
+		}
+	}
+
+	if _, err := os.Stat(srcApp); err != nil {
+		return "", fmt.Errorf("RetroArch.app not found inside DMG: %w", err)
+	}
+
+	if err := os.MkdirAll(targetBaseDir, 0o755); err != nil {
+		return "", fmt.Errorf("failed to create destination directory %s: %w", targetBaseDir, err)
+	}
+
+	targetApp := filepath.Join(targetBaseDir, "RetroArch.app")
+	if _, err := os.Stat(targetApp); err == nil {
+		if ui != nil {
+			ui.LogInfof("Removing existing RetroArch at %s", targetApp)
+		}
+		_ = os.RemoveAll(targetApp)
+	}
+
+	if ui != nil {
+		ui.EventsEmit(constants.EventPlayStatus, "Copying RetroArch to Applications...")
+	}
+
+	// Use /usr/bin/ditto to preserve signatures, architectures, and attributes
+	dittoCmd := exec.Command("/usr/bin/ditto", srcApp, targetApp)
+	if out, err := dittoCmd.CombinedOutput(); err != nil {
+		// Fallback to cp -R
+		cpCmd := exec.Command("cp", "-R", srcApp, targetApp)
+		if cpOut, cpErr := cpCmd.CombinedOutput(); cpErr != nil {
+			return "", fmt.Errorf("failed to copy RetroArch.app: ditto err=%v (%s), cp err=%v (%s)", err, string(out), cpErr, string(cpOut))
+		}
+	}
+
+	// Strip Gatekeeper quarantine attribute
+	_ = exec.Command("/usr/bin/xattr", "-dr", "com.apple.quarantine", targetApp).Run()
+
+	return targetApp, nil
+}
+
+// installWindows extracts the 7z archive to targetDir and finds retroarch.exe.
+func installWindows(ui UIProvider, archivePath, targetDir string) (string, error) {
+	if ui != nil {
+		ui.EventsEmit(constants.EventPlayStatus, "Extracting RetroArch...")
+	}
+
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		return "", fmt.Errorf("failed to create target directory %s: %w", targetDir, err)
+	}
+
+	if err := extract7zArchive(ui, archivePath, targetDir); err != nil {
+		return "", fmt.Errorf("failed to extract RetroArch 7z: %w", err)
+	}
+
+	// Find retroarch.exe
+	exePath := filepath.Join(targetDir, "retroarch.exe")
+	if _, err := os.Stat(exePath); err == nil {
+		return exePath, nil
+	}
+
+	// Check subdirectories
+	var foundPath string
+	_ = filepath.Walk(targetDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if strings.EqualFold(filepath.Base(path), "retroarch.exe") {
+			foundPath = path
+			return filepath.SkipAll
+		}
+		return nil
+	})
+
+	if foundPath != "" {
+		return foundPath, nil
+	}
+
+	return "", fmt.Errorf("retroarch.exe not found after extraction in %s", targetDir)
+}
+
+// installLinux extracts the 7z archive to targetDir, marks the AppImage executable, and returns its path.
+func installLinux(ui UIProvider, archivePath, targetDir string) (string, error) {
+	if ui != nil {
+		ui.EventsEmit(constants.EventPlayStatus, "Extracting RetroArch...")
+	}
+
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		return "", fmt.Errorf("failed to create target directory %s: %w", targetDir, err)
+	}
+
+	if err := extract7zArchive(ui, archivePath, targetDir); err != nil {
+		return "", fmt.Errorf("failed to extract RetroArch 7z: %w", err)
+	}
+
+	// Search for AppImage or executable
+	var foundAppImage string
+	var foundBinary string
+
+	_ = filepath.Walk(targetDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		name := strings.ToLower(filepath.Base(path))
+		if strings.HasSuffix(name, ".appimage") {
+			foundAppImage = path
+			_ = os.Chmod(path, 0o755)
+			return filepath.SkipAll
+		}
+		if name == "retroarch" {
+			foundBinary = path
+			_ = os.Chmod(path, 0o755)
+		}
+		return nil
+	})
+
+	if foundAppImage != "" {
+		return foundAppImage, nil
+	}
+	if foundBinary != "" {
+		return foundBinary, nil
+	}
+
+	return "", fmt.Errorf("no RetroArch executable or AppImage found after extraction in %s", targetDir)
+}
+
+// extract7zArchive extracts a .7z archive into destDir with progress reporting and common prefix stripping.
+func extract7zArchive(ui UIProvider, archivePath, destDir string) error {
+	r, err := sevenzip.OpenReader(archivePath)
+	if err != nil {
+		return fmt.Errorf("failed to open 7z archive: %w", err)
+	}
+	defer r.Close() //nolint:errcheck
+
+	total := len(r.File)
+	lastPercent := -1
+
+	// Detect if all files share a common top-level directory (e.g. "RetroArch-Win64/" or "RetroArch-Linux-x86_64/")
+	commonPrefix := ""
+	if total > 0 {
+		firstSlash := strings.Index(r.File[0].Name, "/")
+		if firstSlash != -1 {
+			candidate := r.File[0].Name[:firstSlash+1]
+			allShare := true
+			for _, f := range r.File {
+				if !strings.HasPrefix(f.Name, candidate) {
+					allShare = false
+					break
+				}
+			}
+			if allShare {
+				commonPrefix = candidate
+			}
+		}
+	}
+
+	for i, f := range r.File {
+		if total > 0 {
+			pct := int(float64(i) / float64(total) * 100)
+			if pct > lastPercent && pct%5 == 0 {
+				lastPercent = pct
+				if ui != nil {
+					ui.EventsEmit("retroarch-install-progress", pct)
+					ui.EventsEmit(constants.EventPlayStatus, fmt.Sprintf("Extracting RetroArch (%d%%)...", pct))
+				}
+			}
+		}
+
+		relName := f.Name
+		if commonPrefix != "" {
+			relName = strings.TrimPrefix(relName, commonPrefix)
+		}
+		if relName == "" {
+			continue
+		}
+
+		fpath := filepath.Join(destDir, relName)
+		// Path traversal check
+		cleanDest := filepath.Clean(destDir) + string(os.PathSeparator)
+		if !strings.HasPrefix(filepath.Clean(fpath), cleanDest) {
+			continue
+		}
+
+		if f.FileInfo().IsDir() {
+			_ = os.MkdirAll(fpath, 0o755)
+			continue
+		}
+
+		if err := os.MkdirAll(filepath.Dir(fpath), 0o755); err != nil {
+			return fmt.Errorf("failed to create directory for %s: %w", fpath, err)
+		}
+
+		// Ensure permissions: 0755 for binaries/executables, 0644 for others
+		mode := f.Mode()
+		if mode.Perm() == 0 {
+			mode = 0o644
+		}
+		lowerName := strings.ToLower(relName)
+		if strings.HasSuffix(lowerName, ".exe") || strings.HasSuffix(lowerName, ".appimage") || strings.HasSuffix(lowerName, "retroarch") || strings.Contains(lowerName, "bin/") {
+			mode = 0o755
+		}
+
+		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
+		if err != nil {
+			return fmt.Errorf("failed to open destination file %s: %w", fpath, err)
+		}
+
+		rc, err := f.Open()
+		if err != nil {
+			_ = outFile.Close()
+			return fmt.Errorf("failed to open archive entry %s: %w", f.Name, err)
+		}
+
+		_, copyErr := io.Copy(outFile, rc)
+		_ = outFile.Close()
+		_ = rc.Close()
+		if copyErr != nil {
+			return fmt.Errorf("failed to extract file %s: %w", fpath, copyErr)
+		}
+
+		// Explicit chmod to guarantee permissions on Linux/macOS
+		if strings.HasSuffix(lowerName, ".exe") || strings.HasSuffix(lowerName, ".appimage") || strings.HasSuffix(lowerName, "retroarch") {
+			_ = os.Chmod(fpath, 0o755)
+		}
+	}
+
+	return nil
+}

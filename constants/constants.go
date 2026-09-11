@@ -78,4 +78,5 @@ const (
 	URLRetroBiosLatestRelease = "https://api.github.com/repos/Abdess/retrobios/releases/latest"
 	URLPCSX2GameIndex         = "https://raw.githubusercontent.com/libretro/ps2/refs/heads/libretroization/bin/resources/GameIndex.yaml"
 	URLBuildbotBase           = "https://buildbot.libretro.com/nightly"
+	URLBuildbotStable         = "https://buildbot.libretro.com/stable"
 )
