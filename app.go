@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -494,8 +495,7 @@ func (a *App) PlayRomWithCore(id uint, coreOverride string) error {
 	if err := a.checkAndDownloadFirmware(id); err != nil {
 		a.LogErrorf("Firmware check failed: %v", err)
 	}
-	libPath := a.GetLibraryPath()
-	if libPath == "" {
+	if a.GetLibraryPath() == "" {
 		return fmt.Errorf("library path is not configured")
 	}
 
@@ -510,28 +510,46 @@ func (a *App) PlayRomWithCore(id uint, coreOverride string) error {
 		return fmt.Errorf("no valid ROM file found in %s, please download it first", romDir)
 	}
 
+	exePath, err := a.resolveRetroArchExecutable()
+	if err != nil {
+		return err
+	}
+
+	platformSlug, _, controllerType := a.resolveCoreAndController(id, &game, coreOverride)
+	cheevosUser, cheevosPass := a.GetCheevosCredentials()
+
+	err = retroarch.Launch(a, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platformSlug, a.GetBiosDir(), controllerType)
+	if err != nil {
+		return fmt.Errorf("failed to launch game: %w", err)
+	}
+
+	return nil
+}
+
+func (a *App) resolveRetroArchExecutable() (string, error) {
 	exePath := a.GetRetroArchPath()
 	if exePath == "" {
 		var err error
 		exePath, err = a.SelectRetroArchExecutable()
 		if err != nil {
-			return fmt.Errorf("retroarch not configured: %w", err)
+			return "", fmt.Errorf("retroarch not configured: %w", err)
 		}
 		if exePath == "" {
-			return fmt.Errorf("launch cancelled: RetroArch executable not selected")
+			return "", fmt.Errorf("launch cancelled: RetroArch executable not selected")
 		}
-	} else {
-		if _, err := os.Stat(exePath); err != nil {
-			return fmt.Errorf("retroarch executable not found at configured path: %s", exePath)
-		}
+		return exePath, nil
 	}
+	if _, err := os.Stat(exePath); err != nil {
+		return "", fmt.Errorf("retroarch executable not found at configured path: %s", exePath)
+	}
+	return exePath, nil
+}
 
-	// Save preference before launching
-	platformSlug := a.GetResolvedPlatformSlug(&game)
-	coreToSave := coreOverride
+func (a *App) resolveCoreAndController(id uint, game *types.Game, coreOverride string) (platformSlug, coreToSave, controllerType string) {
+	platformSlug = a.GetResolvedPlatformSlug(game)
+	coreToSave = coreOverride
 	if coreToSave == "" {
-		cores := retroarch.GetCoresForPlatform(platformSlug)
-		if len(cores) > 0 {
+		if cores := retroarch.GetCoresForPlatform(platformSlug); len(cores) > 0 {
 			coreToSave = cores[0]
 		}
 	}
@@ -539,13 +557,10 @@ func (a *App) PlayRomWithCore(id uint, coreOverride string) error {
 		_ = a.SaveLastUsedCore(platformSlug, coreToSave)
 	}
 
-	cheevosUser, cheevosPass := a.GetCheevosCredentials()
-	err = retroarch.Launch(a, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platformSlug, a.GetBiosDir())
-	if err != nil {
-		return fmt.Errorf("failed to launch game: %w", err)
+	if platformSlug == "wii" || strings.Contains(strings.ToLower(platformSlug), "wii") || coreToSave == "dolphin_libretro" {
+		controllerType = a.GetGameController(id)
 	}
-
-	return nil
+	return platformSlug, coreToSave, controllerType
 }
 
 // findRomPath looks for a valid ROM file in the given directory.
@@ -783,10 +798,18 @@ func (a *App) GetResolvedPlatformSlug(game *types.Game) string {
 	if game.Platform.Slug != "" {
 		return game.Platform.Slug
 	}
+	if game.PlatformSlug != "" {
+		return game.PlatformSlug
+	}
 	relDir := filepath.Dir(game.FullPath)
 	parts := strings.Split(filepath.ToSlash(relDir), "/")
 	for i := len(parts) - 1; i >= 0; i-- {
 		if slug := retroarch.IdentifyPlatform(parts[i]); slug != "" {
+			return slug
+		}
+	}
+	if game.PlatformDisplayName != "" {
+		if slug := retroarch.IdentifyPlatform(game.PlatformDisplayName); slug != "" {
 			return slug
 		}
 	}
@@ -803,6 +826,30 @@ func (a *App) SaveLastUsedCore(platformSlug, coreName string) error {
 			cfg.LastUsedCores = make(map[string]string)
 		}
 		cfg.LastUsedCores[platformSlug] = coreName
+	})
+}
+
+// GetGameController returns the configured controller type ID for the given game,
+// or the default Wii controller type if not set.
+func (a *App) GetGameController(id uint) string {
+	cfg := a.configManager.GetConfig()
+	key := strconv.FormatUint(uint64(id), 10)
+	if cfg.GameControllers != nil {
+		if val, ok := cfg.GameControllers[key]; ok && val != "" {
+			return val
+		}
+	}
+	return "769"
+}
+
+// SetGameController saves the selected controller type ID for the given game.
+func (a *App) SetGameController(id uint, controllerType string) error {
+	key := strconv.FormatUint(uint64(id), 10)
+	return a.configManager.Update(func(cfg *types.AppConfig) {
+		if cfg.GameControllers == nil {
+			cfg.GameControllers = make(map[string]string)
+		}
+		cfg.GameControllers[key] = controllerType
 	})
 }
 

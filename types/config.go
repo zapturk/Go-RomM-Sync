@@ -16,6 +16,7 @@ type AppConfig struct {
 	ClientToken         string            `json:"client_token"`        // Persistent token for the RomM server
 	UsePlatformFolder   bool              `json:"use_platform_folder"` // Store ROMs directly in platform folder
 	DisableMetadata     bool              `json:"disable_metadata"`    // Disable metadata.json generation
+	GameControllers     map[string]string `json:"game_controllers"`    // Game ID -> Controller type ID
 }
 
 // UIProvider defines standard UI logging and event emission behaviors.

@@ -157,7 +157,7 @@ func (s *Service) scanPPSSPPFiles(game *types.Game, subDir, coreName, coreDir st
 func (s *Service) scanDolphinFiles(platformSlug, coreDir string) []types.FileItem {
 	items := make([]types.FileItem, 0, 4) // USA, EUR, JPN, Wii
 
-	if platformSlug == platformWii {
+	if platformSlug == platformWii || strings.Contains(strings.ToLower(platformSlug), "wii") {
 		wiiDir := filepath.Join(coreDir, "User", wiiDirName)
 		if info, err := os.Stat(wiiDir); err == nil && info.IsDir() {
 			latestTime := getDirLatestModTime(wiiDir)

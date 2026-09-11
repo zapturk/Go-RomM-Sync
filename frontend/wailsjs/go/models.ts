@@ -15,6 +15,7 @@ export namespace types {
 	    client_token: string;
 	    use_platform_folder: boolean;
 	    disable_metadata: boolean;
+	    game_controllers: Record<string, string>;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppConfig(source);
@@ -36,6 +37,7 @@ export namespace types {
 	        this.client_token = source["client_token"];
 	        this.use_platform_folder = source["use_platform_folder"];
 	        this.disable_metadata = source["disable_metadata"];
+	        this.game_controllers = source["game_controllers"];
 	    }
 	}
 	export class FileItem {

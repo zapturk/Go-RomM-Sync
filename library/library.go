@@ -369,38 +369,78 @@ func (s *Service) findRomPath(romDir string, game *types.Game) string {
 		return ""
 	}
 
-	var filtered []os.DirEntry
-	usePlatformFolder := false
-	if s.config != nil {
-		usePlatformFolder = s.config.GetConfig().UsePlatformFolder
-	}
-	if usePlatformFolder && game != nil {
-		expectedBase := filepath.Base(game.FullPath)
-		expectedNameWithoutExt := strings.TrimSuffix(expectedBase, filepath.Ext(expectedBase))
-		for _, file := range files {
-			if file.IsDir() {
-				continue
-			}
-			nameWithoutExt := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
-			if strings.EqualFold(nameWithoutExt, expectedNameWithoutExt) {
-				filtered = append(filtered, file)
-			}
-		}
-	} else {
-		filtered = files
+	filtered := files
+	if s.config != nil && s.config.GetConfig().UsePlatformFolder && game != nil {
+		filtered = filterPlatformFolderFiles(files, game)
 	}
 
-	for _, file := range filtered {
+	if cuePath := findCueFile(romDir, filtered); cuePath != "" {
+		return cuePath
+	}
+
+	if exactPath := findExactMatch(romDir, game, filtered); exactPath != "" {
+		return exactPath
+	}
+
+	return findRecognizedRom(romDir, filtered)
+}
+
+func filterPlatformFolderFiles(files []os.DirEntry, game *types.Game) []os.DirEntry {
+	expectedBase := filepath.Base(game.FullPath)
+	expectedNameWithoutExt := strings.TrimSuffix(expectedBase, filepath.Ext(expectedBase))
+	var filtered []os.DirEntry
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		nameWithoutExt := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
+		if strings.EqualFold(nameWithoutExt, expectedNameWithoutExt) {
+			filtered = append(filtered, file)
+		}
+	}
+	return filtered
+}
+
+func findCueFile(romDir string, files []os.DirEntry) string {
+	for _, file := range files {
+		if !file.IsDir() && strings.ToLower(filepath.Ext(file.Name())) == ".cue" {
+			return filepath.Join(romDir, file.Name())
+		}
+	}
+	return ""
+}
+
+func findExactMatch(romDir string, game *types.Game, files []os.DirEntry) string {
+	if game == nil {
+		return ""
+	}
+	expectedBase := ""
+	if game.FullPath != "" {
+		expectedBase = filepath.Base(game.FullPath)
+	}
+	for _, file := range files {
 		if file.IsDir() {
 			continue
 		}
 		name := file.Name()
-		if strings.HasPrefix(name, ".") {
+		if expectedBase != "" && strings.EqualFold(name, expectedBase) {
+			return filepath.Join(romDir, name)
+		}
+		if game.FSName != "" && strings.EqualFold(name, game.FSName) {
+			return filepath.Join(romDir, name)
+		}
+	}
+	return ""
+}
+
+func findRecognizedRom(romDir string, files []os.DirEntry) string {
+	for _, file := range files {
+		if file.IsDir() || strings.HasPrefix(file.Name(), ".") {
 			continue
 		}
-		ext := strings.ToLower(filepath.Ext(name))
+		ext := strings.ToLower(filepath.Ext(file.Name()))
 		if _, ok := retroarch.CoreMap[ext]; ok || ext == ".zip" {
-			return filepath.Join(romDir, name)
+			return filepath.Join(romDir, file.Name())
 		}
 	}
 	return ""

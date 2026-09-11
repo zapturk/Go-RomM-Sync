@@ -11,3 +11,20 @@ export const APP_EVENTS = {
     GAME_STARTED: 'game-started',
     GAME_EXITED: 'game-exited',
 } as const;
+
+export interface ControllerOption {
+    id: string;
+    name: string;
+}
+
+export const WII_CONTROLLER_OPTIONS: ControllerOption[] = [
+    { id: '769', name: 'Wiimote + Nunchuk' },
+    { id: '1025', name: 'Classic Controller' },
+    { id: '1281', name: 'Classic Controller Pro' },
+    { id: '513', name: 'Wiimote (Sideways)' },
+    { id: '1', name: 'Wiimote' },
+    { id: '1537', name: 'GameCube Controller' },
+    { id: '2305', name: 'Wiimote + MotionPlus + Nunchuk' },
+    { id: '1793', name: 'Wiimote + MotionPlus' },
+];
+

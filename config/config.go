@@ -63,6 +63,9 @@ func (cm *ConfigManager) Load() error {
 	if cm.Config.LastUsedCores == nil {
 		cm.Config.LastUsedCores = make(map[string]string)
 	}
+	if cm.Config.GameControllers == nil {
+		cm.Config.GameControllers = make(map[string]string)
+	}
 
 	return nil
 }
@@ -140,6 +143,7 @@ func (cm *ConfigManager) createDefault() error {
 		RetroArchPath:       "",
 		RetroArchExecutable: "",
 		LastUsedCores:       make(map[string]string),
+		GameControllers:     make(map[string]string),
 	}
 	cm.Config = &defaultConfig
 

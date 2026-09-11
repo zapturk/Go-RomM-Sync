@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -25,7 +26,7 @@ type UIProvider interface {
 
 // Launch launches RetroArch for the given ROM path and selected executable.
 // coreOverride, when non-empty, bypasses the CoreMap lookup and forces that specific core.
-func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platform, customBiosDir string) error {
+func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platform, customBiosDir, controllerType string) error {
 	baseDir, resolvedExePath, err := resolveRetroArchPaths(exePath)
 	if err != nil {
 		return err
@@ -64,6 +65,10 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 
 	if err := ensurePCSX2Resources(ui, coreBaseName, baseDir); err != nil {
 		ui.LogErrorf("Launch: PCSX2 resource setup failed: %v", err)
+	}
+
+	if controllerType != "" && (platform == "wii" || strings.Contains(strings.ToLower(platform), "wii") || coreBaseName == "dolphin_libretro") {
+		syncDolphinRemap(ui, baseDir, romPath, controllerType)
 	}
 
 	appendConfigPath := prepareLaunchEnv(ui, baseDir, romBaseDir, platform, customBiosDir, cheevosUser, cheevosPass)
@@ -272,4 +277,94 @@ func writeTempConfig(ui UIProvider, savesDir, statesDir, systemDir, cheevosUser,
 	_ = tmpFile.Close()
 	ui.LogInfof("Launch: Created temporary config at: %s with content:\n%s", tmpFile.Name(), content)
 	return tmpFile.Name()
+}
+
+// syncDolphinRemap updates or creates per-game remap files for dolphin to match the selected controller type.
+func syncDolphinRemap(ui UIProvider, baseDir, romPath, controllerType string) {
+	if controllerType == "" {
+		return
+	}
+	romBase := filepath.Base(romPath)
+	if idx := strings.Index(romBase, "#"); idx != -1 {
+		romBase = romBase[:idx]
+	}
+	romName := strings.TrimSuffix(romBase, filepath.Ext(romBase))
+	if romName == "" {
+		return
+	}
+
+	for _, rDir := range resolveRemapDirs(baseDir) {
+		writeDolphinRemapToDir(ui, rDir, romName, controllerType)
+	}
+}
+
+// resolveRemapDirs returns all potential RetroArch remap directories for the system and base directory.
+func resolveRemapDirs(baseDir string) []string {
+	var remapDirs []string
+	isTemp := baseDir != "" && (strings.HasPrefix(baseDir, os.TempDir()) || strings.HasPrefix(baseDir, "/tmp") || strings.HasPrefix(baseDir, "/var/folders"))
+	if !isTemp {
+		if homeDir, err := os.UserHomeDir(); err == nil {
+			switch runtime.GOOS {
+			case constants.OSDarwin:
+				remapDirs = append(remapDirs, filepath.Join(homeDir, "Library", "Application Support", "RetroArch", "config", "remaps"))
+			case constants.OSLinux:
+				remapDirs = append(remapDirs,
+					filepath.Join(homeDir, ".config", "retroarch", "config", "remaps"),
+					filepath.Join(homeDir, ".var", "app", "org.libretro.RetroArch", "config", "retroarch", "config", "remaps"),
+				)
+			case constants.OSWindows:
+				if appData := os.Getenv("APPDATA"); appData != "" {
+					remapDirs = append(remapDirs, filepath.Join(appData, "RetroArch", "config", "remaps"))
+				}
+			}
+		}
+	}
+	if baseDir != "" {
+		remapDirs = append(remapDirs, filepath.Join(baseDir, "config", "remaps"))
+	}
+	return remapDirs
+}
+
+func writeDolphinRemapToDir(ui UIProvider, rDir, romName, controllerType string) {
+	coreSubDirs := []string{"dolphin-emu", "Dolphin", "dolphin_libretro"}
+	for _, cSub := range coreSubDirs {
+		targetDir := filepath.Join(rDir, cSub)
+		if err := os.MkdirAll(targetDir, 0o755); err != nil {
+			continue
+		}
+		targetFile := filepath.Join(targetDir, romName+".rmp")
+		if err := updateRemapFile(targetFile, controllerType); err != nil {
+			if ui != nil {
+				ui.LogErrorf("Launch: Failed to write remap file %s: %v", targetFile, err)
+			}
+		} else if ui != nil {
+			ui.LogInfof("Launch: Synced Dolphin remap %s (controller type: %s)", targetFile, controllerType)
+		}
+	}
+}
+
+// updateRemapFile updates the input_libretro_device_p1..4 lines in a remap file, creating it if needed.
+func updateRemapFile(targetFile, controllerType string) error {
+	data, err := os.ReadFile(targetFile)
+	var newLines []string
+	if err == nil {
+		lines := strings.Split(string(data), "\n")
+		re := regexp.MustCompile(`(?i)^\s*input_libretro_device_p[1-4]\s*=.*`)
+		for _, line := range lines {
+			if !re.MatchString(line) && strings.TrimSpace(line) != "" {
+				newLines = append(newLines, line)
+			}
+		}
+	}
+
+	devLines := make([]string, 0, 4+len(newLines))
+	devLines = append(devLines,
+		fmt.Sprintf("input_libretro_device_p1 = %q", controllerType),
+		fmt.Sprintf("input_libretro_device_p2 = %q", controllerType),
+		fmt.Sprintf("input_libretro_device_p3 = %q", controllerType),
+		fmt.Sprintf("input_libretro_device_p4 = %q", controllerType),
+	)
+	devLines = append(devLines, newLines...)
+	finalContent := strings.Join(devLines, "\n") + "\n"
+	return os.WriteFile(targetFile, []byte(finalContent), 0o644)
 }

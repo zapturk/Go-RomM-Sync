@@ -56,6 +56,9 @@ var ExtCoreMap = map[string][]string{
 	".rvz":  {"dolphin_libretro"},
 	".wbfs": {"dolphin_libretro"},
 	".wia":  {"dolphin_libretro"},
+	".wad":  {"dolphin_libretro", "prboom_libretro"},
+	".ciso": {"dolphin_libretro"},
+	".wbf1": {"dolphin_libretro"},
 
 	// Nintendo – 3DS
 	".3ds":  {constants.CoreAzahar, constants.CoreCitra},
@@ -108,7 +111,7 @@ var ExtCoreMap = map[string][]string{
 	".do":  {"apple2enh_libretro"},
 
 	// Others
-	".iso": {"pcsx2_libretro", "play_libretro", "pcsx_rearmed_libretro", "beetle_psx_libretro", "opera_libretro"},
+	".iso": {"dolphin_libretro", "pcsx2_libretro", "play_libretro", "pcsx_rearmed_libretro", "beetle_psx_libretro", "opera_libretro"},
 	".chd": {"pcsx2_libretro", "play_libretro", "pcsx_rearmed_libretro", "beetle_psx_libretro", "opera_libretro", "flycast_libretro"},
 	".sg":  {"smsplus_libretro"},
 	".col": {"gearcoleco_libretro"},
