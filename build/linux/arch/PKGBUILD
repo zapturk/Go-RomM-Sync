@@ -15,7 +15,7 @@ build() {
   cd "$srcdir/Go-RomM-Sync-$pkgver"
   go install github.com/wailsapp/wails/v2/cmd/wails@latest
   export PATH=$PATH:$(go env GOPATH)/bin
-  wails build -platform linux/amd64
+  wails build -tags webkit2_41
 }
 
 package() {

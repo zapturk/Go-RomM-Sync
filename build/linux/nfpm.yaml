@@ -13,6 +13,8 @@ license: "GPL-3.0-or-later"
 contents:
   - src: "go-romm-sync"
     dst: "/usr/bin/go-romm-sync"
+    file_info:
+      mode: 0755
   - src: "app.desktop"
     dst: "/usr/share/applications/go-romm-sync.desktop"
   - src: "../appicon.png"
@@ -27,3 +29,7 @@ overrides:
     depends:
       - gtk3
       - webkit2gtk4.1
+  archlinux:
+    depends:
+      - gtk3
+      - webkit2gtk-4.1
