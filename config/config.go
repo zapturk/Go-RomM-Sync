@@ -136,12 +136,12 @@ func (cm *ConfigManager) createDefault() error {
 	}
 
 	defaultConfig := types.AppConfig{
-		RommHost:             "",
-		Username:             "",
-		Password:             "",
-		LibraryPath:          defaultLibraryPath,
-		RetroArchPath:        "",
-		RetroArchExecutable:  "",
+		RommHost:            "",
+		Username:            "",
+		Password:            "",
+		LibraryPath:         defaultLibraryPath,
+		RetroArchPath:       "",
+		RetroArchExecutable: "",
 		LastUsedCores:       make(map[string]string),
 		GameControllers:     make(map[string]string),
 	}

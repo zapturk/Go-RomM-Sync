@@ -495,8 +495,7 @@ func (a *App) PlayRomWithCore(id uint, coreOverride string) error {
 	if err := a.checkAndDownloadFirmware(id); err != nil {
 		a.LogErrorf("Firmware check failed: %v", err)
 	}
-	libPath := a.GetLibraryPath()
-	if libPath == "" {
+	if a.GetLibraryPath() == "" {
 		return fmt.Errorf("library path is not configured")
 	}
 
@@ -511,28 +510,46 @@ func (a *App) PlayRomWithCore(id uint, coreOverride string) error {
 		return fmt.Errorf("no valid ROM file found in %s, please download it first", romDir)
 	}
 
+	exePath, err := a.resolveRetroArchExecutable()
+	if err != nil {
+		return err
+	}
+
+	platformSlug, _, controllerType := a.resolveCoreAndController(id, &game, coreOverride)
+	cheevosUser, cheevosPass := a.GetCheevosCredentials()
+
+	err = retroarch.Launch(a, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platformSlug, a.GetBiosDir(), controllerType)
+	if err != nil {
+		return fmt.Errorf("failed to launch game: %w", err)
+	}
+
+	return nil
+}
+
+func (a *App) resolveRetroArchExecutable() (string, error) {
 	exePath := a.GetRetroArchPath()
 	if exePath == "" {
 		var err error
 		exePath, err = a.SelectRetroArchExecutable()
 		if err != nil {
-			return fmt.Errorf("retroarch not configured: %w", err)
+			return "", fmt.Errorf("retroarch not configured: %w", err)
 		}
 		if exePath == "" {
-			return fmt.Errorf("launch cancelled: RetroArch executable not selected")
+			return "", fmt.Errorf("launch cancelled: RetroArch executable not selected")
 		}
-	} else {
-		if _, err := os.Stat(exePath); err != nil {
-			return fmt.Errorf("retroarch executable not found at configured path: %s", exePath)
-		}
+		return exePath, nil
 	}
+	if _, err := os.Stat(exePath); err != nil {
+		return "", fmt.Errorf("retroarch executable not found at configured path: %s", exePath)
+	}
+	return exePath, nil
+}
 
-	// Save preference before launching
-	platformSlug := a.GetResolvedPlatformSlug(&game)
-	coreToSave := coreOverride
+func (a *App) resolveCoreAndController(id uint, game *types.Game, coreOverride string) (platformSlug, coreToSave, controllerType string) {
+	platformSlug = a.GetResolvedPlatformSlug(game)
+	coreToSave = coreOverride
 	if coreToSave == "" {
-		cores := retroarch.GetCoresForPlatform(platformSlug)
-		if len(cores) > 0 {
+		if cores := retroarch.GetCoresForPlatform(platformSlug); len(cores) > 0 {
 			coreToSave = cores[0]
 		}
 	}
@@ -540,17 +557,10 @@ func (a *App) PlayRomWithCore(id uint, coreOverride string) error {
 		_ = a.SaveLastUsedCore(platformSlug, coreToSave)
 	}
 
-	cheevosUser, cheevosPass := a.GetCheevosCredentials()
-	controllerType := ""
 	if platformSlug == "wii" || strings.Contains(strings.ToLower(platformSlug), "wii") || coreToSave == "dolphin_libretro" {
 		controllerType = a.GetGameController(id)
 	}
-	err = retroarch.Launch(a, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platformSlug, a.GetBiosDir(), controllerType)
-	if err != nil {
-		return fmt.Errorf("failed to launch game: %w", err)
-	}
-
-	return nil
+	return platformSlug, coreToSave, controllerType
 }
 
 // findRomPath looks for a valid ROM file in the given directory.
