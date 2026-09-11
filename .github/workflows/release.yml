@@ -86,6 +86,7 @@ jobs:
           cd build/linux
           VERSION=$VERSION nfpm pkg --packager deb --target ../../
           VERSION=$VERSION nfpm pkg --packager rpm --target ../../
+          VERSION=$VERSION nfpm pkg --packager archlinux --target ../../
           
           # Arch Linux PKGBUILD
           cd arch
@@ -125,6 +126,7 @@ jobs:
             *.zip
             *.deb
             *.rpm
+            *.pkg.tar.zst
             go-romm-sync-arch-PKGBUILD
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

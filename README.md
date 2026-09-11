@@ -120,10 +120,11 @@ We provide native packages for major Linux distributions on our [Releases page](
   ```bash
   sudo dnf install ./go-romm-sync-<version>-1.x86_64.rpm
   ```
-- **Arch Linux**: Download the `go-romm-sync-arch-PKGBUILD`, rename it to `PKGBUILD`, and run:
+- **Arch Linux**: Download and install the `.pkg.tar.zst` package:
   ```bash
-  makepkg -si
+  sudo pacman -U ./go-romm-sync-<version>-1-x86_64.pkg.tar.zst
   ```
+  *(Alternatively, build from source using `go-romm-sync-arch-PKGBUILD` renamed to `PKGBUILD` and `makepkg -si`)*
 
 ### Manual Installation
 
