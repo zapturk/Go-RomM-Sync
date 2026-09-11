@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -540,7 +541,11 @@ func (a *App) PlayRomWithCore(id uint, coreOverride string) error {
 	}
 
 	cheevosUser, cheevosPass := a.GetCheevosCredentials()
-	err = retroarch.Launch(a, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platformSlug, a.GetBiosDir())
+	controllerType := ""
+	if platformSlug == "wii" || strings.Contains(strings.ToLower(platformSlug), "wii") || coreToSave == "dolphin_libretro" {
+		controllerType = a.GetGameController(id)
+	}
+	err = retroarch.Launch(a, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platformSlug, a.GetBiosDir(), controllerType)
 	if err != nil {
 		return fmt.Errorf("failed to launch game: %w", err)
 	}
@@ -783,10 +788,18 @@ func (a *App) GetResolvedPlatformSlug(game *types.Game) string {
 	if game.Platform.Slug != "" {
 		return game.Platform.Slug
 	}
+	if game.PlatformSlug != "" {
+		return game.PlatformSlug
+	}
 	relDir := filepath.Dir(game.FullPath)
 	parts := strings.Split(filepath.ToSlash(relDir), "/")
 	for i := len(parts) - 1; i >= 0; i-- {
 		if slug := retroarch.IdentifyPlatform(parts[i]); slug != "" {
+			return slug
+		}
+	}
+	if game.PlatformDisplayName != "" {
+		if slug := retroarch.IdentifyPlatform(game.PlatformDisplayName); slug != "" {
 			return slug
 		}
 	}
@@ -803,6 +816,33 @@ func (a *App) SaveLastUsedCore(platformSlug, coreName string) error {
 			cfg.LastUsedCores = make(map[string]string)
 		}
 		cfg.LastUsedCores[platformSlug] = coreName
+	})
+}
+
+// GetGameController returns the configured controller type ID for the given game,
+// or the default Wii controller type if not set.
+func (a *App) GetGameController(id uint) string {
+	cfg := a.configManager.GetConfig()
+	key := strconv.FormatUint(uint64(id), 10)
+	if cfg.GameControllers != nil {
+		if val, ok := cfg.GameControllers[key]; ok && val != "" {
+			return val
+		}
+	}
+	if cfg.DefaultWiiController != "" {
+		return cfg.DefaultWiiController
+	}
+	return "769"
+}
+
+// SetGameController saves the selected controller type ID for the given game.
+func (a *App) SetGameController(id uint, controllerType string) error {
+	key := strconv.FormatUint(uint64(id), 10)
+	return a.configManager.Update(func(cfg *types.AppConfig) {
+		if cfg.GameControllers == nil {
+			cfg.GameControllers = make(map[string]string)
+		}
+		cfg.GameControllers[key] = controllerType
 	})
 }
 

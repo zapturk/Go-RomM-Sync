@@ -80,7 +80,7 @@ func TestLaunch_Errors(t *testing.T) {
 	ui := &MockUI{}
 
 	// Test missing exe
-	err := Launch(ui, "/non/existent/retroarch", "rom.sfc", "", "", "", "", "")
+	err := Launch(ui, "/non/existent/retroarch", "rom.sfc", "", "", "", "", "", "")
 	if err == nil {
 		t.Error("Expected error for non-existent executable")
 	}
@@ -91,7 +91,7 @@ func TestLaunch_Errors(t *testing.T) {
 	exePath := filepath.Join(tempDir, "retroarch")
 	os.WriteFile(exePath, []byte("fake"), 0o755)
 
-	err = Launch(ui, exePath, "rom.unknown", "", "", "", "", "")
+	err = Launch(ui, exePath, "rom.unknown", "", "", "", "", "", "")
 	if err == nil {
 		t.Error("Expected error for unknown extension")
 	}
@@ -114,7 +114,7 @@ func TestLaunch_Zip(t *testing.T) {
 	w.Close()
 	os.WriteFile(zipPath, buf.Bytes(), 0o644)
 
-	err := Launch(ui, exePath, zipPath, "", "", "", "", "")
+	err := Launch(ui, exePath, zipPath, "", "", "", "", "", "")
 	// It might error because coresDir/cores/... missing, which is fine, we just want to see it gets there.
 	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
 		t.Errorf("Unexpected error during zip launch: %v", err)
@@ -132,7 +132,7 @@ func TestLaunch_Pico8(t *testing.T) {
 	p8Path := filepath.Join(tempDir, "game.png")
 	os.WriteFile(p8Path, []byte("png data"), 0o644)
 
-	err := Launch(ui, exePath, p8Path, "", "", "", "", "")
+	err := Launch(ui, exePath, p8Path, "", "", "", "", "", "")
 	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
 		t.Errorf("Unexpected error during pico8 launch: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestLaunch_CoreNotSupported(t *testing.T) {
 
 	// This should trigger DownloadCore, which will return 404,
 	// and Launch should catch it and emit "Core Not Supported".
-	err := Launch(ui, exePath, "game.sfc", "", "", "", "", "")
+	err := Launch(ui, exePath, "game.sfc", "", "", "", "", "", "")
 	if err == nil {
 		t.Fatal("Expected error from Launch")
 	}
@@ -187,7 +187,7 @@ func TestLaunch_ExeDir(t *testing.T) {
 	exePath := filepath.Join(tempDir, exeName)
 	os.WriteFile(exePath, []byte("fake"), 0o755)
 
-	err := Launch(ui, tempDir, "rom.sfc", "", "", "", "", "")
+	err := Launch(ui, tempDir, "rom.sfc", "", "", "", "", "", "")
 	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
 		t.Errorf("Unexpected error during exe dir launch: %v", err)
 	}
@@ -204,7 +204,7 @@ func TestLaunch_AppBundle(t *testing.T) {
 	appPath := filepath.Join(tempDir, "RetroArch.app")
 	os.MkdirAll(appPath, 0o755)
 
-	err := Launch(ui, appPath, "rom.sfc", "", "", "", "", "")
+	err := Launch(ui, appPath, "rom.sfc", "", "", "", "", "", "")
 	// Should at least pass the directory check and fail on core/binary lookup
 	if err != nil && strings.Contains(err.Error(), "retroarch executable not found in directory") {
 		t.Errorf("Failed to resolve .app bundle: %v", err)
@@ -223,7 +223,7 @@ func TestLaunch_CoreOverride(t *testing.T) {
 	os.WriteFile(romPath, []byte("rom data"), 0o644)
 
 	// Should fail at core download/find, not at the override logic
-	err := Launch(ui, exePath, romPath, "", "", "my_custom_core_libretro", "", "")
+	err := Launch(ui, exePath, romPath, "", "", "my_custom_core_libretro", "", "", "")
 	if err != nil && !strings.Contains(err.Error(), "core not supported") && !strings.Contains(err.Error(), "emulator core not found") {
 		t.Errorf("Expected core-not-found or not-supported error with override, got: %v", err)
 	}
@@ -243,7 +243,7 @@ func TestLaunch_PathTraversal(t *testing.T) {
 	// Attempt a path traversal. It should be sanitized to "evil.dll" (or .so/.dylib)
 	// and fail because it's not in the cores directory, rather than attempting to load
 	// a library from a completely different path.
-	err := Launch(ui, exePath, romPath, "", "", "../../evil", "", "")
+	err := Launch(ui, exePath, romPath, "", "", "../../evil", "", "", "")
 	if err != nil && !strings.Contains(err.Error(), "core not supported") && !strings.Contains(err.Error(), "emulator core not found") {
 		t.Errorf("Expected core-not-found or not-supported error for sanitized path, got: %v", err)
 	}
@@ -253,10 +253,7 @@ func TestLaunch_Events(t *testing.T) {
 	ui := &MockUI{
 		EventChan: make(chan string, 20),
 	}
-	tempDir, err := os.MkdirTemp("", "launch_events")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
+	tempDir, _ := os.MkdirTemp("", "launch_events")
 	defer os.RemoveAll(tempDir)
 
 	exePath := filepath.Join(tempDir, "retroarch")
@@ -271,7 +268,7 @@ func TestLaunch_Events(t *testing.T) {
 	}
 
 	// Launch should return nil or a core-not-found error, but should trigger the start event regardless if it reaches that point.
-	err = Launch(ui, exePath, romPath, "", "", "", "", "")
+	err := Launch(ui, exePath, romPath, "", "", "", "", "", "")
 	if err != nil && !strings.Contains(err.Error(), "emulator core not found") {
 		// Only log an actual systemic error, core-not-found is expected in this mock environment
 		t.Logf("Launch returned expected core error: %v", err)
@@ -296,5 +293,80 @@ Loop:
 
 	if !found {
 		t.Log("Warning: EventGameStarted not detected in time via channel.")
+	}
+}
+
+func TestWriteTempConfig_ControllerType(t *testing.T) {
+	ui := &MockUI{}
+	tempDir, err := os.MkdirTemp("", "test_temp_config")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	cfgPath := writeTempConfig(ui, tempDir, tempDir, tempDir, "", "", "1025")
+	if cfgPath == "" {
+		t.Fatal("writeTempConfig returned empty path")
+	}
+	defer os.Remove(cfgPath)
+
+	content, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("failed to read created config: %v", err)
+	}
+
+	sContent := string(content)
+	if !strings.Contains(sContent, `input_libretro_device_p1 = "1025"`) {
+		t.Errorf("Expected input_libretro_device_p1 = \"1025\", got:\n%s", sContent)
+	}
+	if !strings.Contains(sContent, `input_libretro_device_p2 = "1025"`) {
+		t.Errorf("Expected input_libretro_device_p2 = \"1025\", got:\n%s", sContent)
+	}
+}
+
+func TestSyncDolphinRemap(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "test_remap")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	remapDir := filepath.Join(tempDir, "config", "remaps", "dolphin-emu")
+	if err := os.MkdirAll(remapDir, 0o755); err != nil {
+		t.Fatalf("failed to create remap dir: %v", err)
+	}
+
+	romPath := filepath.Join(tempDir, "Mario Kart Wii.wbfs")
+	remapFile := filepath.Join(remapDir, "Mario Kart Wii.rmp")
+	initialContent := "input_player1_b = \"0\"\ninput_libretro_device_p1 = \"1\"\n"
+	if err := os.WriteFile(remapFile, []byte(initialContent), 0o644); err != nil {
+		t.Fatalf("failed to write initial remap: %v", err)
+	}
+
+	syncDolphinRemap(nil, tempDir, romPath, "1025")
+
+	updated, err := os.ReadFile(remapFile)
+	if err != nil {
+		t.Fatalf("failed to read updated remap: %v", err)
+	}
+
+	sUpdated := string(updated)
+	if !strings.Contains(sUpdated, `input_libretro_device_p1 = "1025"`) {
+		t.Errorf("Expected updated remap to contain device 1025, got:\n%s", sUpdated)
+	}
+	if !strings.Contains(sUpdated, `input_player1_b = "0"`) {
+		t.Errorf("Expected updated remap to preserve custom bindings, got:\n%s", sUpdated)
+	}
+
+	// Also verify creation of remap in new directory when none exists
+	newRomPath := filepath.Join(tempDir, "Super Mario Galaxy.wbfs")
+	syncDolphinRemap(nil, tempDir, newRomPath, "769")
+	createdFile := filepath.Join(remapDir, "Super Mario Galaxy.rmp")
+	createdData, err := os.ReadFile(createdFile)
+	if err != nil {
+		t.Fatalf("failed to read newly created remap: %v", err)
+	}
+	if !strings.Contains(string(createdData), `input_libretro_device_p1 = "769"`) {
+		t.Errorf("Expected created remap to contain device 769, got:\n%s", string(createdData))
 	}
 }

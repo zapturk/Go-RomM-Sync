@@ -453,3 +453,40 @@ func (m *MockAppForTest) GetRom(id uint) (types.Game, error) {
 func (m *MockAppForTest) GetRomMHost() string { return "" }
 func (m *MockAppForTest) GetUsername() string { return "" }
 func (m *MockAppForTest) GetPassword() string { return "" }
+
+func TestGetSetGameController(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "app-controller-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tmpDir, "config.json")
+	cm.Config = &types.AppConfig{}
+
+	app := NewApp(cm)
+
+	// 1. Default should be "769" when nothing configured
+	defaultCtrl := app.GetGameController(42)
+	if defaultCtrl != "769" {
+		t.Errorf("Expected default controller '769', got %s", defaultCtrl)
+	}
+
+	// 2. Set custom controller for game
+	if err := app.SetGameController(42, "1025"); err != nil {
+		t.Fatalf("SetGameController failed: %v", err)
+	}
+
+	// 3. Verify it retrieves the updated controller
+	ctrl := app.GetGameController(42)
+	if ctrl != "1025" {
+		t.Errorf("Expected controller '1025', got %s", ctrl)
+	}
+
+	// 4. Other game should still return default
+	otherCtrl := app.GetGameController(99)
+	if otherCtrl != "769" {
+		t.Errorf("Expected other game to return default '769', got %s", otherCtrl)
+	}
+}

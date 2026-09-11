@@ -3,6 +3,7 @@ import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRomW
     GetSaves, GetStates, DeleteSave, DeleteState, UploadSave, UploadState,
     GetServerSaves, GetServerStates, DownloadServerSave, DownloadServerState,
     OpenGameFolder, GetFirmware, SetPlatformFirmware, GetConfig, CancelDownload,
+    GetGameController, SetGameController,
 } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
@@ -11,7 +12,7 @@ import { TrashIcon, FolderIcon, PlayIcon, DownloadIcon } from "./components/Icon
 import { FileItemRow, getItemName, getItemCore } from "./FileItemRow";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
-import { TIMESTAMP_REGEX, APP_EVENTS } from './constants';
+import { TIMESTAMP_REGEX, APP_EVENTS, WII_CONTROLLER_OPTIONS } from './constants';
 import { LegendItem } from './components/LegendItem';
 
 const decodeHtml = (html: string) => {
@@ -96,8 +97,10 @@ const handleEscapeKey = (
     e: KeyboardEvent,
     isPickerOpen: boolean,
     isFirmwarePickerOpen: boolean,
+    isControllerPickerOpen: boolean,
     closePicker: () => void,
-    closeFirmwarePicker: () => void
+    closeFirmwarePicker: () => void,
+    closeControllerPicker: () => void
 ): boolean => {
     if (e.key !== 'Escape') return false;
     if (isPickerOpen) {
@@ -110,6 +113,12 @@ const handleEscapeKey = (
         e.preventDefault();
         e.stopImmediatePropagation();
         closeFirmwarePicker();
+        return true;
+    }
+    if (isControllerPickerOpen) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        closeControllerPicker();
         return true;
     }
     return false;
@@ -299,6 +308,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const [firmwares, setFirmwares] = useState<types.Firmware[]>([]);
     const [selectedFirmwareId, setSelectedFirmwareId] = useState<number>(0);
     const [isFirmwarePickerOpen, setIsFirmwarePickerOpen] = useState(false);
+    const [selectedControllerType, setSelectedControllerType] = useState<string>('769');
+    const [isControllerPickerOpen, setIsControllerPickerOpen] = useState(false);
     const [offlineMode, setOfflineMode] = useState(false);
 
     const fadeTimeoutRef = useRef<any>(null);
@@ -419,6 +430,28 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
             }).catch((err: any) => {
                 console.warn('GetCoresForGame failed:', err);
             });
+            GetGameController(gameId).then((ctrl: string) => {
+                if (ctrl) setSelectedControllerType(ctrl);
+            }).catch((err: any) => {
+                console.warn('GetGameController failed:', err);
+            });
+        }
+    }, [gameId]);
+
+    const platformSlug = (game?.platform_slug || game?.platform?.slug || '').toLowerCase();
+    const platformName = (game?.platform_display_name || game?.platform?.name || '').toLowerCase();
+    const fullPath = (game?.full_path || '').toLowerCase();
+    const isGameCube = platformSlug === 'gamecube' || platformSlug === 'gc' || platformSlug.includes('gamecube') || platformName.includes('gamecube') || fullPath.includes('/gamecube/') || fullPath.includes('\\gamecube\\');
+    const isWiiPlatform = platformSlug === 'wii' || platformSlug.includes('wii') || platformName.includes('wii') || fullPath.includes('/wii') || fullPath.includes('\\wii');
+    const isDolphinCore = selectedCore.includes('dolphin') || availableCores.some(c => c.includes('dolphin'));
+    const isWii = isWiiPlatform || (isDolphinCore && !isGameCube);
+
+    const handleSelectController = useCallback((controllerId: string) => {
+        setSelectedControllerType(controllerId);
+        if (gameId) {
+            SetGameController(gameId, controllerId).catch((err: any) => {
+                console.error('Failed to set game controller:', err);
+            });
         }
     }, [gameId]);
 
@@ -430,6 +463,11 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const closeFirmwarePicker = useCallback(() => {
         setIsFirmwarePickerOpen(false);
         setTimeout(() => setFocus('firmware-selector'), 100);
+    }, []);
+
+    const closeControllerPicker = useCallback(() => {
+        setIsControllerPickerOpen(false);
+        setTimeout(() => setFocus('controller-selector'), 100);
     }, []);
 
     // Download Handler
@@ -587,12 +625,12 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 handleSmartSync();
             }
 
-            handleEscapeKey(e, isPickerOpen, isFirmwarePickerOpen, closePicker, closeFirmwarePicker);
+            handleEscapeKey(e, isPickerOpen, isFirmwarePickerOpen, isControllerPickerOpen, closePicker, closeFirmwarePicker, closeControllerPicker);
         };
 
         window.addEventListener('keydown', handleKeyDown, true);
         return () => window.removeEventListener('keydown', handleKeyDown, true);
-    }, [isPickerOpen, isFirmwarePickerOpen, closePicker, closeFirmwarePicker, handleSmartSync]);
+    }, [isPickerOpen, isFirmwarePickerOpen, isControllerPickerOpen, closePicker, closeFirmwarePicker, closeControllerPicker, handleSmartSync]);
 
 
     return (
@@ -667,6 +705,32 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                             </div>
                         </div>
                     )}
+                    {isControllerPickerOpen && (
+                        <div className="core-picker-overlay" onClick={closeControllerPicker}>
+                            <div className="core-picker-modal" onClick={e => e.stopPropagation()}>
+                                <div className="core-picker-header">
+                                    <h3>Select Controller Type</h3>
+                                </div>
+                                <div className="core-picker-list">
+                                    {WII_CONTROLLER_OPTIONS.map((opt, idx) => (
+                                        <PickerOption
+                                            key={opt.id}
+                                            name={opt.name}
+                                            isSelected={opt.id === selectedControllerType}
+                                            isFirst={idx === 0}
+                                            onSelect={() => {
+                                                handleSelectController(opt.id);
+                                                closeControllerPicker();
+                                            }}
+                                            focusKey={`controller-option-${idx}`}
+                                            className="core-option"
+                                        />
+                                    ))}
+                                </div>
+                                <CancelButton onCancel={closeControllerPicker} />
+                            </div>
+                        </div>
+                    )}
                     <div className="game-page-content">
                         <div className="game-sidebar">
                             <GameCover game={game} className="game-page-cover" />
@@ -718,6 +782,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                                     currentCore={selectedCore}
                                                     isDisabled={isPlaying}
                                                     hasFirmware={firmwares.length > 0}
+                                                    hasController={isWii}
                                                     hasSaves={hasSavesOrStates}
                                                     onClick={() => setIsPickerOpen(true)}
                                                     onFocusRequest={() => setFocus('core-selector')}
@@ -725,8 +790,24 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                                 />
                                             )}
                                         </div>
+                                        {isWii && (
+                                            <div className="game-controller-section">
+                                                <h3>Controller Type</h3>
+                                                <InnerControllerSelector
+                                                    currentController={selectedControllerType}
+                                                    isDisabled={isPlaying}
+                                                    hasCore={availableCores.length > 0}
+                                                    hasFirmware={firmwares.length > 0}
+                                                    hasSaves={hasSavesOrStates}
+                                                    onClick={() => setIsControllerPickerOpen(true)}
+                                                    onFocusRequest={() => setFocus('controller-selector')}
+                                                    onFocusSaves={focusFirstAvailableSaveState}
+                                                />
+                                            </div>
+                                        )}
                                         <InnerPlayButton
                                             isDisabled={isPlaying}
+                                            hasController={isWii}
                                             hasCore={availableCores.length > 0}
                                             hasFirmware={firmwares.length > 0}
                                             hasSaves={hasSavesOrStates}
@@ -935,10 +1016,11 @@ function InnerDownloadButton({ isDisabled, isDownloading, isExtracting, hasSaves
     );
 }
 
-function InnerCoreSelector({ currentCore, isDisabled, hasFirmware, hasSaves, onClick, onFocusRequest, onFocusSaves }: {
+function InnerCoreSelector({ currentCore, isDisabled, hasFirmware, hasController, hasSaves, onClick, onFocusRequest, onFocusSaves }: {
     currentCore: string;
     isDisabled: boolean;
     hasFirmware: boolean;
+    hasController?: boolean;
     hasSaves: boolean;
     onClick: () => void;
     onFocusRequest: () => void;
@@ -952,7 +1034,8 @@ function InnerCoreSelector({ currentCore, isDisabled, hasFirmware, hasSaves, onC
                     if (hasFirmware) setFocus('firmware-selector');
                     return false;
                 case 'down':
-                    setFocus('play-button');
+                    if (hasController) setFocus('controller-selector');
+                    else setFocus('play-button');
                     return false;
                 case 'right':
                     hasSaves ? onFocusSaves() : setFocus('play-button');
@@ -986,8 +1069,65 @@ function InnerCoreSelector({ currentCore, isDisabled, hasFirmware, hasSaves, onC
     );
 }
 
-function InnerPlayButton({ isDisabled, hasCore, hasFirmware, hasSaves, onPlay, onFocusSaves }: {
+function InnerControllerSelector({ currentController, isDisabled, hasCore, hasFirmware, hasSaves, onClick, onFocusRequest, onFocusSaves }: {
+    currentController: string;
     isDisabled: boolean;
+    hasCore: boolean;
+    hasFirmware: boolean;
+    hasSaves: boolean;
+    onClick: () => void;
+    onFocusRequest: () => void;
+    onFocusSaves: () => void;
+}) {
+    const { ref, focused } = useFocusable({
+        focusKey: 'controller-selector',
+        onArrowPress: (direction: string) => {
+            switch (direction) {
+                case 'up':
+                    if (hasCore) setFocus('core-selector');
+                    else if (hasFirmware) setFocus('firmware-selector');
+                    return false;
+                case 'down':
+                    setFocus('play-button');
+                    return false;
+                case 'right':
+                    hasSaves ? onFocusSaves() : setFocus('play-button');
+                    return false;
+                case 'left':
+                    return false;
+                default:
+                    return true;
+            }
+        },
+        onEnterPress: onClick
+    });
+
+    const currentOption = WII_CONTROLLER_OPTIONS.find(opt => opt.id === currentController);
+    const displayName = currentOption ? currentOption.name : 'Wiimote + Nunchuk';
+
+    return (
+        <div
+            id="controller-select"
+            ref={ref}
+            className={`controller-selector-button ${focused ? 'focused' : ''} ${isDisabled ? 'disabled' : ''}`}
+            onMouseEnter={() => {
+                if (getMouseActive() && !isDisabled) {
+                    onFocusRequest();
+                }
+            }}
+            onClick={onClick}
+        >
+            <span className="current-controller">
+                {displayName}
+            </span>
+            <div className="dropdown-arrow"></div>
+        </div>
+    );
+}
+
+function InnerPlayButton({ isDisabled, hasController, hasCore, hasFirmware, hasSaves, onPlay, onFocusSaves }: {
+    isDisabled: boolean;
+    hasController?: boolean;
     hasCore: boolean;
     hasFirmware: boolean;
     hasSaves: boolean;
@@ -999,7 +1139,8 @@ function InnerPlayButton({ isDisabled, hasCore, hasFirmware, hasSaves, onPlay, o
         onArrowPress: (direction: string) => {
             switch (direction) {
                 case 'up':
-                    if (hasCore) setFocus('core-selector');
+                    if (hasController) setFocus('controller-selector');
+                    else if (hasCore) setFocus('core-selector');
                     else if (hasFirmware) setFocus('firmware-selector');
                     return false;
                 case 'down':

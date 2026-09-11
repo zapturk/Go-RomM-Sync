@@ -332,7 +332,8 @@ body.mouse-mode .game-card:hover,
 }
 
 .game-firmware-section,
-.game-core-section {
+.game-core-section,
+.game-controller-section {
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -340,7 +341,8 @@ body.mouse-mode .game-card:hover,
 }
 
 .game-firmware-section h3,
-.game-core-section h3 {
+.game-core-section h3,
+.game-controller-section h3 {
     margin-top: 0;
     margin-bottom: 8px;
     font-size: 0.9rem;
@@ -415,7 +417,8 @@ body.mouse-mode .game-card:hover,
 
 /* Core Selector Button */
 .core-selector-button,
-.firmware-selector-button {
+.firmware-selector-button,
+.controller-selector-button {
     flex: 1;
     background: rgba(0, 0, 0, 0.35);
     border: 1px solid rgba(255, 255, 255, 0.15);
@@ -435,7 +438,8 @@ body.mouse-mode .game-card:hover,
 }
 
 .core-selector-button.focused,
-.firmware-selector-button.focused {
+.firmware-selector-button.focused,
+.controller-selector-button.focused {
     outline: 3px solid #fff;
     border-color: #fff;
     background-color: rgba(255, 255, 255, 0.1);
@@ -1073,15 +1077,17 @@ body.input-keyboard .show-keyboard {
     color: #888;
 }
 
-/* Firmware & Core Selection */
+/* Firmware, Core & Controller Selection */
 .game-firmware-section,
-.game-core-section {
+.game-core-section,
+.game-controller-section {
     margin-top: -5px;
     text-align: left;
 }
 
 .game-firmware-section h3,
-.game-core-section h3 {
+.game-core-section h3,
+.game-controller-section h3 {
     font-size: 1.1rem;
     color: #ccc;
     margin-bottom: 12px;

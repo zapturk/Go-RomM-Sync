@@ -63,6 +63,12 @@ func (cm *ConfigManager) Load() error {
 	if cm.Config.LastUsedCores == nil {
 		cm.Config.LastUsedCores = make(map[string]string)
 	}
+	if cm.Config.GameControllers == nil {
+		cm.Config.GameControllers = make(map[string]string)
+	}
+	if cm.Config.DefaultWiiController == "" {
+		cm.Config.DefaultWiiController = "769"
+	}
 
 	return nil
 }
@@ -133,13 +139,15 @@ func (cm *ConfigManager) createDefault() error {
 	}
 
 	defaultConfig := types.AppConfig{
-		RommHost:            "",
-		Username:            "",
-		Password:            "",
-		LibraryPath:         defaultLibraryPath,
-		RetroArchPath:       "",
-		RetroArchExecutable: "",
-		LastUsedCores:       make(map[string]string),
+		RommHost:             "",
+		Username:             "",
+		Password:             "",
+		LibraryPath:          defaultLibraryPath,
+		RetroArchPath:        "",
+		RetroArchExecutable:  "",
+		LastUsedCores:        make(map[string]string),
+		GameControllers:      make(map[string]string),
+		DefaultWiiController: "769",
 	}
 	cm.Config = &defaultConfig
 

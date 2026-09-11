@@ -94,6 +94,10 @@ export function GetFirmware(arg1) {
   return window['go']['main']['App']['GetFirmware'](arg1);
 }
 
+export function GetGameController(arg1) {
+  return window['go']['main']['App']['GetGameController'](arg1);
+}
+
 export function GetLibrary(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['GetLibrary'](arg1, arg2, arg3, arg4);
 }
@@ -244,6 +248,10 @@ export function SelectLibraryPath() {
 
 export function SelectRetroArchExecutable() {
   return window['go']['main']['App']['SelectRetroArchExecutable']();
+}
+
+export function SetGameController(arg1, arg2) {
+  return window['go']['main']['App']['SetGameController'](arg1, arg2);
 }
 
 export function SetPlatformFirmware(arg1, arg2) {
