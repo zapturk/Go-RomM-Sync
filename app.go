@@ -829,9 +829,6 @@ func (a *App) GetGameController(id uint) string {
 			return val
 		}
 	}
-	if cfg.DefaultWiiController != "" {
-		return cfg.DefaultWiiController
-	}
 	return "769"
 }
 

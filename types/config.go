@@ -17,7 +17,6 @@ type AppConfig struct {
 	UsePlatformFolder    bool              `json:"use_platform_folder"`    // Store ROMs directly in platform folder
 	DisableMetadata      bool              `json:"disable_metadata"`       // Disable metadata.json generation
 	GameControllers      map[string]string `json:"game_controllers"`       // Game ID -> Controller type ID
-	DefaultWiiController string            `json:"default_wii_controller"` // Default controller type for Wii games
 }
 
 // UIProvider defines standard UI logging and event emission behaviors.

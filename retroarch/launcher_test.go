@@ -296,33 +296,6 @@ Loop:
 	}
 }
 
-func TestWriteTempConfig_ControllerType(t *testing.T) {
-	ui := &MockUI{}
-	tempDir, err := os.MkdirTemp("", "test_temp_config")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	cfgPath := writeTempConfig(ui, tempDir, tempDir, tempDir, "", "", "1025")
-	if cfgPath == "" {
-		t.Fatal("writeTempConfig returned empty path")
-	}
-	defer os.Remove(cfgPath)
-
-	content, err := os.ReadFile(cfgPath)
-	if err != nil {
-		t.Fatalf("failed to read created config: %v", err)
-	}
-
-	sContent := string(content)
-	if !strings.Contains(sContent, `input_libretro_device_p1 = "1025"`) {
-		t.Errorf("Expected input_libretro_device_p1 = \"1025\", got:\n%s", sContent)
-	}
-	if !strings.Contains(sContent, `input_libretro_device_p2 = "1025"`) {
-		t.Errorf("Expected input_libretro_device_p2 = \"1025\", got:\n%s", sContent)
-	}
-}
 
 func TestSyncDolphinRemap(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "test_remap")

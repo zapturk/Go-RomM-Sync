@@ -71,7 +71,7 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 		syncDolphinRemap(ui, baseDir, romPath, controllerType)
 	}
 
-	appendConfigPath := prepareLaunchEnv(ui, baseDir, romBaseDir, platform, customBiosDir, cheevosUser, cheevosPass, controllerType)
+	appendConfigPath := prepareLaunchEnv(ui, baseDir, romBaseDir, platform, customBiosDir, cheevosUser, cheevosPass)
 
 	runRetroArch(ui, exePath, baseDir, corePath, romPath, appendConfigPath, tempRomPath)
 
@@ -214,7 +214,7 @@ func ensurePCSX2Resources(ui UIProvider, coreBaseName, baseDir string) error {
 }
 
 // prepareLaunchEnv sets up the directories and config file needed for a RetroArch launch.
-func prepareLaunchEnv(ui UIProvider, baseDir, romBaseDir, platform, customBiosDir, cheevosUser, cheevosPass, controllerType string) string {
+func prepareLaunchEnv(ui UIProvider, baseDir, romBaseDir, platform, customBiosDir, cheevosUser, cheevosPass string) string {
 	savesDir := filepath.Join(romBaseDir, constants.DirSaves)
 	statesDir := filepath.Join(romBaseDir, constants.DirStates)
 	ui.LogInfof("Launch: Saves dir: %s, States dir: %s", savesDir, statesDir)
@@ -227,7 +227,7 @@ func prepareLaunchEnv(ui UIProvider, baseDir, romBaseDir, platform, customBiosDi
 		ui.LogErrorf("MkdirAll failed for %s: %v", systemDir, err)
 	}
 
-	return writeTempConfig(ui, savesDir, statesDir, systemDir, cheevosUser, cheevosPass, controllerType)
+	return writeTempConfig(ui, savesDir, statesDir, systemDir, cheevosUser, cheevosPass)
 }
 
 // resolveSystemDir returns the RetroArch system directory, preferring a custom
@@ -252,7 +252,7 @@ func resolveSystemDir(ui UIProvider, baseDir, platform, customBiosDir string) st
 
 // writeTempConfig writes a temporary RetroArch --appendconfig file and returns
 // its path. Returns "" if the file could not be created (non-fatal).
-func writeTempConfig(ui UIProvider, savesDir, statesDir, systemDir, cheevosUser, cheevosPass, controllerType string) string {
+func writeTempConfig(ui UIProvider, savesDir, statesDir, systemDir, cheevosUser, cheevosPass string) string {
 	tmpFile, err := os.CreateTemp("", "retroarch_config_*.cfg")
 	if err != nil {
 		ui.LogErrorf("Launch: Failed to create temporary config: %v", err)
@@ -267,12 +267,6 @@ func writeTempConfig(ui UIProvider, savesDir, statesDir, systemDir, cheevosUser,
 		content += fmt.Sprintf(
 			"cheevos_enable = \"true\"\ncheevos_username = %q\ncheevos_password = %q\n",
 			cheevosUser, cheevosPass,
-		)
-	}
-	if controllerType != "" {
-		content += fmt.Sprintf(
-			"input_libretro_device_p1 = %q\ninput_libretro_device_p2 = %q\ninput_libretro_device_p3 = %q\ninput_libretro_device_p4 = %q\n",
-			controllerType, controllerType, controllerType, controllerType,
 		)
 	}
 	content += "config_save_on_exit = \"false\"\n"

@@ -28,6 +28,7 @@ var PlatformCoreMap = map[string][]string{
 	"pce":          {"mednafen_pce_fast_libretro", "mednafen_pce_libretro"},
 	"gamecube":     {"dolphin_libretro"},
 	"wii":          {"dolphin_libretro"},
+	"wiiware":      {"dolphin_libretro"},
 	"3ds":          {constants.CoreAzahar, constants.CoreCitra},
 	"pico8":        {"retro8_libretro"},
 	"wsc":          {"mednafen_wswan_libretro"},
@@ -83,6 +84,7 @@ var platformSearchPatterns = []struct {
 }{
 	// Consoles - Specific/Modern first to avoid broad matches
 	{"wiiu", []string{"wii u", "wiiu"}, false},
+	{"wiiware", []string{"wiiware", "wii ware"}, false},
 	{"wii", []string{"wii"}, false},
 	{"gamecube", []string{"gamecube", "gcn", "dolphin"}, false},
 	{"n64", []string{"n64", "nintendo 64"}, false},

@@ -66,9 +66,6 @@ func (cm *ConfigManager) Load() error {
 	if cm.Config.GameControllers == nil {
 		cm.Config.GameControllers = make(map[string]string)
 	}
-	if cm.Config.DefaultWiiController == "" {
-		cm.Config.DefaultWiiController = "769"
-	}
 
 	return nil
 }
@@ -145,9 +142,8 @@ func (cm *ConfigManager) createDefault() error {
 		LibraryPath:          defaultLibraryPath,
 		RetroArchPath:        "",
 		RetroArchExecutable:  "",
-		LastUsedCores:        make(map[string]string),
-		GameControllers:      make(map[string]string),
-		DefaultWiiController: "769",
+		LastUsedCores:       make(map[string]string),
+		GameControllers:     make(map[string]string),
 	}
 	cm.Config = &defaultConfig
 

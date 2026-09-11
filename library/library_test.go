@@ -101,6 +101,16 @@ func TestFindRomPath(t *testing.T) {
 	if found != romPath {
 		t.Errorf("Expected %s, got %s", romPath, found)
 	}
+
+	// Test .wad file for WiiWare
+	wadDir, _ := os.MkdirTemp("", "library_wad_test")
+	defer os.RemoveAll(wadDir)
+	wadPath := filepath.Join(wadDir, "game.wad")
+	os.WriteFile(wadPath, []byte("wad"), 0o644)
+	foundWad := s.findRomPath(wadDir, &types.Game{FullPath: "roms/wii/game.wad"})
+	if foundWad != wadPath {
+		t.Errorf("Expected %s, got %s", wadPath, foundWad)
+	}
 }
 
 func TestDeleteRom(t *testing.T) {

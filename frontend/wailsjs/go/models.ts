@@ -16,7 +16,6 @@ export namespace types {
 	    use_platform_folder: boolean;
 	    disable_metadata: boolean;
 	    game_controllers: Record<string, string>;
-	    default_wii_controller: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppConfig(source);
@@ -39,7 +38,6 @@ export namespace types {
 	        this.use_platform_folder = source["use_platform_folder"];
 	        this.disable_metadata = source["disable_metadata"];
 	        this.game_controllers = source["game_controllers"];
-	        this.default_wii_controller = source["default_wii_controller"];
 	    }
 	}
 	export class FileItem {

@@ -20,6 +20,9 @@ func TestCoreMap(t *testing.T) {
 	if CoreMap[".nes"] != "nestopia_libretro" {
 		t.Errorf("Expected nestopia_libretro for .nes")
 	}
+	if CoreMap[".wad"] != "dolphin_libretro" {
+		t.Errorf("Expected dolphin_libretro for .wad, got %s", CoreMap[".wad"])
+	}
 }
 
 func TestUnzipCore(t *testing.T) {

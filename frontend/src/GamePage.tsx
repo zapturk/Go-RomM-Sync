@@ -441,8 +441,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const platformSlug = (game?.platform_slug || game?.platform?.slug || '').toLowerCase();
     const platformName = (game?.platform_display_name || game?.platform?.name || '').toLowerCase();
     const fullPath = (game?.full_path || '').toLowerCase();
-    const isGameCube = platformSlug === 'gamecube' || platformSlug === 'gc' || platformSlug.includes('gamecube') || platformName.includes('gamecube') || fullPath.includes('/gamecube/') || fullPath.includes('\\gamecube\\');
-    const isWiiPlatform = platformSlug === 'wii' || platformSlug.includes('wii') || platformName.includes('wii') || fullPath.includes('/wii') || fullPath.includes('\\wii');
+    const isGameCube = platformSlug.includes('gamecube') || platformSlug === 'gc' || platformName.includes('gamecube') || fullPath.includes('gamecube');
+    const isWiiPlatform = platformSlug.includes('wii') || platformName.includes('wii') || fullPath.includes('wii');
     const isDolphinCore = selectedCore.includes('dolphin') || availableCores.some(c => c.includes('dolphin'));
     const isWii = isWiiPlatform || (isDolphinCore && !isGameCube);
 
@@ -535,6 +535,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     }, [game, isPlaying]);
 
     useEffect(() => {
+        setLoading(true);
+        setStatusChecked(false);
         GetRom(gameId)
             .then((res: types.Game) => {
                 setGame(res);

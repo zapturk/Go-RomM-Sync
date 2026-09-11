@@ -390,6 +390,33 @@ func (s *Service) findRomPath(romDir string, game *types.Game) string {
 		filtered = files
 	}
 
+	// 1. Prefer .cue file if present
+	for _, file := range filtered {
+		if !file.IsDir() && strings.ToLower(filepath.Ext(file.Name())) == ".cue" {
+			return filepath.Join(romDir, file.Name())
+		}
+	}
+
+	// 2. Check for exact match with game's FullPath or FSName
+	if game != nil {
+		if game.FullPath != "" {
+			expectedBase := filepath.Base(game.FullPath)
+			for _, file := range filtered {
+				if !file.IsDir() && strings.EqualFold(file.Name(), expectedBase) {
+					return filepath.Join(romDir, file.Name())
+				}
+			}
+		}
+		if game.FSName != "" {
+			for _, file := range filtered {
+				if !file.IsDir() && strings.EqualFold(file.Name(), game.FSName) {
+					return filepath.Join(romDir, file.Name())
+				}
+			}
+		}
+	}
+
+	// 3. Fall back to any recognized ROM extension or zip
 	for _, file := range filtered {
 		if file.IsDir() {
 			continue
