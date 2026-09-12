@@ -164,7 +164,6 @@ func (a *App) DownloadAndInstallRetroArch() (string, error) {
 	return installedPath, nil
 }
 
-
 func (a *App) SelectLibraryPath() (string, error) {
 	selectedDir, err := a.OpenDirectoryDialog("Select ROM Library Directory")
 	if err != nil {

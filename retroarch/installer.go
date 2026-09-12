@@ -48,7 +48,6 @@ func (pw *installerProgressWriter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-
 // getRetroArchDownloadURL constructs the official Libretro buildbot download URL for the current OS/architecture.
 func getRetroArchDownloadURL(version, goos, goarch string) (string, error) {
 	baseURL := fmt.Sprintf("%s/%s", buildbotStableURL, version)
@@ -80,10 +79,11 @@ func getDefaultInstallDir(goos string) (string, error) {
 	switch goos {
 	case constants.OSDarwin:
 		// Check if /Applications is writable
-		testFile := filepath.Join("/Applications", ".test_write_romm")
+		appDir := "/Applications"
+		testFile := filepath.Join(appDir, ".test_write_romm")
 		if err := os.WriteFile(testFile, []byte(""), 0o644); err == nil {
 			_ = os.Remove(testFile)
-			return "/Applications", nil
+			return appDir, nil
 		}
 		// Fallback to ~/Applications
 		userAppDir := filepath.Join(homeDir, "Applications")
@@ -301,6 +301,79 @@ func installLinux(ui UIProvider, archivePath, targetDir string) (string, error) 
 	return "", fmt.Errorf("no RetroArch executable or AppImage found after extraction in %s", targetDir)
 }
 
+// detect7zCommonPrefix returns a common root directory prefix (e.g. "RetroArch-Win64/") if all files share it.
+func detect7zCommonPrefix(files []*sevenzip.File) string {
+	if len(files) == 0 {
+		return ""
+	}
+	firstSlash := strings.Index(files[0].Name, "/")
+	if firstSlash == -1 {
+		return ""
+	}
+	candidate := files[0].Name[:firstSlash+1]
+	for _, f := range files {
+		if !strings.HasPrefix(f.Name, candidate) {
+			return ""
+		}
+	}
+	return candidate
+}
+
+func report7zProgress(ui UIProvider, current, total int, lastPercent *int) {
+	if ui == nil || total == 0 {
+		return
+	}
+	pct := int(float64(current) / float64(total) * 100)
+	if pct > *lastPercent && pct%5 == 0 {
+		*lastPercent = pct
+		ui.EventsEmit("retroarch-install-progress", pct)
+		ui.EventsEmit(constants.EventPlayStatus, fmt.Sprintf("Extracting RetroArch (%d%%)...", pct))
+	}
+}
+
+func isExecutableEntry(name string) bool {
+	lowerName := strings.ToLower(name)
+	return strings.HasSuffix(lowerName, ".exe") ||
+		strings.HasSuffix(lowerName, ".appimage") ||
+		strings.HasSuffix(lowerName, "retroarch") ||
+		strings.Contains(lowerName, "bin/")
+}
+
+func determine7zFileMode(f *sevenzip.File, relName string) os.FileMode {
+	mode := f.Mode()
+	if mode.Perm() == 0 {
+		mode = 0o644
+	}
+	if isExecutableEntry(relName) {
+		mode = 0o755
+	}
+	return mode
+}
+
+func extract7zFile(f *sevenzip.File, destPath string, mode os.FileMode) error {
+	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
+		return fmt.Errorf("failed to create directory for %s: %w", destPath, err)
+	}
+
+	outFile, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
+	if err != nil {
+		return fmt.Errorf("failed to open destination file %s: %w", destPath, err)
+	}
+	defer outFile.Close() //nolint:errcheck
+
+	rc, err := f.Open()
+	if err != nil {
+		return fmt.Errorf("failed to open archive entry %s: %w", f.Name, err)
+	}
+	defer rc.Close() //nolint:errcheck
+
+	if _, err := io.Copy(outFile, rc); err != nil {
+		return fmt.Errorf("failed to extract file %s: %w", destPath, err)
+	}
+
+	return nil
+}
+
 // extract7zArchive extracts a .7z archive into destDir with progress reporting and common prefix stripping.
 func extract7zArchive(ui UIProvider, archivePath, destDir string) error {
 	r, err := sevenzip.OpenReader(archivePath)
@@ -311,37 +384,11 @@ func extract7zArchive(ui UIProvider, archivePath, destDir string) error {
 
 	total := len(r.File)
 	lastPercent := -1
-
-	// Detect if all files share a common top-level directory (e.g. "RetroArch-Win64/" or "RetroArch-Linux-x86_64/")
-	commonPrefix := ""
-	if total > 0 {
-		firstSlash := strings.Index(r.File[0].Name, "/")
-		if firstSlash != -1 {
-			candidate := r.File[0].Name[:firstSlash+1]
-			allShare := true
-			for _, f := range r.File {
-				if !strings.HasPrefix(f.Name, candidate) {
-					allShare = false
-					break
-				}
-			}
-			if allShare {
-				commonPrefix = candidate
-			}
-		}
-	}
+	commonPrefix := detect7zCommonPrefix(r.File)
+	cleanDest := filepath.Clean(destDir) + string(os.PathSeparator)
 
 	for i, f := range r.File {
-		if total > 0 {
-			pct := int(float64(i) / float64(total) * 100)
-			if pct > lastPercent && pct%5 == 0 {
-				lastPercent = pct
-				if ui != nil {
-					ui.EventsEmit("retroarch-install-progress", pct)
-					ui.EventsEmit(constants.EventPlayStatus, fmt.Sprintf("Extracting RetroArch (%d%%)...", pct))
-				}
-			}
-		}
+		report7zProgress(ui, i, total, &lastPercent)
 
 		relName := f.Name
 		if commonPrefix != "" {
@@ -353,7 +400,6 @@ func extract7zArchive(ui UIProvider, archivePath, destDir string) error {
 
 		fpath := filepath.Join(destDir, relName)
 		// Path traversal check
-		cleanDest := filepath.Clean(destDir) + string(os.PathSeparator)
 		if !strings.HasPrefix(filepath.Clean(fpath), cleanDest) {
 			continue
 		}
@@ -363,36 +409,9 @@ func extract7zArchive(ui UIProvider, archivePath, destDir string) error {
 			continue
 		}
 
-		if err := os.MkdirAll(filepath.Dir(fpath), 0o755); err != nil {
-			return fmt.Errorf("failed to create directory for %s: %w", fpath, err)
-		}
-
-		// Ensure permissions: 0755 for binaries/executables, 0644 for others
-		mode := f.Mode()
-		if mode.Perm() == 0 {
-			mode = 0o644
-		}
-		lowerName := strings.ToLower(relName)
-		if strings.HasSuffix(lowerName, ".exe") || strings.HasSuffix(lowerName, ".appimage") || strings.HasSuffix(lowerName, "retroarch") || strings.Contains(lowerName, "bin/") {
-			mode = 0o755
-		}
-
-		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
-		if err != nil {
-			return fmt.Errorf("failed to open destination file %s: %w", fpath, err)
-		}
-
-		rc, err := f.Open()
-		if err != nil {
-			_ = outFile.Close()
-			return fmt.Errorf("failed to open archive entry %s: %w", f.Name, err)
-		}
-
-		_, copyErr := io.Copy(outFile, rc)
-		_ = outFile.Close()
-		_ = rc.Close()
-		if copyErr != nil {
-			return fmt.Errorf("failed to extract file %s: %w", fpath, copyErr)
+		mode := determine7zFileMode(f, relName)
+		if err := extract7zFile(f, fpath, mode); err != nil {
+			return err
 		}
 	}
 
