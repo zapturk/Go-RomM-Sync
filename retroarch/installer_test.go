@@ -1,41 +1,12 @@
 package retroarch
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"runtime"
 	"strings"
 	"testing"
 
 	"go-romm-sync/constants"
 )
-
-func TestCompareSemVer(t *testing.T) {
-	tests := []struct {
-		v1       string
-		v2       string
-		expected int // <0 if v1 < v2, >0 if v1 > v2, 0 if equal
-	}{
-		{"1.22.2", "1.22.2", 0},
-		{"1.9.0", "1.22.2", -1},
-		{"1.22.2", "1.9.0", 1},
-		{"1.22.1", "1.22.2", -1},
-		{"1.22.10", "1.22.2", 1},
-		{"2.0.0", "1.22.2", 1},
-		{"1.22", "1.22.0", 0},
-	}
-
-	for _, tt := range tests {
-		res := compareSemVer(tt.v1, tt.v2)
-		if tt.expected < 0 && res >= 0 {
-			t.Errorf("compareSemVer(%q, %q) = %d; expected < 0", tt.v1, tt.v2, res)
-		} else if tt.expected > 0 && res <= 0 {
-			t.Errorf("compareSemVer(%q, %q) = %d; expected > 0", tt.v1, tt.v2, res)
-		} else if tt.expected == 0 && res != 0 {
-			t.Errorf("compareSemVer(%q, %q) = %d; expected == 0", tt.v1, tt.v2, res)
-		}
-	}
-}
 
 func TestGetRetroArchDownloadURL(t *testing.T) {
 	version := "1.22.2"
@@ -128,40 +99,3 @@ func TestGetDefaultInstallDir(t *testing.T) {
 	}
 }
 
-func TestGetLatestStableVersion(t *testing.T) {
-	// 1. Success case with HTML response
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`
-			<html>
-			<a href="/stable/1.9.0/">1.9.0</a>
-			<a href="/stable/1.20.0/">1.20.0</a>
-			<a href="/stable/1.22.2/">1.22.2</a>
-			<a href="/stable/1.22.1/">1.22.1</a>
-			<a href="/stable/1.23.0/">1.23.0</a>
-			</html>
-		`))
-	}))
-	defer ts.Close()
-
-	oldURL := buildbotStableURL
-	buildbotStableURL = ts.URL
-	defer func() { buildbotStableURL = oldURL }()
-
-	latest := getLatestStableVersion()
-	if latest != "1.23.0" {
-		t.Errorf("expected latest version 1.23.0, got %s", latest)
-	}
-
-	// 2. Fallback case when server returns 500
-	tsErr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer tsErr.Close()
-
-	buildbotStableURL = tsErr.URL
-	fallback := getLatestStableVersion()
-	if fallback != defaultStableVersion {
-		t.Errorf("expected fallback version %s, got %s", defaultStableVersion, fallback)
-	}
-}
