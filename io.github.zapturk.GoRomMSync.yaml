@@ -1,0 +1,52 @@
+app-id: io.github.zapturk.GoRomMSync
+runtime: org.gnome.Platform
+runtime-version: '47'
+sdk: org.gnome.Sdk
+command: go-romm-sync
+
+finish-args:
+  # Display sockets (Wayland with X11 fallback)
+  - --socket=wayland
+  - --socket=fallback-x11
+  # Shared memory
+  - --share=ipc
+  # Network access for RomM server API, ROM downloads, and metadata sync
+  - --share=network
+  # Audio
+  - --socket=pulseaudio
+  # Hardware acceleration
+  - --device=dri
+  # Gamepad and controller access (essential for Steam Deck and USB gamepads)
+  - --device=all
+  # Filesystem access for ROMs, saves, RetroArch configs, and external drives (Steam Deck MicroSD)
+  - --filesystem=home
+  - --filesystem=/media
+  - --filesystem=/run/media
+  # Desktop notifications
+  - --talk-name=org.freedesktop.Notifications
+  # Permission to spawn external processes via portal (e.g. host or Flatpak RetroArch)
+  - --talk-name=org.freedesktop.Flatpak
+
+modules:
+  - name: go-romm-sync
+    buildsystem: simple
+    build-commands:
+      # Install binary
+      - |
+        if [ -f build/bin/go-romm-sync ]; then
+          install -D -m 0755 build/bin/go-romm-sync /app/bin/go-romm-sync
+        elif [ -f go-romm-sync ]; then
+          install -D -m 0755 go-romm-sync /app/bin/go-romm-sync
+        else
+          CGO_ENABLED=1 go build -tags webkit2_41 -trimpath -ldflags="-s -w" -o /app/bin/go-romm-sync .
+        fi
+      # Desktop entry
+      - install -D -m 0644 io.github.zapturk.GoRomMSync.desktop /app/share/applications/io.github.zapturk.GoRomMSync.desktop
+      # AppStream metadata
+      - install -D -m 0644 io.github.zapturk.GoRomMSync.metainfo.xml /app/share/metainfo/io.github.zapturk.GoRomMSync.metainfo.xml
+      # Application icon (reusing existing build/appicon.png)
+      - install -D -m 0644 build/appicon.png /app/share/icons/hicolor/512x512/apps/io.github.zapturk.GoRomMSync.png
+      - install -D -m 0644 build/appicon.png /app/share/icons/hicolor/256x256/apps/io.github.zapturk.GoRomMSync.png
+    sources:
+      - type: dir
+        path: .
