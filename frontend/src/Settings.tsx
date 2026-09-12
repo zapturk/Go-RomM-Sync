@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GetConfig, SaveConfig, SelectRetroArchExecutable, SelectLibraryPath, GetDefaultLibraryPath,
+import { GetConfig, SaveConfig, SelectRetroArchExecutable, DownloadAndInstallRetroArch, SelectLibraryPath, GetDefaultLibraryPath,
     Logout, ClearImageCache, ToggleOfflineMode, SyncOfflineMetadata,
     UpdateRetroArchCores, UpdateRetroArchBios, ToggleUsePlatformFolder, ToggleDisableMetadata,
     ScanOrphanedRoms, DeleteOrphanedRoms,
@@ -52,6 +52,7 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [isSyncing, setIsSyncing] = useState(false);
     const [isUpdatingCores, setIsUpdatingCores] = useState(false);
     const [isUpdatingBios, setIsUpdatingBios] = useState(false);
+    const [isInstallingRA, setIsInstallingRA] = useState(false);
     const [isCleaningOrphaned, setIsCleaningOrphaned] = useState(false);
     const [orphanedFiles, setOrphanedFiles] = useState<string[]>([]);
     const [showCleanupModal, setShowCleanupModal] = useState(false);
@@ -99,10 +100,19 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             setStatus(`Downloading RetroArch BIOS pack (${progress}%)...`);
         });
 
+        const unsubscribeRAProgress = EventsOn("retroarch-install-progress", (progress: number) => {
+            if (progress < 100) {
+                setStatus(`Downloading RetroArch (${progress}%)...`);
+            } else {
+                setStatus("RetroArch download complete! Installing...");
+            }
+        });
+
         return () => {
             unsubscribeOffline();
             unsubscribeConfig();
             unsubscribeBiosProgress();
+            unsubscribeRAProgress();
         };
     }, []);
 
@@ -122,6 +132,27 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                 setStatus("RetroArch path updated.");
             }
         });
+    };
+
+    const handleInstallRA = () => {
+        if (isSaving || isInstallingRA) return;
+        setIsInstallingRA(true);
+        setStatus("Finding and downloading RetroArch...");
+        DownloadAndInstallRetroArch()
+            .then((path: string) => {
+                if (path) {
+                    setRaPath(path);
+                    setStatus("RetroArch installed and configured successfully!");
+                } else {
+                    setStatus("RetroArch installation complete.");
+                }
+            })
+            .catch((err: any) => {
+                setStatus(`Error installing RetroArch: ${String(err)}`);
+            })
+            .finally(() => {
+                setIsInstallingRA(false);
+            });
     };
 
     const handleBrowseLib = () => {
@@ -356,7 +387,9 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                     <EmulatorSection
                         raPath={raPath}
                         isSaving={isSaving}
+                        isInstallingRA={isInstallingRA}
                         handleBrowseRA={handleBrowseRA}
+                        handleInstallRA={handleInstallRA}
                         handleTopArrowPress={handleTopArrowPress}
                     />
 
@@ -497,11 +530,13 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
 interface EmulatorSectionProps {
     raPath: string;
     isSaving: boolean;
+    isInstallingRA: boolean;
     handleBrowseRA: () => void;
+    handleInstallRA: () => void;
     handleTopArrowPress: (direction: string) => boolean;
 }
 
-function EmulatorSection({ raPath, isSaving, handleBrowseRA, handleTopArrowPress }: EmulatorSectionProps) {
+function EmulatorSection({ raPath, isSaving, isInstallingRA, handleBrowseRA, handleInstallRA, handleTopArrowPress }: EmulatorSectionProps) {
     return (
         <div className="settings-card">
             <div className="settings-section-title">Emulator Configuration</div>
@@ -518,14 +553,25 @@ function EmulatorSection({ raPath, isSaving, handleBrowseRA, handleTopArrowPress
                     />
                     <FocusableButton
                         focusKey="browse-ra-button"
-                        className={`btn ${isSaving ? 'disabled' : ''}`}
+                        className={`btn ${isSaving || isInstallingRA ? 'disabled' : ''}`}
                         onClick={handleBrowseRA}
                         onEnterPress={handleBrowseRA}
                         onArrowPress={handleTopArrowPress}
-                        disabled={isSaving}
-                        onMouseEnter={() => getMouseActive() && !isSaving && setFocus('browse-ra-button')}
+                        disabled={isSaving || isInstallingRA}
+                        onMouseEnter={() => getMouseActive() && !isSaving && !isInstallingRA && setFocus('browse-ra-button')}
                     >
                         Browse
+                    </FocusableButton>
+                    <FocusableButton
+                        focusKey="install-ra-button"
+                        className={`btn ${isSaving || isInstallingRA ? 'disabled' : ''}`}
+                        onClick={handleInstallRA}
+                        onEnterPress={handleInstallRA}
+                        onArrowPress={handleTopArrowPress}
+                        disabled={isSaving || isInstallingRA}
+                        onMouseEnter={() => getMouseActive() && !isSaving && !isInstallingRA && setFocus('install-ra-button')}
+                    >
+                        {isInstallingRA ? "Installing..." : "Install RetroArch"}
                     </FocusableButton>
                 </div>
             </div>

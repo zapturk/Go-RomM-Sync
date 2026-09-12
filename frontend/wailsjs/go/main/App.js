@@ -34,6 +34,10 @@ export function DeleteState(arg1, arg2, arg3) {
   return window['go']['main']['App']['DeleteState'](arg1, arg2, arg3);
 }
 
+export function DownloadAndInstallRetroArch() {
+  return window['go']['main']['App']['DownloadAndInstallRetroArch']();
+}
+
 export function DownloadFile(arg1, arg2) {
   return window['go']['main']['App']['DownloadFile'](arg1, arg2);
 }

@@ -20,6 +20,8 @@ export function DeleteSave(arg1:number,arg2:string,arg3:string):Promise<void>;
 
 export function DeleteState(arg1:number,arg2:string,arg3:string):Promise<void>;
 
+export function DownloadAndInstallRetroArch():Promise<string>;
+
 export function DownloadFile(arg1:context.Context,arg2:types.Game):Promise<io.ReadCloser>;
 
 export function DownloadFirmwareContent(arg1:context.Context,arg2:number,arg3:string):Promise<io.ReadCloser>;
