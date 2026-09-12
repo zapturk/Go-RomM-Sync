@@ -42,4 +42,3 @@ go-romm-sync
 # OpenAPI
 openapi.json
 tmp_romm/
-.agents/skills/pre-push/scripts/verify.sh
