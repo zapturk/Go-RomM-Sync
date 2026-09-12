@@ -13,6 +13,8 @@ jobs:
   flatpak:
     name: Build Flatpak Bundle
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -71,3 +73,11 @@ jobs:
           name: io.github.zapturk.GoRomMSync.flatpak
           path: io.github.zapturk.GoRomMSync.flatpak
           if-no-files-found: error
+
+      - name: Upload Flatpak to Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: io.github.zapturk.GoRomMSync.flatpak
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
