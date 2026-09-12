@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Go RomM Sync
+Comment=A seamless bridge between RomM and RetroArch for a console-like gaming experience.
+Exec=go-romm-sync
+Icon=io.github.zapturk.GoRomMSync
+Terminal=false
+Type=Application
+Categories=Game;Utility;Emulator;
+Keywords=RomM;RetroArch;Emulator;Retro;ROMs;Sync;
+StartupWMClass=go-romm-sync

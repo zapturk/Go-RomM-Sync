@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.zapturk.GoRomMSync</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Go RomM Sync</name>
+  <summary>A seamless bridge between RomM and RetroArch for a console-like gaming experience</summary>
+  <description>
+    <p>
+      Go RomM Sync is a desktop companion for your retro gaming collection. It connects directly
+      to your self-hosted RomM server to synchronize ROMs, saves, states, and covers, providing
+      a console-like gaming experience powered by RetroArch.
+    </p>
+    <p>Key Features:</p>
+    <ul>
+      <li>Browse and manage your RomM retro gaming library with spatial navigation support</li>
+      <li>Automatic core resolution and RetroArch configuration management</li>
+      <li>Two-way save file and save state synchronization with RomM</li>
+      <li>Automated BIOS and asset downloads</li>
+      <li>Customizable controller support and per-game remapping</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.zapturk.GoRomMSync.desktop</launchable>
+  <url type="homepage">https://github.com/zapturk/Go-RomM-Sync</url>
+  <url type="bugtracker">https://github.com/zapturk/Go-RomM-Sync/issues</url>
+  <url type="vcs-browser">https://github.com/zapturk/Go-RomM-Sync</url>
+  <developer id="io.github.zapturk">
+    <name>Zapturk</name>
+  </developer>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/zapturk/Go-RomM-Sync/main/.github/assets/platforms.png</image>
+      <caption>Platform Selection Screen</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/zapturk/Go-RomM-Sync/main/.github/assets/games_list.png</image>
+      <caption>Game Selection Screen</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/zapturk/Go-RomM-Sync/main/.github/assets/game_page.png</image>
+      <caption>Game Detail Page with Server and Local Saves</caption>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.2.2" date="2026-09-12">
+      <description>
+        <p>Release v0.2.2: RetroArch installer and manager integration, improved Wii controls, and stability enhancements.</p>
+      </description>
+    </release>
+  </releases>
+</component>
