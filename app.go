@@ -141,6 +141,29 @@ func (a *App) SelectRetroArchExecutable() (string, error) {
 	return selectedFile, nil
 }
 
+// DownloadAndInstallRetroArch downloads, installs, and configures the RetroArch executable
+// for the current operating system and CPU architecture.
+func (a *App) DownloadAndInstallRetroArch() (string, error) {
+	installedPath, err := retroarch.DownloadAndInstall(a)
+	if err != nil {
+		a.LogErrorf("Failed to download and install RetroArch: %v", err)
+		return "", err
+	}
+
+	cfg := a.configManager.GetConfig()
+	cfg.RetroArchPath = installedPath
+	if err = a.configManager.Save(&cfg); err != nil {
+		return installedPath, fmt.Errorf("retroarch installed at %s but failed to save config: %w", installedPath, err)
+	}
+
+	if err := retroarch.ClearCheevosToken(installedPath); err != nil {
+		a.LogErrorf("Failed to clear RetroArch cheevos token: %v", err)
+	}
+
+	a.EventsEmit("config-updated", nil)
+	return installedPath, nil
+}
+
 func (a *App) SelectLibraryPath() (string, error) {
 	selectedDir, err := a.OpenDirectoryDialog("Select ROM Library Directory")
 	if err != nil {

@@ -296,7 +296,6 @@ Loop:
 	}
 }
 
-
 func TestSyncDolphinRemap(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "test_remap")
 	if err != nil {
