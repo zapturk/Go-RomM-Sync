@@ -35,7 +35,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev flatpak flatpak-builder
-          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak remote-modify --update flathub
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
+          flatpak remote-modify --update flathub || true
+          sudo flatpak install -y --noninteractive flathub org.gnome.Platform/x86_64/47 org.gnome.Sdk/x86_64/47
 
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
@@ -61,7 +65,7 @@ jobs:
 
       - name: Export Flatpak Bundle
         run: |
-          flatpak build-bundle repo io.github.zapturk.GoRomMSync.flatpak io.github.zapturk.GoRomMSync master
+          flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo repo io.github.zapturk.GoRomMSync.flatpak io.github.zapturk.GoRomMSync master
 
       - name: Upload Flatpak Artifact
         uses: actions/upload-artifact@v4
