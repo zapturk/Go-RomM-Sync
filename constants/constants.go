@@ -46,6 +46,8 @@ const (
 	CoreDeSmuME   = "desmume_libretro"
 	CoreMelonDSDS = "melondsds_libretro"
 	CoreNooDS     = "noods_libretro"
+	CoreArdens    = "ardens_libretro"
+	CoreArduous   = "arduous_libretro"
 )
 
 // RomM Scopes

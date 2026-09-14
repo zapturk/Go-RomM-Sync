@@ -23,6 +23,12 @@ func TestCoreMap(t *testing.T) {
 	if CoreMap[".wad"] != "dolphin_libretro" {
 		t.Errorf("Expected dolphin_libretro for .wad, got %s", CoreMap[".wad"])
 	}
+	if CoreMap[".hex"] != constants.CoreArdens {
+		t.Errorf("Expected %s for .hex, got %s", constants.CoreArdens, CoreMap[".hex"])
+	}
+	if CoreMap[".arduboy"] != constants.CoreArdens {
+		t.Errorf("Expected %s for .arduboy, got %s", constants.CoreArdens, CoreMap[".arduboy"])
+	}
 }
 
 func TestUnzipCore(t *testing.T) {
@@ -71,6 +77,14 @@ func TestGetCoresForExt(t *testing.T) {
 	if len(cores) != 0 {
 		t.Errorf("Expected empty slice for unknown ext, got %v", cores)
 	}
+	hexCores := GetCoresForExt(".hex")
+	if len(hexCores) < 2 || hexCores[0] != constants.CoreArdens || hexCores[1] != constants.CoreArduous {
+		t.Errorf("Expected [%s, %s] for .hex, got %v", constants.CoreArdens, constants.CoreArduous, hexCores)
+	}
+	arduboyCores := GetCoresForExt(".arduboy")
+	if len(arduboyCores) != 1 || arduboyCores[0] != constants.CoreArdens {
+		t.Errorf("Expected [%s] for .arduboy, got %v", constants.CoreArdens, arduboyCores)
+	}
 }
 
 func TestGetCoresForPlatform(t *testing.T) {
@@ -89,6 +103,10 @@ func TestGetCoresForPlatform(t *testing.T) {
 	cores = GetCoresForPlatform("unknown_platform")
 	if len(cores) != 0 {
 		t.Errorf("Expected empty slice for unknown platform, got %v", cores)
+	}
+	arduboyPlatformCores := GetCoresForPlatform("arduboy")
+	if len(arduboyPlatformCores) < 2 || arduboyPlatformCores[0] != constants.CoreArdens {
+		t.Errorf("Expected default core %s for arduboy, got %v", constants.CoreArdens, arduboyPlatformCores)
 	}
 }
 

@@ -133,6 +133,10 @@ var ExtCoreMap = map[string][]string{
 	// Pico-8
 	".p8":  {"retro8_libretro"},
 	".png": {constants.CoreRetro8},
+
+	// Arduboy
+	".hex":     {constants.CoreArdens, constants.CoreArduous},
+	".arduboy": {constants.CoreArdens},
 }
 
 // ponytail: derived map duplicating ExtCoreMap[ext][0]. Delete and inline at call sites (findPlatformPreferredRom, findAnyRom).

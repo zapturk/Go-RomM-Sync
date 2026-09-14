@@ -43,6 +43,9 @@ func TestIdentifyPlatform(t *testing.T) {
 		{"Pico 8", "pico8"},
 		{"pico8", "pico8"},
 		{"p8", "pico8"},
+		{"arduboy", "arduboy"},
+		{"Arduboy", "arduboy"},
+		{"Arduboy FX", "arduboy"},
 		{"roms", ""},
 		{"unknown", ""},
 	}
