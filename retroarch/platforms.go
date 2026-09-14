@@ -55,6 +55,7 @@ var PlatformCoreMap = map[string][]string{
 	"wiiu":         {"cemu_libretro"},
 	"segacd":       {"genesis_plus_gx_libretro", "picodrive_libretro"},
 	"pokemini":     {"pokemini_libretro"},
+	"arduboy":      {constants.CoreArdens, constants.CoreArduous},
 }
 
 // GetCoresForPlatform returns the ordered list of known-working libretro core
@@ -111,6 +112,7 @@ var platformSearchPatterns = []struct {
 	{"vb", []string{"virtual", "boy"}, true},
 	{"lynx", []string{"lynx"}, false},
 	{"pico8", []string{"pico-8", "pico8", "pico 8", "p8"}, false},
+	{"arduboy", []string{"arduboy"}, false},
 	{"gamegear", []string{"game gear", "gamegear"}, false},
 	{"gbc", []string{"color", "gbc"}, false},
 	{"gb", []string{"game boy", "gb"}, false},

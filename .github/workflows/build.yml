@@ -64,6 +64,7 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.13.2
+          install-mode: goinstall
 
       - name: Build application
         run: wails build -platform ${{ matrix.platform }} ${{ matrix.tags }}
