@@ -3,11 +3,12 @@ import './App.css';
 import LoginView from './Login';
 import Library from './Library';
 import Settings from './Settings';
-import { Login } from "../wailsjs/go/main/App";
+import { Login, GetConfig } from "../wailsjs/go/main/App";
 import { init } from '@noriginmedia/norigin-spatial-navigation';
 import { useGamepad } from './useGamepad';
 import './inputMode'; // Activate input mode tracking
 import { APP_EVENTS } from './constants';
+import { applyTheme } from './theme';
 
 function App() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -53,6 +54,14 @@ function App() {
             .finally(() => {
                 setIsLoading(false);
             });
+
+        GetConfig()
+            .then((cfg) => {
+                if (cfg && (cfg.theme_background || cfg.theme_font || cfg.theme_text_color)) {
+                    applyTheme(cfg.theme_background, cfg.theme_custom_background, cfg.theme_font, cfg.theme_text_color);
+                }
+            })
+            .catch(() => {});
     }, []);
 
     // Global back handling (only when logged in)

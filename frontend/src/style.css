@@ -1,13 +1,12 @@
 html {
-    background-color: #553e98;
     text-align: center;
-    color: white;
+    color: var(--app-text-color, #ffffff);
 }
 
 body {
     margin: 0;
-    color: white;
-    font-family: "Orbitron", sans-serif;
+    color: var(--app-text-color, #ffffff);
+    font-family: var(--app-font, "Orbitron", sans-serif);
 }
 
 @font-face {

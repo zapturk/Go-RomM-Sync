@@ -3,11 +3,14 @@
     --primary-hover: #4b32ac;
     --bg-dark: #121212;
     --bg-card: #1e1e1e;
-    --text-main: #ffffff;
+    --app-text-color: #ffffff;
+    --text-main: var(--app-text-color);
     --text-dim: #b0b0b0;
     --item-min-width: 200px;
     --grid-gap: 20px;
     --grid-padding: 20px;
+    --app-font: 'Orbitron', sans-serif;
+    --app-background: radial-gradient(circle at top left, #5d3fd3, #2a1b5e) #553e98;
 }
 
 html,
@@ -15,8 +18,13 @@ body {
     margin: 0;
     padding: 0;
     min-height: 100vh;
-    background: radial-gradient(circle at top left, #5d3fd3, #2a1b5e) #553e98;
+    background: var(--app-background);
     background-attachment: fixed;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    font-family: var(--app-font);
+    color: var(--app-text-color);
 }
 
 #app {
@@ -75,7 +83,7 @@ body {
     background: rgba(0, 0, 0, 0.2);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 10px;
-    color: #fff;
+    color: var(--app-text-color, #fff);
     padding: 0 15px;
     height: 44px;
     transition: all 0.3s ease;
@@ -140,7 +148,7 @@ body.mouse-mode .game-card:hover,
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 20px;
-    color: white;
+    color: var(--app-text-color, #fff);
     font-size: 0.9rem;
     outline: none;
     transition: all 0.2s ease;
@@ -536,7 +544,7 @@ body.mouse-mode .game-card:hover,
 .settings-section-title {
     font-size: 1.2rem;
     font-weight: 700;
-    color: #fff;
+    color: var(--app-text-color, #fff);
     margin-bottom: 0.5rem;
     display: flex;
     align-items: center;
@@ -559,7 +567,7 @@ body.mouse-mode .game-card:hover,
 
 .settings-row-label {
     display: block;
-    color: #fff;
+    color: var(--app-text-color, #fff);
     font-weight: 600;
     margin-bottom: 4px;
 }
@@ -1366,4 +1374,256 @@ body.input-keyboard .show-keyboard {
     display: flex;
     gap: 12px;
     justify-content: flex-end;
+}
+
+/* Appearance & Theme Section Styles */
+.theme-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 12px;
+    width: 100%;
+    margin-top: 10px;
+}
+
+.theme-preset-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 10px 14px;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+    outline: none;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+
+.theme-preset-btn:hover,
+body.mouse-mode .theme-preset-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.theme-preset-btn.focused {
+    outline: 2px solid #fff;
+    background: rgba(255, 255, 255, 0.18);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.25);
+    transform: translateY(-2px);
+}
+
+.theme-preset-btn.active {
+    border-color: #a855f7;
+    background: rgba(168, 85, 247, 0.18);
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.35);
+}
+
+.theme-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.theme-preset-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.font-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    width: 100%;
+    margin-top: 10px;
+}
+
+.font-option-btn {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 12px 16px;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.font-option-btn:hover,
+body.mouse-mode .font-option-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.font-option-btn.focused {
+    outline: 2px solid #fff;
+    background: rgba(255, 255, 255, 0.18);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.25);
+    transform: translateY(-2px);
+}
+
+.font-option-btn.active {
+    border-color: #a855f7;
+    background: rgba(168, 85, 247, 0.18);
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.35);
+}
+
+.font-option-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.font-option-preview {
+    font-size: 0.8rem;
+    opacity: 0.7;
+    margin-top: 2px;
+}
+
+.font-active-badge {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #a855f7;
+    box-shadow: 0 0 6px #a855f7;
+}
+
+.custom-theme-controls {
+    margin-top: 14px;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.color-picker-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.native-color-input {
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    background: transparent;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.native-color-input::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.native-color-input::-webkit-color-swatch {
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
+}
+
+.color-swatch-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+    margin-top: 10px;
+}
+
+.color-swatch-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 8px 14px;
+    color: var(--app-text-color, #fff);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+    outline: none;
+    font-family: inherit;
+    font-size: 0.88rem;
+    box-sizing: border-box;
+}
+
+.color-swatch-btn:hover,
+body.mouse-mode .color-swatch-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.color-swatch-btn.focused {
+    outline: 2px solid #fff;
+    background: rgba(255, 255, 255, 0.18);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.25);
+    transform: translateY(-2px);
+}
+
+.color-swatch-btn.active {
+    border-color: #a855f7;
+    background: rgba(168, 85, 247, 0.18);
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.35);
+}
+
+.font-color-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+    border: 2px solid rgba(255, 255, 255, 0.25);
+}
+
+/* Adaptations for Press Start 2P */
+body[data-font="press-start"] {
+    letter-spacing: -0.5px;
+}
+body[data-font="press-start"] h1 {
+    font-size: 1.8rem;
+    line-height: 1.4;
+}
+body[data-font="press-start"] h2 {
+    font-size: 1.3rem;
+}
+body[data-font="press-start"] h3 {
+    font-size: 1.1rem;
+}
+body[data-font="press-start"] .game-card-title,
+body[data-font="press-start"] .platform-card-title {
+    font-size: 0.68rem;
+    line-height: 1.3;
+}
+body[data-font="press-start"] .btn {
+    font-size: 0.75rem;
+}
+body[data-font="press-start"] .settings-row-label {
+    font-size: 0.8rem;
+}
+body[data-font="press-start"] .settings-row-desc {
+    font-size: 0.65rem;
+    line-height: 1.4;
 }

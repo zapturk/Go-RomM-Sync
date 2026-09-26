@@ -323,4 +323,52 @@ func TestServeHTTP(t *testing.T) {
 			t.Errorf("Expected 404, got %d", resp.StatusCode)
 		}
 	})
+
+	t.Run("Serve Custom Background Valid", func(t *testing.T) {
+		tmpImg, err := os.CreateTemp("", "test-bg-*.png")
+		if err != nil {
+			t.Fatalf("Failed to create temp img: %v", err)
+		}
+		defer os.Remove(tmpImg.Name())
+		_, _ = tmpImg.WriteString("fake-png-data")
+		_ = tmpImg.Close()
+
+		req := httptest.NewRequest("GET", "/custom-background?path="+tmpImg.Name(), http.NoBody)
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Expected 200, got %d", resp.StatusCode)
+		}
+		if ct := resp.Header.Get("Content-Type"); ct != "image/png" {
+			t.Errorf("Expected image/png, got %s", ct)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		if string(body) != "fake-png-data" {
+			t.Errorf("Expected 'fake-png-data', got %s", string(body))
+		}
+	})
+
+	t.Run("Serve Custom Background Invalid Format", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/custom-background?path=/some/path/evil.exe", http.NoBody)
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("Expected 400 for invalid extension, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("Serve Custom Background Nonexistent", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/custom-background?path=/does/not/exist.png", http.NoBody)
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("Expected 404 for missing image, got %d", resp.StatusCode)
+		}
+	})
 }

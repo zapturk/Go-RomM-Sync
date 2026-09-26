@@ -246,6 +246,10 @@ export function ScanOrphanedRoms() {
   return window['go']['main']['App']['ScanOrphanedRoms']();
 }
 
+export function SelectBackgroundImage() {
+  return window['go']['main']['App']['SelectBackgroundImage']();
+}
+
 export function SelectLibraryPath() {
   return window['go']['main']['App']['SelectLibraryPath']();
 }

@@ -88,6 +88,12 @@ func (a *App) SaveConfig(cfg *types.AppConfig) string {
 		updateIfNotEmpty(&current.CheevosUsername, cfg.CheevosUsername)
 		updateIfNotEmpty(&current.CheevosPassword, cfg.CheevosPassword)
 		updateIfNotEmpty(&current.ClientToken, cfg.ClientToken)
+		updateIfNotEmpty(&current.ThemeBackground, cfg.ThemeBackground)
+		updateIfNotEmpty(&current.ThemeFont, cfg.ThemeFont)
+		updateIfNotEmpty(&current.ThemeTextColor, cfg.ThemeTextColor)
+		if cfg.ThemeBackground != "" {
+			current.ThemeCustomBackground = cfg.ThemeCustomBackground
+		}
 
 		if current.RommHost != oldHost || current.Username != oldUser || current.Password != oldPass {
 			hostOrCredsChanged = true
@@ -139,6 +145,12 @@ func (a *App) SelectRetroArchExecutable() (string, error) {
 	}
 
 	return selectedFile, nil
+}
+
+// SelectBackgroundImage opens a file dialog to pick an image file for custom background.
+func (a *App) SelectBackgroundImage() (string, error) {
+	filters := []string{"*.png;*.jpg;*.jpeg;*.webp;*.gif"}
+	return a.OpenFileDialog("Select Background Image", filters)
 }
 
 // DownloadAndInstallRetroArch downloads, installs, and configures the RetroArch executable

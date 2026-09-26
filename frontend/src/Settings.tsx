@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { GetConfig, SaveConfig, SelectRetroArchExecutable, DownloadAndInstallRetroArch, SelectLibraryPath, GetDefaultLibraryPath,
     Logout, ClearImageCache, ToggleOfflineMode, SyncOfflineMetadata,
     UpdateRetroArchCores, UpdateRetroArchBios, ToggleUsePlatformFolder, ToggleDisableMetadata,
-    ScanOrphanedRoms, DeleteOrphanedRoms,
+    ScanOrphanedRoms, DeleteOrphanedRoms, SelectBackgroundImage,
 } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
@@ -11,6 +11,7 @@ import { getMouseActive } from './inputMode';
 import { FocusableButton } from './components/FocusableButton';
 import { FocusableInput } from './components/FocusableInput';
 import { LegendItem } from './components/LegendItem';
+import { BACKGROUND_PRESETS, FONT_OPTIONS, TEXT_COLOR_PRESETS, applyTheme } from './theme';
 
 interface SettingsProps {
     isActive?: boolean;
@@ -49,6 +50,10 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [usePlatformFolder, setUsePlatformFolder] = useState(false);
     const [disableMetadata, setDisableMetadata] = useState(false);
     const [clientToken, setClientToken] = useState('');
+    const [themeBackground, setThemeBackground] = useState('cosmic-purple');
+    const [themeCustomBackground, setThemeCustomBackground] = useState('');
+    const [themeFont, setThemeFont] = useState('orbitron');
+    const [themeTextColor, setThemeTextColor] = useState('#ffffff');
     const [isSyncing, setIsSyncing] = useState(false);
     const [isUpdatingCores, setIsUpdatingCores] = useState(false);
     const [isUpdatingBios, setIsUpdatingBios] = useState(false);
@@ -71,7 +76,11 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                 offline_mode = false,
                 use_platform_folder = false,
                 disable_metadata = false,
-                client_token = ''
+                client_token = '',
+                theme_background = 'cosmic-purple',
+                theme_custom_background = '',
+                theme_font = 'orbitron',
+                theme_text_color = '#ffffff'
             } = cfg || {};
             setConfig(cfg);
             setRaPath(retroarch_path);
@@ -82,6 +91,15 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             setUsePlatformFolder(use_platform_folder);
             setDisableMetadata(disable_metadata);
             setClientToken(client_token);
+            const activeBg = theme_background || 'cosmic-purple';
+            const activeCustomBg = theme_custom_background || '';
+            const activeFont = theme_font || 'orbitron';
+            const activeTextColor = theme_text_color || '#ffffff';
+            setThemeBackground(activeBg);
+            setThemeCustomBackground(activeCustomBg);
+            setThemeFont(activeFont);
+            setThemeTextColor(activeTextColor);
+            applyTheme(activeBg, activeCustomBg, activeFont, activeTextColor);
         });
     }, []);
 
@@ -198,11 +216,16 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             library_path: libPath,
             cheevos_username: cheevosUser,
             cheevos_password: cheevosPass,
-            client_token: clientToken
+            client_token: clientToken,
+            theme_background: themeBackground,
+            theme_custom_background: themeCustomBackground,
+            theme_font: themeFont,
+            theme_text_color: themeTextColor
         });
 
         SaveConfig(updatedConfig)
-            .then((res) => {
+            .then(() => {
+                applyTheme(themeBackground, themeCustomBackground, themeFont, themeTextColor);
                 setStatus("Settings saved successfully!");
             })
             .catch((err) => {
@@ -211,6 +234,50 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             .finally(() => {
                 setIsSaving(false);
             });
+    };
+
+    const handleSelectBackground = (bgId: string) => {
+        setThemeBackground(bgId);
+        applyTheme(bgId, themeCustomBackground, themeFont, themeTextColor);
+        setStatus(`Background theme updated. Click Save Settings to persist.`);
+    };
+
+    const handleSelectFont = (fontId: string) => {
+        setThemeFont(fontId);
+        applyTheme(themeBackground, themeCustomBackground, fontId, themeTextColor);
+        setStatus(`Font updated. Click Save Settings to persist.`);
+    };
+
+    const handleSelectTextColor = (color: string) => {
+        setThemeTextColor(color);
+        applyTheme(themeBackground, themeCustomBackground, themeFont, color);
+        setStatus(`Font color updated. Click Save Settings to persist.`);
+    };
+
+    const handleCustomColorChange = (newColor: string) => {
+        setThemeCustomBackground(newColor);
+        setThemeBackground('custom-color');
+        applyTheme('custom-color', newColor, themeFont, themeTextColor);
+    };
+
+    const handleBrowseBackground = () => {
+        SelectBackgroundImage().then((path) => {
+            if (path) {
+                setThemeCustomBackground(path);
+                setThemeBackground('custom-image');
+                applyTheme('custom-image', path, themeFont, themeTextColor);
+                setStatus("Custom background image selected. Click Save Settings to persist.");
+            }
+        });
+    };
+
+    const handleResetAppearance = () => {
+        setThemeBackground('cosmic-purple');
+        setThemeCustomBackground('');
+        setThemeFont('orbitron');
+        setThemeTextColor('#ffffff');
+        applyTheme('cosmic-purple', '', 'orbitron', '#ffffff');
+        setStatus("Appearance reset to defaults. Click Save Settings to persist.");
     };
 
     const handleLogout = () => {
@@ -402,6 +469,25 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                         handleSetDefaultLib={handleSetDefaultLib}
                         handleTogglePlatformFolder={handleTogglePlatformFolder}
                         handleToggleDisableMetadata={handleToggleDisableMetadata}
+                    />
+
+                    <AppearanceSection
+                        themeBackground={themeBackground}
+                        themeCustomBackground={themeCustomBackground}
+                        themeFont={themeFont}
+                        themeTextColor={themeTextColor}
+                        isSaving={isSaving}
+                        onSelectBackground={handleSelectBackground}
+                        onSelectFont={handleSelectFont}
+                        onSelectTextColor={handleSelectTextColor}
+                        onCustomColorChange={handleCustomColorChange}
+                        onCustomImageChange={(val) => {
+                            setThemeCustomBackground(val);
+                            setThemeBackground('custom-image');
+                            applyTheme('custom-image', val, themeFont, themeTextColor);
+                        }}
+                        onBrowseBackground={handleBrowseBackground}
+                        onResetAppearance={handleResetAppearance}
                     />
 
                     <MaintenanceSection
@@ -894,6 +980,252 @@ function RomMConnectionSection({ clientToken, setClientToken }: RomMConnectionSe
                 <div className="input-help-text" style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: '0.5rem' }}>
                     A persistent token for stable connection. The app can auto-generate this if you login normally, or you can paste one from RomM Settings.
                 </div>
+            </div>
+        </div>
+    );
+}
+
+interface AppearanceSectionProps {
+    themeBackground: string;
+    themeCustomBackground: string;
+    themeFont: string;
+    themeTextColor: string;
+    isSaving: boolean;
+    onSelectBackground: (bgId: string) => void;
+    onSelectFont: (fontId: string) => void;
+    onSelectTextColor: (color: string) => void;
+    onCustomColorChange: (color: string) => void;
+    onCustomImageChange: (pathOrUrl: string) => void;
+    onBrowseBackground: () => void;
+    onResetAppearance: () => void;
+}
+
+function AppearanceSection({
+    themeBackground,
+    themeCustomBackground,
+    themeFont,
+    themeTextColor,
+    isSaving,
+    onSelectBackground,
+    onSelectFont,
+    onSelectTextColor,
+    onCustomColorChange,
+    onCustomImageChange,
+    onBrowseBackground,
+    onResetAppearance
+}: AppearanceSectionProps) {
+    return (
+        <div className="settings-card">
+            <div className="settings-section-title">Appearance & Themes</div>
+
+            <div className="settings-row" style={{ alignItems: 'flex-start' }}>
+                <div className="settings-row-info">
+                    <span className="settings-row-label">Background Theme</span>
+                    <span className="settings-row-desc">
+                        Select a curated color theme, or customize with your own solid color or wallpaper image
+                    </span>
+                </div>
+            </div>
+
+            <div className="theme-grid">
+                {BACKGROUND_PRESETS.map((preset) => {
+                    const isSelected = themeBackground === preset.id;
+                    return (
+                        <FocusableButton
+                            key={preset.id}
+                            focusKey={`theme-preset-${preset.id}`}
+                            className={`theme-preset-btn ${isSelected ? 'active' : ''}`}
+                            onClick={() => onSelectBackground(preset.id)}
+                            onEnterPress={() => onSelectBackground(preset.id)}
+                            onMouseEnter={() => getMouseActive() && setFocus(`theme-preset-${preset.id}`)}
+                            title={preset.description}
+                        >
+                            <span className="theme-swatch" style={{ background: preset.preview }} />
+                            <span className="theme-preset-name">{preset.name}</span>
+                        </FocusableButton>
+                    );
+                })}
+                <FocusableButton
+                    focusKey="theme-preset-custom-color"
+                    className={`theme-preset-btn ${themeBackground === 'custom-color' ? 'active' : ''}`}
+                    onClick={() => onSelectBackground('custom-color')}
+                    onEnterPress={() => onSelectBackground('custom-color')}
+                    onMouseEnter={() => getMouseActive() && setFocus('theme-preset-custom-color')}
+                    title="Choose a custom solid color or gradient"
+                >
+                    <span
+                        className="theme-swatch"
+                        style={{
+                            background: themeBackground === 'custom-color' && themeCustomBackground ? themeCustomBackground : 'linear-gradient(45deg, #f06, #4a90e2)'
+                        }}
+                    />
+                    <span className="theme-preset-name">Custom Color</span>
+                </FocusableButton>
+                <FocusableButton
+                    focusKey="theme-preset-custom-image"
+                    className={`theme-preset-btn ${themeBackground === 'custom-image' ? 'active' : ''}`}
+                    onClick={() => onSelectBackground('custom-image')}
+                    onEnterPress={() => onSelectBackground('custom-image')}
+                    onMouseEnter={() => getMouseActive() && setFocus('theme-preset-custom-image')}
+                    title="Use a custom wallpaper or background image"
+                >
+                    <span
+                        className="theme-swatch"
+                        style={{
+                            background: 'linear-gradient(135deg, #333 25%, #666 50%, #333 75%)'
+                        }}
+                    />
+                    <span className="theme-preset-name">Custom Image</span>
+                </FocusableButton>
+            </div>
+
+            {themeBackground === 'custom-color' && (
+                <div className="custom-theme-controls">
+                    <span className="settings-row-label">Custom Background Color</span>
+                    <div className="color-picker-row">
+                        <input
+                            type="color"
+                            className="native-color-input"
+                            value={themeCustomBackground.startsWith('#') && themeCustomBackground.length === 7 ? themeCustomBackground : '#121212'}
+                            onChange={(e) => onCustomColorChange(e.target.value)}
+                            title="Choose color"
+                        />
+                        <FocusableInput
+                            focusKey="custom-color-input"
+                            className="input"
+                            value={themeCustomBackground}
+                            onChange={(e) => onCustomColorChange(e.target.value)}
+                            placeholder="#121212 or any valid CSS color"
+                            style={{ flex: 1 }}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {themeBackground === 'custom-image' && (
+                <div className="custom-theme-controls">
+                    <span className="settings-row-label">Custom Wallpaper / Image</span>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <FocusableInput
+                            focusKey="custom-image-input"
+                            className="input"
+                            value={themeCustomBackground}
+                            onChange={(e) => onCustomImageChange(e.target.value)}
+                            placeholder="File path or image URL (https://...)"
+                            style={{ flex: 1 }}
+                        />
+                        <FocusableButton
+                            focusKey="browse-bg-button"
+                            className="btn"
+                            onClick={onBrowseBackground}
+                            onEnterPress={onBrowseBackground}
+                            onMouseEnter={() => getMouseActive() && setFocus('browse-bg-button')}
+                        >
+                            Browse...
+                        </FocusableButton>
+                    </div>
+                    <span className="settings-row-desc">
+                        Select a local image (.png, .jpg, .webp, .gif) or enter a web URL. A subtle dark overlay is applied to keep cards and text readable.
+                    </span>
+                </div>
+            )}
+
+            <div className="settings-row" style={{ alignItems: 'flex-start', marginTop: '16px' }}>
+                <div className="settings-row-info">
+                    <span className="settings-row-label">Application Font</span>
+                    <span className="settings-row-desc">
+                        Choose your preferred typography style across the entire application
+                    </span>
+                </div>
+            </div>
+
+            <div className="font-grid">
+                {FONT_OPTIONS.map((font) => {
+                    const isSelected = themeFont === font.id;
+                    return (
+                        <FocusableButton
+                            key={font.id}
+                            focusKey={`font-option-${font.id}`}
+                            className={`font-option-btn ${isSelected ? 'active' : ''}`}
+                            onClick={() => onSelectFont(font.id)}
+                            onEnterPress={() => onSelectFont(font.id)}
+                            onMouseEnter={() => getMouseActive() && setFocus(`font-option-${font.id}`)}
+                            title={font.description}
+                        >
+                            <div className="font-option-title" style={{ fontFamily: font.family }}>
+                                <span>{font.name}</span>
+                                {isSelected && <span className="font-active-badge" />}
+                            </div>
+                            <div className="font-option-preview" style={{ fontFamily: font.family }}>
+                                {font.previewText}
+                            </div>
+                        </FocusableButton>
+                    );
+                })}
+            </div>
+
+            {/* Font Color selection */}
+            <div className="settings-row" style={{ alignItems: 'flex-start', marginTop: '16px' }}>
+                <div className="settings-row-info">
+                    <span className="settings-row-label">Font Color</span>
+                    <span className="settings-row-desc">
+                        Customize the text color across the entire application interface
+                    </span>
+                </div>
+            </div>
+
+            <div className="color-swatch-grid">
+                {TEXT_COLOR_PRESETS.map((colorItem) => {
+                    const isSelected = themeTextColor.toLowerCase() === colorItem.color.toLowerCase();
+                    return (
+                        <FocusableButton
+                            key={colorItem.id}
+                            focusKey={`color-preset-${colorItem.id}`}
+                            className={`color-swatch-btn ${isSelected ? 'active' : ''}`}
+                            onClick={() => onSelectTextColor(colorItem.color)}
+                            onEnterPress={() => onSelectTextColor(colorItem.color)}
+                            onMouseEnter={() => getMouseActive() && setFocus(`color-preset-${colorItem.id}`)}
+                        >
+                            <span className="font-color-dot" style={{ backgroundColor: colorItem.color }} />
+                            <span>{colorItem.name}</span>
+                        </FocusableButton>
+                    );
+                })}
+            </div>
+
+            <div className="custom-theme-controls" style={{ marginTop: '10px' }}>
+                <span className="settings-row-label">Custom Font Color</span>
+                <div className="color-picker-row">
+                    <input
+                        type="color"
+                        className="native-color-input"
+                        value={themeTextColor.startsWith('#') && themeTextColor.length === 7 ? themeTextColor : '#ffffff'}
+                        onChange={(e) => onSelectTextColor(e.target.value)}
+                        title="Pick custom font color"
+                    />
+                    <FocusableInput
+                        focusKey="custom-text-color-input"
+                        className="input"
+                        value={themeTextColor}
+                        onChange={(e) => onSelectTextColor(e.target.value)}
+                        placeholder="#ffffff or any CSS color"
+                        style={{ flex: 1 }}
+                    />
+                </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '14px' }}>
+                <FocusableButton
+                    focusKey="reset-appearance-btn"
+                    className="btn"
+                    style={{ fontSize: '0.85rem', padding: '0 16px', height: '38px' }}
+                    onClick={onResetAppearance}
+                    onEnterPress={onResetAppearance}
+                    disabled={isSaving}
+                    onMouseEnter={() => getMouseActive() && setFocus('reset-appearance-btn')}
+                >
+                    Reset Appearance
+                </FocusableButton>
             </div>
         </div>
     );

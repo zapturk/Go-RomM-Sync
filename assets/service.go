@@ -175,6 +175,10 @@ func getMimeType(ext string) string {
 		return "image/png"
 	case ".jpg", ".jpeg":
 		return "image/jpeg"
+	case ".webp":
+		return "image/webp"
+	case ".gif":
+		return "image/gif"
 	default:
 		return "application/octet-stream"
 	}
@@ -210,10 +214,39 @@ func (s *Service) ClearCache() error {
 	return nil
 }
 
+func serveCustomBackground(w http.ResponseWriter, r *http.Request) {
+	imgPath := r.URL.Query().Get("path")
+	if imgPath == "" {
+		http.NotFound(w, r)
+		return
+	}
+	cleanPath := filepath.Clean(imgPath)
+	ext := strings.ToLower(filepath.Ext(cleanPath))
+	switch ext {
+	case ".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg":
+		// Allowed image extension
+	default:
+		http.Error(w, "Invalid image format", http.StatusBadRequest)
+		return
+	}
+	data, err := os.ReadFile(cleanPath)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", getMimeType(ext))
+	w.Header().Set("Cache-Control", "no-cache")
+	_, _ = w.Write(data)
+}
+
 // ServeHTTP implements http.Handler to serve cached game covers and platform icons directly, proxying downloads if not cached.
 // ponytail: reimplements the cache-lookup loop (iterate extensions, stat, read) already in GetCover. Delegate.
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
+	if strings.HasPrefix(path, "/custom-background") {
+		serveCustomBackground(w, r)
+		return
+	}
 	if !strings.HasPrefix(path, "/cache/") {
 		http.NotFound(w, r)
 		return
