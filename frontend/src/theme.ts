@@ -124,16 +124,6 @@ export function getComputedBackground(backgroundId: string, customBg: string): s
     if (backgroundId === 'custom-color') {
         return customBg || '#121212';
     }
-    if (backgroundId === 'custom-image') {
-        if (!customBg) {
-            return BACKGROUND_PRESETS[0].css;
-        }
-        let imgUrl = customBg;
-        if (!customBg.startsWith('http://') && !customBg.startsWith('https://') && !customBg.startsWith('data:')) {
-            imgUrl = `/custom-background?path=${encodeURIComponent(customBg)}`;
-        }
-        return `linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)), url("${imgUrl}")`;
-    }
     const preset = BACKGROUND_PRESETS.find(p => p.id === backgroundId) || BACKGROUND_PRESETS[0];
     return preset.css;
 }

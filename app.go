@@ -147,12 +147,6 @@ func (a *App) SelectRetroArchExecutable() (string, error) {
 	return selectedFile, nil
 }
 
-// SelectBackgroundImage opens a file dialog to pick an image file for custom background.
-func (a *App) SelectBackgroundImage() (string, error) {
-	filters := []string{"*.png;*.jpg;*.jpeg;*.webp;*.gif"}
-	return a.OpenFileDialog("Select Background Image", filters)
-}
-
 // DownloadAndInstallRetroArch downloads, installs, and configures the RetroArch executable
 // for the current operating system and CPU architecture.
 func (a *App) DownloadAndInstallRetroArch() (string, error) {

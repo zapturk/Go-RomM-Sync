@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { GetConfig, SaveConfig, SelectRetroArchExecutable, DownloadAndInstallRetroArch, SelectLibraryPath, GetDefaultLibraryPath,
     Logout, ClearImageCache, ToggleOfflineMode, SyncOfflineMetadata,
     UpdateRetroArchCores, UpdateRetroArchBios, ToggleUsePlatformFolder, ToggleDisableMetadata,
-    ScanOrphanedRoms, DeleteOrphanedRoms, SelectBackgroundImage,
+    ScanOrphanedRoms, DeleteOrphanedRoms,
 } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
@@ -260,17 +260,6 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
         applyTheme('custom-color', newColor, themeFont, themeTextColor);
     };
 
-    const handleBrowseBackground = () => {
-        SelectBackgroundImage().then((path) => {
-            if (path) {
-                setThemeCustomBackground(path);
-                setThemeBackground('custom-image');
-                applyTheme('custom-image', path, themeFont, themeTextColor);
-                setStatus("Custom background image selected. Click Save Settings to persist.");
-            }
-        });
-    };
-
     const handleResetAppearance = () => {
         setThemeBackground('cosmic-purple');
         setThemeCustomBackground('');
@@ -481,12 +470,6 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                         onSelectFont={handleSelectFont}
                         onSelectTextColor={handleSelectTextColor}
                         onCustomColorChange={handleCustomColorChange}
-                        onCustomImageChange={(val) => {
-                            setThemeCustomBackground(val);
-                            setThemeBackground('custom-image');
-                            applyTheme('custom-image', val, themeFont, themeTextColor);
-                        }}
-                        onBrowseBackground={handleBrowseBackground}
                         onResetAppearance={handleResetAppearance}
                     />
 
@@ -995,8 +978,6 @@ interface AppearanceSectionProps {
     onSelectFont: (fontId: string) => void;
     onSelectTextColor: (color: string) => void;
     onCustomColorChange: (color: string) => void;
-    onCustomImageChange: (pathOrUrl: string) => void;
-    onBrowseBackground: () => void;
     onResetAppearance: () => void;
 }
 
@@ -1010,8 +991,6 @@ function AppearanceSection({
     onSelectFont,
     onSelectTextColor,
     onCustomColorChange,
-    onCustomImageChange,
-    onBrowseBackground,
     onResetAppearance
 }: AppearanceSectionProps) {
     return (
@@ -1022,7 +1001,7 @@ function AppearanceSection({
                 <div className="settings-row-info">
                     <span className="settings-row-label">Background Theme</span>
                     <span className="settings-row-desc">
-                        Select a curated color theme, or customize with your own solid color or wallpaper image
+                        Select a curated color theme, or customize with your own solid color or gradient
                     </span>
                 </div>
             </div>
@@ -1061,22 +1040,6 @@ function AppearanceSection({
                     />
                     <span className="theme-preset-name">Custom Color</span>
                 </FocusableButton>
-                <FocusableButton
-                    focusKey="theme-preset-custom-image"
-                    className={`theme-preset-btn ${themeBackground === 'custom-image' ? 'active' : ''}`}
-                    onClick={() => onSelectBackground('custom-image')}
-                    onEnterPress={() => onSelectBackground('custom-image')}
-                    onMouseEnter={() => getMouseActive() && setFocus('theme-preset-custom-image')}
-                    title="Use a custom wallpaper or background image"
-                >
-                    <span
-                        className="theme-swatch"
-                        style={{
-                            background: 'linear-gradient(135deg, #333 25%, #666 50%, #333 75%)'
-                        }}
-                    />
-                    <span className="theme-preset-name">Custom Image</span>
-                </FocusableButton>
             </div>
 
             {themeBackground === 'custom-color' && (
@@ -1099,34 +1062,6 @@ function AppearanceSection({
                             style={{ flex: 1 }}
                         />
                     </div>
-                </div>
-            )}
-
-            {themeBackground === 'custom-image' && (
-                <div className="custom-theme-controls">
-                    <span className="settings-row-label">Custom Wallpaper / Image</span>
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                        <FocusableInput
-                            focusKey="custom-image-input"
-                            className="input"
-                            value={themeCustomBackground}
-                            onChange={(e) => onCustomImageChange(e.target.value)}
-                            placeholder="File path or image URL (https://...)"
-                            style={{ flex: 1 }}
-                        />
-                        <FocusableButton
-                            focusKey="browse-bg-button"
-                            className="btn"
-                            onClick={onBrowseBackground}
-                            onEnterPress={onBrowseBackground}
-                            onMouseEnter={() => getMouseActive() && setFocus('browse-bg-button')}
-                        >
-                            Browse...
-                        </FocusableButton>
-                    </div>
-                    <span className="settings-row-desc">
-                        Select a local image (.png, .jpg, .webp, .gif) or enter a web URL. A subtle dark overlay is applied to keep cards and text readable.
-                    </span>
                 </div>
             )}
 

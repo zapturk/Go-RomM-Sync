@@ -126,8 +126,6 @@ export function SaveLastUsedCore(arg1:string,arg2:string):Promise<void>;
 
 export function ScanOrphanedRoms():Promise<Array<string>>;
 
-export function SelectBackgroundImage():Promise<string>;
-
 export function SelectLibraryPath():Promise<string>;
 
 export function SelectRetroArchExecutable():Promise<string>;

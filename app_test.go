@@ -511,8 +511,8 @@ func TestSaveConfigTheme(t *testing.T) {
 
 	// Save new theme settings
 	res := app.SaveConfig(&types.AppConfig{
-		ThemeBackground:       "custom-image",
-		ThemeCustomBackground: "/path/to/bg.png",
+		ThemeBackground:       "custom-color",
+		ThemeCustomBackground: "#1e1e2f",
 		ThemeFont:             "inter",
 		ThemeTextColor:        "#00ff66",
 	})
@@ -521,11 +521,11 @@ func TestSaveConfigTheme(t *testing.T) {
 	}
 
 	savedCfg := cm.GetConfig()
-	if savedCfg.ThemeBackground != "custom-image" {
-		t.Errorf("Expected ThemeBackground 'custom-image', got '%s'", savedCfg.ThemeBackground)
+	if savedCfg.ThemeBackground != "custom-color" {
+		t.Errorf("Expected ThemeBackground 'custom-color', got '%s'", savedCfg.ThemeBackground)
 	}
-	if savedCfg.ThemeCustomBackground != "/path/to/bg.png" {
-		t.Errorf("Expected ThemeCustomBackground '/path/to/bg.png', got '%s'", savedCfg.ThemeCustomBackground)
+	if savedCfg.ThemeCustomBackground != "#1e1e2f" {
+		t.Errorf("Expected ThemeCustomBackground '#1e1e2f', got '%s'", savedCfg.ThemeCustomBackground)
 	}
 	if savedCfg.ThemeFont != "inter" {
 		t.Errorf("Expected ThemeFont 'inter', got '%s'", savedCfg.ThemeFont)
