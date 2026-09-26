@@ -1379,7 +1379,7 @@ body.input-keyboard .show-keyboard {
 /* Appearance & Theme Section Styles */
 .theme-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
     gap: 12px;
     width: 100%;
     margin-top: 10px;
@@ -1388,7 +1388,7 @@ body.input-keyboard .show-keyboard {
 .theme-preset-btn {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     background: rgba(0, 0, 0, 0.25);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 12px;
@@ -1400,6 +1400,7 @@ body.input-keyboard .show-keyboard {
     outline: none;
     font-family: inherit;
     box-sizing: border-box;
+    min-height: 48px;
 }
 
 .theme-preset-btn:hover,
@@ -1423,8 +1424,8 @@ body.mouse-mode .theme-preset-btn:hover {
 }
 
 .theme-swatch {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
     flex-shrink: 0;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
@@ -1432,11 +1433,9 @@ body.mouse-mode .theme-preset-btn:hover {
 }
 
 .theme-preset-name {
-    font-size: 0.9rem;
+    font-size: 0.86rem;
     font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.25;
 }
 
 .font-grid {
@@ -1559,7 +1558,7 @@ body.mouse-mode .font-option-btn:hover {
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 12px;
     padding: 8px 14px;
-    color: var(--app-text-color, #fff);
+    color: #fff;
     cursor: pointer;
     transition: all 0.2s ease;
     text-align: left;
@@ -1626,4 +1625,11 @@ body[data-font="press-start"] .settings-row-label {
 body[data-font="press-start"] .settings-row-desc {
     font-size: 0.65rem;
     line-height: 1.4;
+}
+body[data-font="press-start"] .theme-preset-name {
+    font-size: 0.62rem;
+    line-height: 1.3;
+}
+body[data-font="press-start"] .color-swatch-btn {
+    font-size: 0.65rem;
 }

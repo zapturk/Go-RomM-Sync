@@ -54,6 +54,8 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [themeCustomBackground, setThemeCustomBackground] = useState('');
     const [themeFont, setThemeFont] = useState('orbitron');
     const [themeTextColor, setThemeTextColor] = useState('#ffffff');
+    const [themeCustomTextColor, setThemeCustomTextColor] = useState('#ffffff');
+    const [isCustomTextColor, setIsCustomTextColor] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [isUpdatingCores, setIsUpdatingCores] = useState(false);
     const [isUpdatingBios, setIsUpdatingBios] = useState(false);
@@ -95,6 +97,11 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             const activeCustomBg = theme_custom_background || '';
             const activeFont = theme_font || 'orbitron';
             const activeTextColor = theme_text_color || '#ffffff';
+            const isPresetTextColor = TEXT_COLOR_PRESETS.some(
+                (p) => p.color.toLowerCase() === activeTextColor.toLowerCase()
+            );
+            setIsCustomTextColor(!isPresetTextColor);
+            setThemeCustomTextColor(activeTextColor);
             setThemeBackground(activeBg);
             setThemeCustomBackground(activeCustomBg);
             setThemeFont(activeFont);
@@ -249,9 +256,25 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     };
 
     const handleSelectTextColor = (color: string) => {
+        setIsCustomTextColor(false);
         setThemeTextColor(color);
         applyTheme(themeBackground, themeCustomBackground, themeFont, color);
         setStatus(`Font color updated. Click Save Settings to persist.`);
+    };
+
+    const handleSelectCustomTextColor = () => {
+        setIsCustomTextColor(true);
+        const colorToApply = themeCustomTextColor || '#ffffff';
+        setThemeTextColor(colorToApply);
+        applyTheme(themeBackground, themeCustomBackground, themeFont, colorToApply);
+        setStatus(`Custom font color selected. Click Save Settings to persist.`);
+    };
+
+    const handleCustomTextColorChange = (newColor: string) => {
+        setIsCustomTextColor(true);
+        setThemeCustomTextColor(newColor);
+        setThemeTextColor(newColor);
+        applyTheme(themeBackground, themeCustomBackground, themeFont, newColor);
     };
 
     const handleCustomColorChange = (newColor: string) => {
@@ -265,6 +288,8 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
         setThemeCustomBackground('');
         setThemeFont('orbitron');
         setThemeTextColor('#ffffff');
+        setThemeCustomTextColor('#ffffff');
+        setIsCustomTextColor(false);
         applyTheme('cosmic-purple', '', 'orbitron', '#ffffff');
         setStatus("Appearance reset to defaults. Click Save Settings to persist.");
     };
@@ -465,10 +490,14 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                         themeCustomBackground={themeCustomBackground}
                         themeFont={themeFont}
                         themeTextColor={themeTextColor}
+                        themeCustomTextColor={themeCustomTextColor}
+                        isCustomTextColor={isCustomTextColor}
                         isSaving={isSaving}
                         onSelectBackground={handleSelectBackground}
                         onSelectFont={handleSelectFont}
                         onSelectTextColor={handleSelectTextColor}
+                        onSelectCustomTextColor={handleSelectCustomTextColor}
+                        onCustomTextColorChange={handleCustomTextColorChange}
                         onCustomColorChange={handleCustomColorChange}
                         onResetAppearance={handleResetAppearance}
                     />
@@ -973,10 +1002,14 @@ interface AppearanceSectionProps {
     themeCustomBackground: string;
     themeFont: string;
     themeTextColor: string;
+    themeCustomTextColor: string;
+    isCustomTextColor: boolean;
     isSaving: boolean;
     onSelectBackground: (bgId: string) => void;
     onSelectFont: (fontId: string) => void;
     onSelectTextColor: (color: string) => void;
+    onSelectCustomTextColor: () => void;
+    onCustomTextColorChange: (color: string) => void;
     onCustomColorChange: (color: string) => void;
     onResetAppearance: () => void;
 }
@@ -986,10 +1019,14 @@ function AppearanceSection({
     themeCustomBackground,
     themeFont,
     themeTextColor,
+    themeCustomTextColor,
+    isCustomTextColor,
     isSaving,
     onSelectBackground,
     onSelectFont,
     onSelectTextColor,
+    onSelectCustomTextColor,
+    onCustomTextColorChange,
     onCustomColorChange,
     onResetAppearance
 }: AppearanceSectionProps) {
@@ -1104,14 +1141,14 @@ function AppearanceSection({
                 <div className="settings-row-info">
                     <span className="settings-row-label">Font Color</span>
                     <span className="settings-row-desc">
-                        Customize the text color across the entire application interface
+                        Select a curated font color, or customize with your own solid color or hex code
                     </span>
                 </div>
             </div>
 
             <div className="color-swatch-grid">
                 {TEXT_COLOR_PRESETS.map((colorItem) => {
-                    const isSelected = themeTextColor.toLowerCase() === colorItem.color.toLowerCase();
+                    const isSelected = !isCustomTextColor && themeTextColor.toLowerCase() === colorItem.color.toLowerCase();
                     return (
                         <FocusableButton
                             key={colorItem.id}
@@ -1126,28 +1163,46 @@ function AppearanceSection({
                         </FocusableButton>
                     );
                 })}
+                <FocusableButton
+                    focusKey="color-preset-custom"
+                    className={`color-swatch-btn ${isCustomTextColor ? 'active' : ''}`}
+                    onClick={onSelectCustomTextColor}
+                    onEnterPress={onSelectCustomTextColor}
+                    onMouseEnter={() => getMouseActive() && setFocus('color-preset-custom')}
+                    title="Choose a custom font color"
+                >
+                    <span
+                        className="font-color-dot"
+                        style={{
+                            background: isCustomTextColor && themeCustomTextColor ? themeCustomTextColor : 'linear-gradient(45deg, #f06, #4a90e2)'
+                        }}
+                    />
+                    <span>Custom Color</span>
+                </FocusableButton>
             </div>
 
-            <div className="custom-theme-controls" style={{ marginTop: '10px' }}>
-                <span className="settings-row-label">Custom Font Color</span>
-                <div className="color-picker-row">
-                    <input
-                        type="color"
-                        className="native-color-input"
-                        value={themeTextColor.startsWith('#') && themeTextColor.length === 7 ? themeTextColor : '#ffffff'}
-                        onChange={(e) => onSelectTextColor(e.target.value)}
-                        title="Pick custom font color"
-                    />
-                    <FocusableInput
-                        focusKey="custom-text-color-input"
-                        className="input"
-                        value={themeTextColor}
-                        onChange={(e) => onSelectTextColor(e.target.value)}
-                        placeholder="#ffffff or any CSS color"
-                        style={{ flex: 1 }}
-                    />
+            {isCustomTextColor && (
+                <div className="custom-theme-controls" style={{ marginTop: '10px' }}>
+                    <span className="settings-row-label">Custom Font Color</span>
+                    <div className="color-picker-row">
+                        <input
+                            type="color"
+                            className="native-color-input"
+                            value={themeCustomTextColor.startsWith('#') && themeCustomTextColor.length === 7 ? themeCustomTextColor : '#ffffff'}
+                            onChange={(e) => onCustomTextColorChange(e.target.value)}
+                            title="Pick custom font color"
+                        />
+                        <FocusableInput
+                            focusKey="custom-text-color-input"
+                            className="input"
+                            value={themeCustomTextColor}
+                            onChange={(e) => onCustomTextColorChange(e.target.value)}
+                            placeholder="#ffffff or any valid CSS color"
+                            style={{ flex: 1 }}
+                        />
+                    </div>
                 </div>
-            </div>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '14px' }}>
                 <FocusableButton
