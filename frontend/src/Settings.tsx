@@ -1159,7 +1159,7 @@ function AppearanceSection({
                             onMouseEnter={() => getMouseActive() && setFocus(`color-preset-${colorItem.id}`)}
                         >
                             <span className="font-color-dot" style={{ backgroundColor: colorItem.color }} />
-                            <span>{colorItem.name}</span>
+                            <span className="color-swatch-name">{colorItem.name}</span>
                         </FocusableButton>
                     );
                 })}
@@ -1177,7 +1177,7 @@ function AppearanceSection({
                             background: isCustomTextColor && themeCustomTextColor ? themeCustomTextColor : 'linear-gradient(45deg, #f06, #4a90e2)'
                         }}
                     />
-                    <span>Custom Color</span>
+                    <span className="color-swatch-name">Custom Color</span>
                 </FocusableButton>
             </div>
 

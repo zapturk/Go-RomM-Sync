@@ -1543,9 +1543,9 @@ body.mouse-mode .font-option-btn:hover {
 }
 
 .color-swatch-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 12px;
     width: 100%;
     margin-top: 10px;
 }
@@ -1557,15 +1557,15 @@ body.mouse-mode .font-option-btn:hover {
     background: rgba(0, 0, 0, 0.25);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 12px;
-    padding: 8px 14px;
+    padding: 10px 14px;
     color: #fff;
     cursor: pointer;
     transition: all 0.2s ease;
     text-align: left;
     outline: none;
     font-family: inherit;
-    font-size: 0.88rem;
     box-sizing: border-box;
+    min-height: 48px;
 }
 
 .color-swatch-btn:hover,
@@ -1589,12 +1589,18 @@ body.mouse-mode .color-swatch-btn:hover {
 }
 
 .font-color-dot {
-    width: 18px;
-    height: 18px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
     flex-shrink: 0;
-    box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
-    border: 2px solid rgba(255, 255, 255, 0.25);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.color-swatch-name {
+    font-size: 0.86rem;
+    font-weight: 600;
+    line-height: 1.25;
 }
 
 /* Adaptations for Press Start 2P */
@@ -1630,6 +1636,8 @@ body[data-font="press-start"] .theme-preset-name {
     font-size: 0.62rem;
     line-height: 1.3;
 }
-body[data-font="press-start"] .color-swatch-btn {
-    font-size: 0.65rem;
+body[data-font="press-start"] .color-swatch-name {
+    font-size: 0.62rem;
+    line-height: 1.3;
 }
+
