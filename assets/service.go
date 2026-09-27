@@ -175,6 +175,10 @@ func getMimeType(ext string) string {
 		return "image/png"
 	case ".jpg", ".jpeg":
 		return "image/jpeg"
+	case ".webp":
+		return "image/webp"
+	case ".gif":
+		return "image/gif"
 	default:
 		return "application/octet-stream"
 	}

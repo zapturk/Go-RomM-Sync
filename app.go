@@ -88,6 +88,13 @@ func (a *App) SaveConfig(cfg *types.AppConfig) string {
 		updateIfNotEmpty(&current.CheevosUsername, cfg.CheevosUsername)
 		updateIfNotEmpty(&current.CheevosPassword, cfg.CheevosPassword)
 		updateIfNotEmpty(&current.ClientToken, cfg.ClientToken)
+		updateIfNotEmpty(&current.ThemeBackground, cfg.ThemeBackground)
+		updateIfNotEmpty(&current.ThemeFont, cfg.ThemeFont)
+		updateIfNotEmpty(&current.ThemeTextColor, cfg.ThemeTextColor)
+		updateIfNotEmpty(&current.ThemeBtnTextColor, cfg.ThemeBtnTextColor)
+		if cfg.ThemeBackground != "" {
+			current.ThemeCustomBackground = cfg.ThemeCustomBackground
+		}
 
 		if current.RommHost != oldHost || current.Username != oldUser || current.Password != oldPass {
 			hostOrCredsChanged = true

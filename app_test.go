@@ -490,3 +490,52 @@ func TestGetSetGameController(t *testing.T) {
 		t.Errorf("Expected other game to return default '769', got %s", otherCtrl)
 	}
 }
+
+func TestSaveConfigTheme(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "app-theme-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tmpDir, "config.json")
+	cm.Config = &types.AppConfig{
+		ThemeBackground:       "cosmic-purple",
+		ThemeCustomBackground: "",
+		ThemeFont:             "orbitron",
+		ThemeTextColor:        "#ffffff",
+		ThemeBtnTextColor:     "#ffffff",
+	}
+
+	app := NewApp(cm)
+
+	// Save new theme settings
+	res := app.SaveConfig(&types.AppConfig{
+		ThemeBackground:       "custom-color",
+		ThemeCustomBackground: "#1e1e2f",
+		ThemeFont:             "inter",
+		ThemeTextColor:        "#00ff66",
+		ThemeBtnTextColor:     "#ffb703",
+	})
+	if res != "Configuration saved successfully!" {
+		t.Fatalf("Expected success message, got: %s", res)
+	}
+
+	savedCfg := cm.GetConfig()
+	if savedCfg.ThemeBackground != "custom-color" {
+		t.Errorf("Expected ThemeBackground 'custom-color', got '%s'", savedCfg.ThemeBackground)
+	}
+	if savedCfg.ThemeCustomBackground != "#1e1e2f" {
+		t.Errorf("Expected ThemeCustomBackground '#1e1e2f', got '%s'", savedCfg.ThemeCustomBackground)
+	}
+	if savedCfg.ThemeFont != "inter" {
+		t.Errorf("Expected ThemeFont 'inter', got '%s'", savedCfg.ThemeFont)
+	}
+	if savedCfg.ThemeTextColor != "#00ff66" {
+		t.Errorf("Expected ThemeTextColor '#00ff66', got '%s'", savedCfg.ThemeTextColor)
+	}
+	if savedCfg.ThemeBtnTextColor != "#ffb703" {
+		t.Errorf("Expected ThemeBtnTextColor '#ffb703', got '%s'", savedCfg.ThemeBtnTextColor)
+	}
+}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { GetConfig, SaveConfig, SelectRetroArchExecutable, DownloadAndInstallRetroArch, SelectLibraryPath, GetDefaultLibraryPath,
     Logout, ClearImageCache, ToggleOfflineMode, SyncOfflineMetadata,
     UpdateRetroArchCores, UpdateRetroArchBios, ToggleUsePlatformFolder, ToggleDisableMetadata,
@@ -11,6 +11,23 @@ import { getMouseActive } from './inputMode';
 import { FocusableButton } from './components/FocusableButton';
 import { FocusableInput } from './components/FocusableInput';
 import { LegendItem } from './components/LegendItem';
+import { BACKGROUND_PRESETS, FONT_OPTIONS, TEXT_COLOR_PRESETS, applyTheme } from './theme';
+import { SlidersIcon, PaletteIcon, UsersIcon, WrenchIcon } from './components/Icons';
+
+export type SettingsTabId = 'general' | 'appearance' | 'accounts' | 'maintenance';
+
+interface SettingsTab {
+    id: SettingsTabId;
+    label: string;
+    icon: React.ReactNode;
+}
+
+const SETTINGS_TABS: SettingsTab[] = [
+    { id: 'general', label: 'General', icon: <SlidersIcon size={18} /> },
+    { id: 'appearance', label: 'Appearance', icon: <PaletteIcon size={18} /> },
+    { id: 'accounts', label: 'Accounts & Sync', icon: <UsersIcon size={18} /> },
+    { id: 'maintenance', label: 'Maintenance', icon: <WrenchIcon size={18} /> },
+];
 
 interface SettingsProps {
     isActive?: boolean;
@@ -49,6 +66,15 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [usePlatformFolder, setUsePlatformFolder] = useState(false);
     const [disableMetadata, setDisableMetadata] = useState(false);
     const [clientToken, setClientToken] = useState('');
+    const [themeBackground, setThemeBackground] = useState('cosmic-purple');
+    const [themeCustomBackground, setThemeCustomBackground] = useState('');
+    const [themeFont, setThemeFont] = useState('orbitron');
+    const [themeTextColor, setThemeTextColor] = useState('#ffffff');
+    const [themeCustomTextColor, setThemeCustomTextColor] = useState('#ffffff');
+    const [isCustomTextColor, setIsCustomTextColor] = useState(false);
+    const [themeBtnTextColor, setThemeBtnTextColor] = useState('#ffffff');
+    const [themeCustomBtnTextColor, setThemeCustomBtnTextColor] = useState('#ffffff');
+    const [isCustomBtnTextColor, setIsCustomBtnTextColor] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [isUpdatingCores, setIsUpdatingCores] = useState(false);
     const [isUpdatingBios, setIsUpdatingBios] = useState(false);
@@ -56,6 +82,8 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [isCleaningOrphaned, setIsCleaningOrphaned] = useState(false);
     const [orphanedFiles, setOrphanedFiles] = useState<string[]>([]);
     const [showCleanupModal, setShowCleanupModal] = useState(false);
+    const [activeTab, setActiveTab] = useState<SettingsTabId>('general');
+    const contentRef = useRef<HTMLDivElement | null>(null);
 
     const { ref: containerRef } = useFocusable({
         trackChildren: true,
@@ -71,7 +99,12 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                 offline_mode = false,
                 use_platform_folder = false,
                 disable_metadata = false,
-                client_token = ''
+                client_token = '',
+                theme_background = 'cosmic-purple',
+                theme_custom_background = '',
+                theme_font = 'orbitron',
+                theme_text_color = '#ffffff',
+                theme_btn_text_color = '#ffffff'
             } = cfg || {};
             setConfig(cfg);
             setRaPath(retroarch_path);
@@ -82,6 +115,29 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             setUsePlatformFolder(use_platform_folder);
             setDisableMetadata(disable_metadata);
             setClientToken(client_token);
+            const activeBg = theme_background || 'cosmic-purple';
+            const activeCustomBg = theme_custom_background || '';
+            const activeFont = theme_font || 'orbitron';
+            const activeTextColor = theme_text_color || '#ffffff';
+            const isPresetTextColor = TEXT_COLOR_PRESETS.some(
+                (p) => p.color.toLowerCase() === activeTextColor.toLowerCase()
+            );
+            setIsCustomTextColor(!isPresetTextColor);
+            setThemeCustomTextColor(activeTextColor);
+
+            const activeBtnTextColor = theme_btn_text_color || '#ffffff';
+            const isPresetBtnTextColor = TEXT_COLOR_PRESETS.some(
+                (p) => p.color.toLowerCase() === activeBtnTextColor.toLowerCase()
+            );
+            setIsCustomBtnTextColor(!isPresetBtnTextColor);
+            setThemeCustomBtnTextColor(activeBtnTextColor);
+
+            setThemeBackground(activeBg);
+            setThemeCustomBackground(activeCustomBg);
+            setThemeFont(activeFont);
+            setThemeTextColor(activeTextColor);
+            setThemeBtnTextColor(activeBtnTextColor);
+            applyTheme(activeBg, activeCustomBg, activeFont, activeTextColor, activeBtnTextColor);
         });
     }, []);
 
@@ -116,11 +172,51 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
         };
     }, []);
 
-    // Auto-focus save button on load or when view becomes active
+    const handlePrevTab = () => {
+        const currentIndex = SETTINGS_TABS.findIndex((t) => t.id === activeTab);
+        const prevIndex = (currentIndex - 1 + SETTINGS_TABS.length) % SETTINGS_TABS.length;
+        const targetTab = SETTINGS_TABS[prevIndex];
+        setActiveTab(targetTab.id);
+        setFocus(`settings-tab-${targetTab.id}`);
+    };
+
+    const handleNextTab = () => {
+        const currentIndex = SETTINGS_TABS.findIndex((t) => t.id === activeTab);
+        const nextIndex = (currentIndex + 1) % SETTINGS_TABS.length;
+        const targetTab = SETTINGS_TABS[nextIndex];
+        setActiveTab(targetTab.id);
+        setFocus(`settings-tab-${targetTab.id}`);
+    };
+
+    // Gamepad bumper (LB/RB) and Keyboard (PageUp/PageDown) tab switching
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!isActive || showCleanupModal) return;
+            if (e.key === 'PageUp') {
+                e.preventDefault();
+                handlePrevTab();
+            } else if (e.key === 'PageDown') {
+                e.preventDefault();
+                handleNextTab();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isActive, showCleanupModal, activeTab]);
+
+    // Reset scroll to top when switching tabs
+    useEffect(() => {
+        if (contentRef.current) {
+            contentRef.current.scrollTop = 0;
+        }
+    }, [activeTab]);
+
+    // Auto-focus active tab on load or when view becomes active
     useEffect(() => {
         if (isActive && config) {
             setTimeout(() => {
-                setFocus('browse-ra-button');
+                setFocus(`settings-tab-${activeTab}`);
             }, 100);
         }
     }, [isActive, !!config]);
@@ -198,11 +294,17 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             library_path: libPath,
             cheevos_username: cheevosUser,
             cheevos_password: cheevosPass,
-            client_token: clientToken
+            client_token: clientToken,
+            theme_background: themeBackground,
+            theme_custom_background: themeCustomBackground,
+            theme_font: themeFont,
+            theme_text_color: themeTextColor,
+            theme_btn_text_color: themeBtnTextColor
         });
 
         SaveConfig(updatedConfig)
-            .then((res) => {
+            .then(() => {
+                applyTheme(themeBackground, themeCustomBackground, themeFont, themeTextColor, themeBtnTextColor);
                 setStatus("Settings saved successfully!");
             })
             .catch((err) => {
@@ -211,6 +313,82 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             .finally(() => {
                 setIsSaving(false);
             });
+    };
+
+    const handleSelectBackground = (bgId: string) => {
+        setThemeBackground(bgId);
+        applyTheme(bgId, themeCustomBackground, themeFont, themeTextColor, themeBtnTextColor);
+        setStatus(`Background theme updated. Click Save Settings to persist.`);
+    };
+
+    const handleSelectFont = (fontId: string) => {
+        setThemeFont(fontId);
+        applyTheme(themeBackground, themeCustomBackground, fontId, themeTextColor, themeBtnTextColor);
+        setStatus(`Font updated. Click Save Settings to persist.`);
+    };
+
+    const handleSelectTextColor = (color: string) => {
+        setIsCustomTextColor(false);
+        setThemeTextColor(color);
+        applyTheme(themeBackground, themeCustomBackground, themeFont, color, themeBtnTextColor);
+        setStatus(`Font color updated. Click Save Settings to persist.`);
+    };
+
+    const handleSelectCustomTextColor = () => {
+        setIsCustomTextColor(true);
+        const colorToApply = themeCustomTextColor || '#ffffff';
+        setThemeTextColor(colorToApply);
+        applyTheme(themeBackground, themeCustomBackground, themeFont, colorToApply, themeBtnTextColor);
+        setStatus(`Custom font color selected. Click Save Settings to persist.`);
+    };
+
+    const handleCustomTextColorChange = (newColor: string) => {
+        setIsCustomTextColor(true);
+        setThemeCustomTextColor(newColor);
+        setThemeTextColor(newColor);
+        applyTheme(themeBackground, themeCustomBackground, themeFont, newColor, themeBtnTextColor);
+    };
+
+    const handleSelectBtnTextColor = (color: string) => {
+        setIsCustomBtnTextColor(false);
+        setThemeBtnTextColor(color);
+        applyTheme(themeBackground, themeCustomBackground, themeFont, themeTextColor, color);
+        setStatus(`Button text color updated. Click Save Settings to persist.`);
+    };
+
+    const handleSelectCustomBtnTextColor = () => {
+        setIsCustomBtnTextColor(true);
+        const colorToApply = themeCustomBtnTextColor || '#ffffff';
+        setThemeBtnTextColor(colorToApply);
+        applyTheme(themeBackground, themeCustomBackground, themeFont, themeTextColor, colorToApply);
+        setStatus(`Custom button text color selected. Click Save Settings to persist.`);
+    };
+
+    const handleCustomBtnTextColorChange = (newColor: string) => {
+        setIsCustomBtnTextColor(true);
+        setThemeCustomBtnTextColor(newColor);
+        setThemeBtnTextColor(newColor);
+        applyTheme(themeBackground, themeCustomBackground, themeFont, themeTextColor, newColor);
+    };
+
+    const handleCustomColorChange = (newColor: string) => {
+        setThemeCustomBackground(newColor);
+        setThemeBackground('custom-color');
+        applyTheme('custom-color', newColor, themeFont, themeTextColor, themeBtnTextColor);
+    };
+
+    const handleResetAppearance = () => {
+        setThemeBackground('cosmic-purple');
+        setThemeCustomBackground('');
+        setThemeFont('orbitron');
+        setThemeTextColor('#ffffff');
+        setThemeCustomTextColor('#ffffff');
+        setIsCustomTextColor(false);
+        setThemeBtnTextColor('#ffffff');
+        setThemeCustomBtnTextColor('#ffffff');
+        setIsCustomBtnTextColor(false);
+        applyTheme('cosmic-purple', '', 'orbitron', '#ffffff', '#ffffff');
+        setStatus("Appearance reset to defaults. Click Save Settings to persist.");
     };
 
     const handleLogout = () => {
@@ -371,70 +549,159 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             });
     };
 
-    const handleTopArrowPress = (direction: string) => direction !== 'up';
+    const handleTopArrowPress = (direction: string) => {
+        if (direction === 'up') {
+            setFocus(`settings-tab-${activeTab}`);
+            return false;
+        }
+        return true;
+    };
 
     if (!config) return <div className="loading-screen"><h2>Loading settings...</h2></div>;
 
     return (
         <div id="settings-page" className="settings-page">
-            <div className="settings-content" ref={containerRef}>
+            <div
+                className="settings-content"
+                ref={(node) => {
+                    if (typeof containerRef === 'function') {
+                        containerRef(node);
+                    } else if (containerRef) {
+                        (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+                    }
+                    contentRef.current = node;
+                }}
+            >
                 <div className="settings-inner">
                     <div className="settings-header">
                         <h1>Settings</h1>
                         <div className="settings-status-box">{status}</div>
                     </div>
 
-                    <EmulatorSection
-                        raPath={raPath}
-                        isSaving={isSaving}
-                        isInstallingRA={isInstallingRA}
-                        handleBrowseRA={handleBrowseRA}
-                        handleInstallRA={handleInstallRA}
-                        handleTopArrowPress={handleTopArrowPress}
-                    />
+                    <div className="settings-tabs-bar" role="tablist" aria-label="Settings categories">
+                        <div className="tab-bumper-indicator show-gamepad" title="Previous Tab (LB)">
+                            <span className="bumper-badge">LB</span>
+                        </div>
+                        <div className="settings-tabs-list">
+                            {SETTINGS_TABS.map((tab) => {
+                                const isSelected = activeTab === tab.id;
+                                return (
+                                    <FocusableButton
+                                        key={tab.id}
+                                        focusKey={`settings-tab-${tab.id}`}
+                                        className={`settings-tab-btn ${isSelected ? 'active' : ''}`}
+                                        role="tab"
+                                        aria-selected={isSelected}
+                                        onClick={() => setActiveTab(tab.id)}
+                                        onEnterPress={() => setActiveTab(tab.id)}
+                                        onFocus={() => {
+                                            if (!getMouseActive()) {
+                                                setActiveTab(tab.id);
+                                            }
+                                        }}
+                                        onMouseEnter={() => getMouseActive() && setFocus(`settings-tab-${tab.id}`)}
+                                        onArrowPress={(direction) => {
+                                            if (direction === 'up') return false;
+                                            return true;
+                                        }}
+                                    >
+                                        <span className="settings-tab-icon">{tab.icon}</span>
+                                        <span className="settings-tab-label">{tab.label}</span>
+                                    </FocusableButton>
+                                );
+                            })}
+                        </div>
+                        <div className="tab-bumper-indicator show-gamepad" title="Next Tab (RB)">
+                            <span className="bumper-badge">RB</span>
+                        </div>
+                    </div>
 
-                    <LibrarySection
-                        libPath={libPath}
-                        isSaving={isSaving}
-                        usePlatformFolder={usePlatformFolder}
-                        disableMetadata={disableMetadata}
-                        handleBrowseLib={handleBrowseLib}
-                        handleSetDefaultLib={handleSetDefaultLib}
-                        handleTogglePlatformFolder={handleTogglePlatformFolder}
-                        handleToggleDisableMetadata={handleToggleDisableMetadata}
-                    />
+                    {activeTab === 'general' && (
+                        <>
+                            <EmulatorSection
+                                raPath={raPath}
+                                isSaving={isSaving}
+                                isInstallingRA={isInstallingRA}
+                                handleBrowseRA={handleBrowseRA}
+                                handleInstallRA={handleInstallRA}
+                                handleTopArrowPress={handleTopArrowPress}
+                            />
 
-                    <MaintenanceSection
-                        isSaving={isSaving}
-                        isUpdatingCores={isUpdatingCores}
-                        isUpdatingBios={isUpdatingBios}
-                        isCleaningOrphaned={isCleaningOrphaned}
-                        handleClearCache={handleClearCache}
-                        handleUpdateCores={handleUpdateCores}
-                        handleUpdateBios={handleUpdateBios}
-                        handleCleanupOrphaned={handleCleanupOrphaned}
-                    />
+                            <LibrarySection
+                                libPath={libPath}
+                                isSaving={isSaving}
+                                usePlatformFolder={usePlatformFolder}
+                                disableMetadata={disableMetadata}
+                                handleBrowseLib={handleBrowseLib}
+                                handleSetDefaultLib={handleSetDefaultLib}
+                                handleTogglePlatformFolder={handleTogglePlatformFolder}
+                                handleToggleDisableMetadata={handleToggleDisableMetadata}
+                            />
+                        </>
+                    )}
 
-                    <OfflineSection
-                        isSaving={isSaving}
-                        isSyncing={isSyncing}
-                        offlineMode={offlineMode}
-                        disableMetadata={disableMetadata}
-                        handleToggleOffline={handleToggleOffline}
-                        handleSyncMetadata={handleSyncMetadata}
-                    />
+                    {activeTab === 'appearance' && (
+                        <AppearanceSection
+                            themeBackground={themeBackground}
+                            themeCustomBackground={themeCustomBackground}
+                            themeFont={themeFont}
+                            themeTextColor={themeTextColor}
+                            themeCustomTextColor={themeCustomTextColor}
+                            isCustomTextColor={isCustomTextColor}
+                            themeBtnTextColor={themeBtnTextColor}
+                            themeCustomBtnTextColor={themeCustomBtnTextColor}
+                            isCustomBtnTextColor={isCustomBtnTextColor}
+                            isSaving={isSaving}
+                            onSelectBackground={handleSelectBackground}
+                            onSelectFont={handleSelectFont}
+                            onSelectTextColor={handleSelectTextColor}
+                            onSelectCustomTextColor={handleSelectCustomTextColor}
+                            onCustomTextColorChange={handleCustomTextColorChange}
+                            onSelectBtnTextColor={handleSelectBtnTextColor}
+                            onSelectCustomBtnTextColor={handleSelectCustomBtnTextColor}
+                            onCustomBtnTextColorChange={handleCustomBtnTextColorChange}
+                            onCustomColorChange={handleCustomColorChange}
+                            onResetAppearance={handleResetAppearance}
+                        />
+                    )}
 
-                    <RetroAchievementsSection
-                        cheevosUser={cheevosUser}
-                        setCheevosUser={setCheevosUser}
-                        cheevosPass={cheevosPass}
-                        setCheevosPass={setCheevosPass}
-                    />
+                    {activeTab === 'accounts' && (
+                        <>
+                            <RomMConnectionSection
+                                clientToken={clientToken}
+                                setClientToken={setClientToken}
+                            />
 
-                    <RomMConnectionSection
-                        clientToken={clientToken}
-                        setClientToken={setClientToken}
-                    />
+                            <RetroAchievementsSection
+                                cheevosUser={cheevosUser}
+                                setCheevosUser={setCheevosUser}
+                                cheevosPass={cheevosPass}
+                                setCheevosPass={setCheevosPass}
+                            />
+
+                            <OfflineSection
+                                isSaving={isSaving}
+                                isSyncing={isSyncing}
+                                offlineMode={offlineMode}
+                                disableMetadata={disableMetadata}
+                                handleToggleOffline={handleToggleOffline}
+                                handleSyncMetadata={handleSyncMetadata}
+                            />
+                        </>
+                    )}
+
+                    {activeTab === 'maintenance' && (
+                        <MaintenanceSection
+                            isSaving={isSaving}
+                            isUpdatingCores={isUpdatingCores}
+                            isUpdatingBios={isUpdatingBios}
+                            isCleaningOrphaned={isCleaningOrphaned}
+                            handleClearCache={handleClearCache}
+                            handleUpdateCores={handleUpdateCores}
+                            handleUpdateBios={handleUpdateBios}
+                            handleCleanupOrphaned={handleCleanupOrphaned}
+                        />
+                    )}
 
                     <div className="settings-actions">
                         <FocusableButton
@@ -478,6 +745,15 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                     <span>{status}</span>
                 </div>
                 <div className="footer-right">
+                    <div className="legend-item">
+                        <div className="bumper-group show-gamepad">
+                            <span className="bumper-badge">LB</span>
+                            <span className="bumper-separator">/</span>
+                            <span className="bumper-badge">RB</span>
+                        </div>
+                        <div className="key-icon show-keyboard">PgUp / PgDn</div>
+                        <span>Switch Tab</span>
+                    </div>
                     <LegendItem buttonAction="east" keyLabel="ESC" label="Back" />
                     <LegendItem buttonAction="south" keyLabel="ENTER" label="OK" />
                 </div>
@@ -894,6 +1170,310 @@ function RomMConnectionSection({ clientToken, setClientToken }: RomMConnectionSe
                 <div className="input-help-text" style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: '0.5rem' }}>
                     A persistent token for stable connection. The app can auto-generate this if you login normally, or you can paste one from RomM Settings.
                 </div>
+            </div>
+        </div>
+    );
+}
+
+interface AppearanceSectionProps {
+    themeBackground: string;
+    themeCustomBackground: string;
+    themeFont: string;
+    themeTextColor: string;
+    themeCustomTextColor: string;
+    isCustomTextColor: boolean;
+    themeBtnTextColor: string;
+    themeCustomBtnTextColor: string;
+    isCustomBtnTextColor: boolean;
+    isSaving: boolean;
+    onSelectBackground: (bgId: string) => void;
+    onSelectFont: (fontId: string) => void;
+    onSelectTextColor: (color: string) => void;
+    onSelectCustomTextColor: () => void;
+    onCustomTextColorChange: (color: string) => void;
+    onSelectBtnTextColor: (color: string) => void;
+    onSelectCustomBtnTextColor: () => void;
+    onCustomBtnTextColorChange: (color: string) => void;
+    onCustomColorChange: (color: string) => void;
+    onResetAppearance: () => void;
+}
+
+function AppearanceSection({
+    themeBackground,
+    themeCustomBackground,
+    themeFont,
+    themeTextColor,
+    themeCustomTextColor,
+    isCustomTextColor,
+    themeBtnTextColor,
+    themeCustomBtnTextColor,
+    isCustomBtnTextColor,
+    isSaving,
+    onSelectBackground,
+    onSelectFont,
+    onSelectTextColor,
+    onSelectCustomTextColor,
+    onCustomTextColorChange,
+    onSelectBtnTextColor,
+    onSelectCustomBtnTextColor,
+    onCustomBtnTextColorChange,
+    onCustomColorChange,
+    onResetAppearance
+}: AppearanceSectionProps) {
+    return (
+        <div className="settings-card">
+            <div className="settings-section-title">Appearance & Themes</div>
+
+            <div className="settings-row" style={{ alignItems: 'flex-start' }}>
+                <div className="settings-row-info">
+                    <span className="settings-row-label">Background Theme</span>
+                    <span className="settings-row-desc">
+                        Select a curated color theme, or customize with your own solid color or gradient
+                    </span>
+                </div>
+            </div>
+
+            <div className="theme-grid">
+                {BACKGROUND_PRESETS.map((preset) => {
+                    const isSelected = themeBackground === preset.id;
+                    return (
+                        <FocusableButton
+                            key={preset.id}
+                            focusKey={`theme-preset-${preset.id}`}
+                            className={`theme-preset-btn ${isSelected ? 'active' : ''}`}
+                            onClick={() => onSelectBackground(preset.id)}
+                            onEnterPress={() => onSelectBackground(preset.id)}
+                            onMouseEnter={() => getMouseActive() && setFocus(`theme-preset-${preset.id}`)}
+                            title={preset.description}
+                        >
+                            <span className="theme-swatch" style={{ background: preset.preview }} />
+                            <span className="theme-preset-name">{preset.name}</span>
+                        </FocusableButton>
+                    );
+                })}
+                <FocusableButton
+                    focusKey="theme-preset-custom-color"
+                    className={`theme-preset-btn ${themeBackground === 'custom-color' ? 'active' : ''}`}
+                    onClick={() => onSelectBackground('custom-color')}
+                    onEnterPress={() => onSelectBackground('custom-color')}
+                    onMouseEnter={() => getMouseActive() && setFocus('theme-preset-custom-color')}
+                    title="Choose a custom solid color or gradient"
+                >
+                    <span
+                        className="theme-swatch"
+                        style={{
+                            background: themeBackground === 'custom-color' && themeCustomBackground ? themeCustomBackground : 'linear-gradient(45deg, #f06, #4a90e2)'
+                        }}
+                    />
+                    <span className="theme-preset-name">Custom Color</span>
+                </FocusableButton>
+            </div>
+
+            {themeBackground === 'custom-color' && (
+                <div className="custom-theme-controls">
+                    <span className="settings-row-label">Custom Background Color</span>
+                    <div className="color-picker-row">
+                        <input
+                            type="color"
+                            className="native-color-input"
+                            value={themeCustomBackground.startsWith('#') && themeCustomBackground.length === 7 ? themeCustomBackground : '#121212'}
+                            onChange={(e) => onCustomColorChange(e.target.value)}
+                            title="Choose color"
+                        />
+                        <FocusableInput
+                            focusKey="custom-color-input"
+                            className="input"
+                            value={themeCustomBackground}
+                            onChange={(e) => onCustomColorChange(e.target.value)}
+                            placeholder="#121212 or any valid CSS color"
+                            style={{ flex: 1 }}
+                        />
+                    </div>
+                </div>
+            )}
+
+            <div className="settings-row" style={{ alignItems: 'flex-start', marginTop: '16px' }}>
+                <div className="settings-row-info">
+                    <span className="settings-row-label">Application Font</span>
+                    <span className="settings-row-desc">
+                        Choose your preferred typography style across the entire application
+                    </span>
+                </div>
+            </div>
+
+            <div className="font-grid">
+                {FONT_OPTIONS.map((font) => {
+                    const isSelected = themeFont === font.id;
+                    return (
+                        <FocusableButton
+                            key={font.id}
+                            focusKey={`font-option-${font.id}`}
+                            className={`font-option-btn ${isSelected ? 'active' : ''}`}
+                            onClick={() => onSelectFont(font.id)}
+                            onEnterPress={() => onSelectFont(font.id)}
+                            onMouseEnter={() => getMouseActive() && setFocus(`font-option-${font.id}`)}
+                            title={font.description}
+                        >
+                            <div className="font-option-title" style={{ fontFamily: font.family }}>
+                                <span>{font.name}</span>
+                                {isSelected && <span className="font-active-badge" />}
+                            </div>
+                            <div className="font-option-preview" style={{ fontFamily: font.family }}>
+                                {font.previewText}
+                            </div>
+                        </FocusableButton>
+                    );
+                })}
+            </div>
+
+            {/* Font Color selection */}
+            <div className="settings-row" style={{ alignItems: 'flex-start', marginTop: '16px' }}>
+                <div className="settings-row-info">
+                    <span className="settings-row-label">Font Color</span>
+                    <span className="settings-row-desc">
+                        Select a curated font color, or customize with your own solid color or hex code
+                    </span>
+                </div>
+            </div>
+
+            <div className="color-swatch-grid">
+                {TEXT_COLOR_PRESETS.map((colorItem) => {
+                    const isSelected = !isCustomTextColor && themeTextColor.toLowerCase() === colorItem.color.toLowerCase();
+                    return (
+                        <FocusableButton
+                            key={colorItem.id}
+                            focusKey={`color-preset-${colorItem.id}`}
+                            className={`color-swatch-btn ${isSelected ? 'active' : ''}`}
+                            onClick={() => onSelectTextColor(colorItem.color)}
+                            onEnterPress={() => onSelectTextColor(colorItem.color)}
+                            onMouseEnter={() => getMouseActive() && setFocus(`color-preset-${colorItem.id}`)}
+                        >
+                            <span className="font-color-dot" style={{ backgroundColor: colorItem.color }} />
+                            <span className="color-swatch-name">{colorItem.name}</span>
+                        </FocusableButton>
+                    );
+                })}
+                <FocusableButton
+                    focusKey="color-preset-custom"
+                    className={`color-swatch-btn ${isCustomTextColor ? 'active' : ''}`}
+                    onClick={onSelectCustomTextColor}
+                    onEnterPress={onSelectCustomTextColor}
+                    onMouseEnter={() => getMouseActive() && setFocus('color-preset-custom')}
+                    title="Choose a custom font color"
+                >
+                    <span
+                        className="font-color-dot"
+                        style={{
+                            background: isCustomTextColor && themeCustomTextColor ? themeCustomTextColor : 'linear-gradient(45deg, #f06, #4a90e2)'
+                        }}
+                    />
+                    <span className="color-swatch-name">Custom Color</span>
+                </FocusableButton>
+            </div>
+
+            {isCustomTextColor && (
+                <div className="custom-theme-controls" style={{ marginTop: '10px' }}>
+                    <span className="settings-row-label">Custom Font Color</span>
+                    <div className="color-picker-row">
+                        <input
+                            type="color"
+                            className="native-color-input"
+                            value={themeCustomTextColor.startsWith('#') && themeCustomTextColor.length === 7 ? themeCustomTextColor : '#ffffff'}
+                            onChange={(e) => onCustomTextColorChange(e.target.value)}
+                            title="Pick custom font color"
+                        />
+                        <FocusableInput
+                            focusKey="custom-text-color-input"
+                            className="input"
+                            value={themeCustomTextColor}
+                            onChange={(e) => onCustomTextColorChange(e.target.value)}
+                            placeholder="#ffffff or any valid CSS color"
+                            style={{ flex: 1 }}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Button Text Color selection */}
+            <div className="settings-row" style={{ alignItems: 'flex-start', marginTop: '16px' }}>
+                <div className="settings-row-info">
+                    <span className="settings-row-label">Button Text Color</span>
+                    <span className="settings-row-desc">
+                        Select a curated button text color, or customize with your own solid color or hex code
+                    </span>
+                </div>
+            </div>
+
+            <div className="color-swatch-grid">
+                {TEXT_COLOR_PRESETS.map((colorItem) => {
+                    const isSelected = !isCustomBtnTextColor && themeBtnTextColor.toLowerCase() === colorItem.color.toLowerCase();
+                    return (
+                        <FocusableButton
+                            key={`btn-color-${colorItem.id}`}
+                            focusKey={`btn-color-preset-${colorItem.id}`}
+                            className={`color-swatch-btn ${isSelected ? 'active' : ''}`}
+                            onClick={() => onSelectBtnTextColor(colorItem.color)}
+                            onEnterPress={() => onSelectBtnTextColor(colorItem.color)}
+                            onMouseEnter={() => getMouseActive() && setFocus(`btn-color-preset-${colorItem.id}`)}
+                        >
+                            <span className="font-color-dot" style={{ backgroundColor: colorItem.color }} />
+                            <span className="color-swatch-name">{colorItem.name}</span>
+                        </FocusableButton>
+                    );
+                })}
+                <FocusableButton
+                    focusKey="btn-color-preset-custom"
+                    className={`color-swatch-btn ${isCustomBtnTextColor ? 'active' : ''}`}
+                    onClick={onSelectCustomBtnTextColor}
+                    onEnterPress={onSelectCustomBtnTextColor}
+                    onMouseEnter={() => getMouseActive() && setFocus('btn-color-preset-custom')}
+                    title="Choose a custom button text color"
+                >
+                    <span
+                        className="font-color-dot"
+                        style={{
+                            background: isCustomBtnTextColor && themeCustomBtnTextColor ? themeCustomBtnTextColor : 'linear-gradient(45deg, #f06, #4a90e2)'
+                        }}
+                    />
+                    <span className="color-swatch-name">Custom Color</span>
+                </FocusableButton>
+            </div>
+
+            {isCustomBtnTextColor && (
+                <div className="custom-theme-controls" style={{ marginTop: '10px' }}>
+                    <span className="settings-row-label">Custom Button Text Color</span>
+                    <div className="color-picker-row">
+                        <input
+                            type="color"
+                            className="native-color-input"
+                            value={themeCustomBtnTextColor.startsWith('#') && themeCustomBtnTextColor.length === 7 ? themeCustomBtnTextColor : '#ffffff'}
+                            onChange={(e) => onCustomBtnTextColorChange(e.target.value)}
+                            title="Pick custom button text color"
+                        />
+                        <FocusableInput
+                            focusKey="custom-btn-text-color-input"
+                            className="input"
+                            value={themeCustomBtnTextColor}
+                            onChange={(e) => onCustomBtnTextColorChange(e.target.value)}
+                            placeholder="#ffffff or any valid CSS color"
+                            style={{ flex: 1 }}
+                        />
+                    </div>
+                </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '14px' }}>
+                <FocusableButton
+                    focusKey="reset-appearance-btn"
+                    className="btn"
+                    style={{ fontSize: '0.85rem', padding: '0 16px', height: '38px' }}
+                    onClick={onResetAppearance}
+                    onEnterPress={onResetAppearance}
+                    disabled={isSaving}
+                    onMouseEnter={() => getMouseActive() && setFocus('reset-appearance-btn')}
+                >
+                    Reset Appearance
+                </FocusableButton>
             </div>
         </div>
     );
