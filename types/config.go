@@ -21,6 +21,7 @@ type AppConfig struct {
 	ThemeCustomBackground string            `json:"theme_custom_background"` // Custom color or image path
 	ThemeFont             string            `json:"theme_font"`              // Selected font ID
 	ThemeTextColor        string            `json:"theme_text_color"`        // Selected font/text color
+	ThemeBtnTextColor     string            `json:"theme_btn_text_color"`    // Selected button text color
 }
 
 // UIProvider defines standard UI logging and event emission behaviors.

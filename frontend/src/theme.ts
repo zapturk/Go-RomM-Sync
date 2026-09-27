@@ -128,7 +128,7 @@ export function getComputedBackground(backgroundId: string, customBg: string): s
     return preset.css;
 }
 
-export function applyTheme(backgroundId: string, customBg: string, fontId: string, textColor?: string) {
+export function applyTheme(backgroundId: string, customBg: string, fontId: string, textColor?: string, btnTextColor?: string) {
     const root = document.documentElement;
     const body = document.body;
 
@@ -141,6 +141,10 @@ export function applyTheme(backgroundId: string, customBg: string, fontId: strin
     const activeColor = textColor || '#ffffff';
     root.style.setProperty('--app-text-color', activeColor);
 
+    // Button Text Color
+    const activeBtnColor = btnTextColor || '#ffffff';
+    root.style.setProperty('--app-btn-text-color', activeBtnColor);
+
     // Background
     const bgCss = getComputedBackground(backgroundId, customBg);
     root.style.setProperty('--app-background', bgCss);
@@ -150,6 +154,7 @@ export function applyTheme(backgroundId: string, customBg: string, fontId: strin
     localStorage.setItem('theme_custom_background', customBg || '');
     localStorage.setItem('theme_font', fontId || 'orbitron');
     localStorage.setItem('theme_text_color', activeColor);
+    localStorage.setItem('theme_btn_text_color', activeBtnColor);
 }
 
 export function initThemeFromStorage() {
@@ -157,5 +162,6 @@ export function initThemeFromStorage() {
     const customBg = localStorage.getItem('theme_custom_background') || '';
     const font = localStorage.getItem('theme_font') || 'orbitron';
     const textColor = localStorage.getItem('theme_text_color') || '#ffffff';
-    applyTheme(bg, customBg, font, textColor);
+    const btnTextColor = localStorage.getItem('theme_btn_text_color') || '#ffffff';
+    applyTheme(bg, customBg, font, textColor, btnTextColor);
 }

@@ -91,6 +91,7 @@ func (a *App) SaveConfig(cfg *types.AppConfig) string {
 		updateIfNotEmpty(&current.ThemeBackground, cfg.ThemeBackground)
 		updateIfNotEmpty(&current.ThemeFont, cfg.ThemeFont)
 		updateIfNotEmpty(&current.ThemeTextColor, cfg.ThemeTextColor)
+		updateIfNotEmpty(&current.ThemeBtnTextColor, cfg.ThemeBtnTextColor)
 		if cfg.ThemeBackground != "" {
 			current.ThemeCustomBackground = cfg.ThemeCustomBackground
 		}

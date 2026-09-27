@@ -148,6 +148,7 @@ func (cm *ConfigManager) createDefault() error {
 		ThemeCustomBackground: "",
 		ThemeFont:             "orbitron",
 		ThemeTextColor:        "#ffffff",
+		ThemeBtnTextColor:     "#ffffff",
 	}
 	cm.Config = &defaultConfig
 

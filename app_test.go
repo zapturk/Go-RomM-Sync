@@ -505,6 +505,7 @@ func TestSaveConfigTheme(t *testing.T) {
 		ThemeCustomBackground: "",
 		ThemeFont:             "orbitron",
 		ThemeTextColor:        "#ffffff",
+		ThemeBtnTextColor:     "#ffffff",
 	}
 
 	app := NewApp(cm)
@@ -515,6 +516,7 @@ func TestSaveConfigTheme(t *testing.T) {
 		ThemeCustomBackground: "#1e1e2f",
 		ThemeFont:             "inter",
 		ThemeTextColor:        "#00ff66",
+		ThemeBtnTextColor:     "#ffb703",
 	})
 	if res != "Configuration saved successfully!" {
 		t.Fatalf("Expected success message, got: %s", res)
@@ -532,5 +534,8 @@ func TestSaveConfigTheme(t *testing.T) {
 	}
 	if savedCfg.ThemeTextColor != "#00ff66" {
 		t.Errorf("Expected ThemeTextColor '#00ff66', got '%s'", savedCfg.ThemeTextColor)
+	}
+	if savedCfg.ThemeBtnTextColor != "#ffb703" {
+		t.Errorf("Expected ThemeBtnTextColor '#ffb703', got '%s'", savedCfg.ThemeBtnTextColor)
 	}
 }

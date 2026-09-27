@@ -4,6 +4,7 @@
     --bg-dark: #121212;
     --bg-card: #1e1e1e;
     --app-text-color: #ffffff;
+    --app-btn-text-color: #ffffff;
     --text-main: var(--app-text-color);
     --text-dim: #b0b0b0;
     --item-min-width: 200px;
@@ -108,7 +109,7 @@ body {
     padding: 0 8px;
     cursor: pointer;
     background-color: #007bff;
-    color: white;
+    color: var(--app-btn-text-color, white);
     font-size: 1rem;
     transition: background-color 0.3s;
 }
@@ -391,7 +392,7 @@ body.mouse-mode .game-card:hover,
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: var(--app-btn-text-color, white);
 }
 
 .game-actions-horizontal .play-btn {
@@ -592,17 +593,18 @@ body.mouse-mode .game-card:hover,
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.05);
+    color: var(--app-btn-text-color, #fff);
 }
 
 .settings-page .btn.focused {
-    color: #fff;
+    color: var(--app-btn-text-color, #fff);
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
 }
 
 .settings-page .btn-primary {
     background: #4CAF50;
-    color: #fff;
+    color: var(--app-btn-text-color, #fff);
 }
 
 .settings-page .btn-danger {
@@ -713,7 +715,7 @@ body.mouse-mode .game-card:hover,
 
 .btn.download-btn {
     background-color: #4CAF50;
-    color: white;
+    color: var(--app-btn-text-color, white);
 }
 
 .download-btn.disabled {
@@ -800,7 +802,7 @@ body.mouse-mode .game-card:hover,
     border: none;
     outline: none;
     font-family: inherit;
-    color: white;
+    color: var(--app-btn-text-color, white);
     background-color: #444;
 }
 
@@ -1393,7 +1395,7 @@ body.input-keyboard .show-keyboard {
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 12px;
     padding: 10px 14px;
-    color: #fff;
+    color: var(--app-btn-text-color, #fff);
     cursor: pointer;
     transition: all 0.2s ease;
     text-align: left;
@@ -1454,7 +1456,7 @@ body.mouse-mode .theme-preset-btn:hover {
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 12px;
     padding: 12px 16px;
-    color: #fff;
+    color: var(--app-btn-text-color, #fff);
     cursor: pointer;
     transition: all 0.2s ease;
     text-align: left;
@@ -1558,7 +1560,7 @@ body.mouse-mode .font-option-btn:hover {
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 12px;
     padding: 10px 14px;
-    color: #fff;
+    color: var(--app-btn-text-color, #fff);
     cursor: pointer;
     transition: all 0.2s ease;
     text-align: left;

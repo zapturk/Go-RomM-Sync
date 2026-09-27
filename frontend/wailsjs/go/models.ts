@@ -20,6 +20,7 @@ export namespace types {
 	    theme_custom_background: string;
 	    theme_font: string;
 	    theme_text_color: string;
+	    theme_btn_text_color: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppConfig(source);
@@ -46,6 +47,7 @@ export namespace types {
 	        this.theme_custom_background = source["theme_custom_background"];
 	        this.theme_font = source["theme_font"];
 	        this.theme_text_color = source["theme_text_color"];
+	        this.theme_btn_text_color = source["theme_btn_text_color"];
 	    }
 	}
 	export class FileItem {

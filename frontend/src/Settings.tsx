@@ -56,6 +56,9 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [themeTextColor, setThemeTextColor] = useState('#ffffff');
     const [themeCustomTextColor, setThemeCustomTextColor] = useState('#ffffff');
     const [isCustomTextColor, setIsCustomTextColor] = useState(false);
+    const [themeBtnTextColor, setThemeBtnTextColor] = useState('#ffffff');
+    const [themeCustomBtnTextColor, setThemeCustomBtnTextColor] = useState('#ffffff');
+    const [isCustomBtnTextColor, setIsCustomBtnTextColor] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [isUpdatingCores, setIsUpdatingCores] = useState(false);
     const [isUpdatingBios, setIsUpdatingBios] = useState(false);
@@ -82,7 +85,8 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                 theme_background = 'cosmic-purple',
                 theme_custom_background = '',
                 theme_font = 'orbitron',
-                theme_text_color = '#ffffff'
+                theme_text_color = '#ffffff',
+                theme_btn_text_color = '#ffffff'
             } = cfg || {};
             setConfig(cfg);
             setRaPath(retroarch_path);
@@ -102,11 +106,20 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             );
             setIsCustomTextColor(!isPresetTextColor);
             setThemeCustomTextColor(activeTextColor);
+
+            const activeBtnTextColor = theme_btn_text_color || '#ffffff';
+            const isPresetBtnTextColor = TEXT_COLOR_PRESETS.some(
+                (p) => p.color.toLowerCase() === activeBtnTextColor.toLowerCase()
+            );
+            setIsCustomBtnTextColor(!isPresetBtnTextColor);
+            setThemeCustomBtnTextColor(activeBtnTextColor);
+
             setThemeBackground(activeBg);
             setThemeCustomBackground(activeCustomBg);
             setThemeFont(activeFont);
             setThemeTextColor(activeTextColor);
-            applyTheme(activeBg, activeCustomBg, activeFont, activeTextColor);
+            setThemeBtnTextColor(activeBtnTextColor);
+            applyTheme(activeBg, activeCustomBg, activeFont, activeTextColor, activeBtnTextColor);
         });
     }, []);
 
@@ -227,12 +240,13 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             theme_background: themeBackground,
             theme_custom_background: themeCustomBackground,
             theme_font: themeFont,
-            theme_text_color: themeTextColor
+            theme_text_color: themeTextColor,
+            theme_btn_text_color: themeBtnTextColor
         });
 
         SaveConfig(updatedConfig)
             .then(() => {
-                applyTheme(themeBackground, themeCustomBackground, themeFont, themeTextColor);
+                applyTheme(themeBackground, themeCustomBackground, themeFont, themeTextColor, themeBtnTextColor);
                 setStatus("Settings saved successfully!");
             })
             .catch((err) => {
@@ -245,20 +259,20 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
 
     const handleSelectBackground = (bgId: string) => {
         setThemeBackground(bgId);
-        applyTheme(bgId, themeCustomBackground, themeFont, themeTextColor);
+        applyTheme(bgId, themeCustomBackground, themeFont, themeTextColor, themeBtnTextColor);
         setStatus(`Background theme updated. Click Save Settings to persist.`);
     };
 
     const handleSelectFont = (fontId: string) => {
         setThemeFont(fontId);
-        applyTheme(themeBackground, themeCustomBackground, fontId, themeTextColor);
+        applyTheme(themeBackground, themeCustomBackground, fontId, themeTextColor, themeBtnTextColor);
         setStatus(`Font updated. Click Save Settings to persist.`);
     };
 
     const handleSelectTextColor = (color: string) => {
         setIsCustomTextColor(false);
         setThemeTextColor(color);
-        applyTheme(themeBackground, themeCustomBackground, themeFont, color);
+        applyTheme(themeBackground, themeCustomBackground, themeFont, color, themeBtnTextColor);
         setStatus(`Font color updated. Click Save Settings to persist.`);
     };
 
@@ -266,7 +280,7 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
         setIsCustomTextColor(true);
         const colorToApply = themeCustomTextColor || '#ffffff';
         setThemeTextColor(colorToApply);
-        applyTheme(themeBackground, themeCustomBackground, themeFont, colorToApply);
+        applyTheme(themeBackground, themeCustomBackground, themeFont, colorToApply, themeBtnTextColor);
         setStatus(`Custom font color selected. Click Save Settings to persist.`);
     };
 
@@ -274,13 +288,35 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
         setIsCustomTextColor(true);
         setThemeCustomTextColor(newColor);
         setThemeTextColor(newColor);
-        applyTheme(themeBackground, themeCustomBackground, themeFont, newColor);
+        applyTheme(themeBackground, themeCustomBackground, themeFont, newColor, themeBtnTextColor);
+    };
+
+    const handleSelectBtnTextColor = (color: string) => {
+        setIsCustomBtnTextColor(false);
+        setThemeBtnTextColor(color);
+        applyTheme(themeBackground, themeCustomBackground, themeFont, themeTextColor, color);
+        setStatus(`Button text color updated. Click Save Settings to persist.`);
+    };
+
+    const handleSelectCustomBtnTextColor = () => {
+        setIsCustomBtnTextColor(true);
+        const colorToApply = themeCustomBtnTextColor || '#ffffff';
+        setThemeBtnTextColor(colorToApply);
+        applyTheme(themeBackground, themeCustomBackground, themeFont, themeTextColor, colorToApply);
+        setStatus(`Custom button text color selected. Click Save Settings to persist.`);
+    };
+
+    const handleCustomBtnTextColorChange = (newColor: string) => {
+        setIsCustomBtnTextColor(true);
+        setThemeCustomBtnTextColor(newColor);
+        setThemeBtnTextColor(newColor);
+        applyTheme(themeBackground, themeCustomBackground, themeFont, themeTextColor, newColor);
     };
 
     const handleCustomColorChange = (newColor: string) => {
         setThemeCustomBackground(newColor);
         setThemeBackground('custom-color');
-        applyTheme('custom-color', newColor, themeFont, themeTextColor);
+        applyTheme('custom-color', newColor, themeFont, themeTextColor, themeBtnTextColor);
     };
 
     const handleResetAppearance = () => {
@@ -290,7 +326,10 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
         setThemeTextColor('#ffffff');
         setThemeCustomTextColor('#ffffff');
         setIsCustomTextColor(false);
-        applyTheme('cosmic-purple', '', 'orbitron', '#ffffff');
+        setThemeBtnTextColor('#ffffff');
+        setThemeCustomBtnTextColor('#ffffff');
+        setIsCustomBtnTextColor(false);
+        applyTheme('cosmic-purple', '', 'orbitron', '#ffffff', '#ffffff');
         setStatus("Appearance reset to defaults. Click Save Settings to persist.");
     };
 
@@ -492,12 +531,18 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                         themeTextColor={themeTextColor}
                         themeCustomTextColor={themeCustomTextColor}
                         isCustomTextColor={isCustomTextColor}
+                        themeBtnTextColor={themeBtnTextColor}
+                        themeCustomBtnTextColor={themeCustomBtnTextColor}
+                        isCustomBtnTextColor={isCustomBtnTextColor}
                         isSaving={isSaving}
                         onSelectBackground={handleSelectBackground}
                         onSelectFont={handleSelectFont}
                         onSelectTextColor={handleSelectTextColor}
                         onSelectCustomTextColor={handleSelectCustomTextColor}
                         onCustomTextColorChange={handleCustomTextColorChange}
+                        onSelectBtnTextColor={handleSelectBtnTextColor}
+                        onSelectCustomBtnTextColor={handleSelectCustomBtnTextColor}
+                        onCustomBtnTextColorChange={handleCustomBtnTextColorChange}
                         onCustomColorChange={handleCustomColorChange}
                         onResetAppearance={handleResetAppearance}
                     />
@@ -1004,12 +1049,18 @@ interface AppearanceSectionProps {
     themeTextColor: string;
     themeCustomTextColor: string;
     isCustomTextColor: boolean;
+    themeBtnTextColor: string;
+    themeCustomBtnTextColor: string;
+    isCustomBtnTextColor: boolean;
     isSaving: boolean;
     onSelectBackground: (bgId: string) => void;
     onSelectFont: (fontId: string) => void;
     onSelectTextColor: (color: string) => void;
     onSelectCustomTextColor: () => void;
     onCustomTextColorChange: (color: string) => void;
+    onSelectBtnTextColor: (color: string) => void;
+    onSelectCustomBtnTextColor: () => void;
+    onCustomBtnTextColorChange: (color: string) => void;
     onCustomColorChange: (color: string) => void;
     onResetAppearance: () => void;
 }
@@ -1021,12 +1072,18 @@ function AppearanceSection({
     themeTextColor,
     themeCustomTextColor,
     isCustomTextColor,
+    themeBtnTextColor,
+    themeCustomBtnTextColor,
+    isCustomBtnTextColor,
     isSaving,
     onSelectBackground,
     onSelectFont,
     onSelectTextColor,
     onSelectCustomTextColor,
     onCustomTextColorChange,
+    onSelectBtnTextColor,
+    onSelectCustomBtnTextColor,
+    onCustomBtnTextColorChange,
     onCustomColorChange,
     onResetAppearance
 }: AppearanceSectionProps) {
@@ -1197,6 +1254,74 @@ function AppearanceSection({
                             className="input"
                             value={themeCustomTextColor}
                             onChange={(e) => onCustomTextColorChange(e.target.value)}
+                            placeholder="#ffffff or any valid CSS color"
+                            style={{ flex: 1 }}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Button Text Color selection */}
+            <div className="settings-row" style={{ alignItems: 'flex-start', marginTop: '16px' }}>
+                <div className="settings-row-info">
+                    <span className="settings-row-label">Button Text Color</span>
+                    <span className="settings-row-desc">
+                        Select a curated button text color, or customize with your own solid color or hex code
+                    </span>
+                </div>
+            </div>
+
+            <div className="color-swatch-grid">
+                {TEXT_COLOR_PRESETS.map((colorItem) => {
+                    const isSelected = !isCustomBtnTextColor && themeBtnTextColor.toLowerCase() === colorItem.color.toLowerCase();
+                    return (
+                        <FocusableButton
+                            key={`btn-color-${colorItem.id}`}
+                            focusKey={`btn-color-preset-${colorItem.id}`}
+                            className={`color-swatch-btn ${isSelected ? 'active' : ''}`}
+                            onClick={() => onSelectBtnTextColor(colorItem.color)}
+                            onEnterPress={() => onSelectBtnTextColor(colorItem.color)}
+                            onMouseEnter={() => getMouseActive() && setFocus(`btn-color-preset-${colorItem.id}`)}
+                        >
+                            <span className="font-color-dot" style={{ backgroundColor: colorItem.color }} />
+                            <span className="color-swatch-name">{colorItem.name}</span>
+                        </FocusableButton>
+                    );
+                })}
+                <FocusableButton
+                    focusKey="btn-color-preset-custom"
+                    className={`color-swatch-btn ${isCustomBtnTextColor ? 'active' : ''}`}
+                    onClick={onSelectCustomBtnTextColor}
+                    onEnterPress={onSelectCustomBtnTextColor}
+                    onMouseEnter={() => getMouseActive() && setFocus('btn-color-preset-custom')}
+                    title="Choose a custom button text color"
+                >
+                    <span
+                        className="font-color-dot"
+                        style={{
+                            background: isCustomBtnTextColor && themeCustomBtnTextColor ? themeCustomBtnTextColor : 'linear-gradient(45deg, #f06, #4a90e2)'
+                        }}
+                    />
+                    <span className="color-swatch-name">Custom Color</span>
+                </FocusableButton>
+            </div>
+
+            {isCustomBtnTextColor && (
+                <div className="custom-theme-controls" style={{ marginTop: '10px' }}>
+                    <span className="settings-row-label">Custom Button Text Color</span>
+                    <div className="color-picker-row">
+                        <input
+                            type="color"
+                            className="native-color-input"
+                            value={themeCustomBtnTextColor.startsWith('#') && themeCustomBtnTextColor.length === 7 ? themeCustomBtnTextColor : '#ffffff'}
+                            onChange={(e) => onCustomBtnTextColorChange(e.target.value)}
+                            title="Pick custom button text color"
+                        />
+                        <FocusableInput
+                            focusKey="custom-btn-text-color-input"
+                            className="input"
+                            value={themeCustomBtnTextColor}
+                            onChange={(e) => onCustomBtnTextColorChange(e.target.value)}
                             placeholder="#ffffff or any valid CSS color"
                             style={{ flex: 1 }}
                         />

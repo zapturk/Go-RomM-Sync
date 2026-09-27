@@ -57,8 +57,8 @@ function App() {
 
         GetConfig()
             .then((cfg) => {
-                if (cfg && (cfg.theme_background || cfg.theme_font || cfg.theme_text_color)) {
-                    applyTheme(cfg.theme_background, cfg.theme_custom_background, cfg.theme_font, cfg.theme_text_color);
+                if (cfg && (cfg.theme_background || cfg.theme_font || cfg.theme_text_color || cfg.theme_btn_text_color)) {
+                    applyTheme(cfg.theme_background, cfg.theme_custom_background, cfg.theme_font, cfg.theme_text_color, cfg.theme_btn_text_color);
                 }
             })
             .catch(() => {});
