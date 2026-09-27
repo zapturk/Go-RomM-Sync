@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { GetConfig, SaveConfig, SelectRetroArchExecutable, DownloadAndInstallRetroArch, SelectLibraryPath, GetDefaultLibraryPath,
     Logout, ClearImageCache, ToggleOfflineMode, SyncOfflineMetadata,
     UpdateRetroArchCores, UpdateRetroArchBios, ToggleUsePlatformFolder, ToggleDisableMetadata,
@@ -12,6 +12,22 @@ import { FocusableButton } from './components/FocusableButton';
 import { FocusableInput } from './components/FocusableInput';
 import { LegendItem } from './components/LegendItem';
 import { BACKGROUND_PRESETS, FONT_OPTIONS, TEXT_COLOR_PRESETS, applyTheme } from './theme';
+import { SlidersIcon, PaletteIcon, UsersIcon, WrenchIcon } from './components/Icons';
+
+export type SettingsTabId = 'general' | 'appearance' | 'accounts' | 'maintenance';
+
+interface SettingsTab {
+    id: SettingsTabId;
+    label: string;
+    icon: React.ReactNode;
+}
+
+const SETTINGS_TABS: SettingsTab[] = [
+    { id: 'general', label: 'General', icon: <SlidersIcon size={18} /> },
+    { id: 'appearance', label: 'Appearance', icon: <PaletteIcon size={18} /> },
+    { id: 'accounts', label: 'Accounts & Sync', icon: <UsersIcon size={18} /> },
+    { id: 'maintenance', label: 'Maintenance', icon: <WrenchIcon size={18} /> },
+];
 
 interface SettingsProps {
     isActive?: boolean;
@@ -66,6 +82,8 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
     const [isCleaningOrphaned, setIsCleaningOrphaned] = useState(false);
     const [orphanedFiles, setOrphanedFiles] = useState<string[]>([]);
     const [showCleanupModal, setShowCleanupModal] = useState(false);
+    const [activeTab, setActiveTab] = useState<SettingsTabId>('general');
+    const contentRef = useRef<HTMLDivElement | null>(null);
 
     const { ref: containerRef } = useFocusable({
         trackChildren: true,
@@ -154,11 +172,51 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
         };
     }, []);
 
-    // Auto-focus save button on load or when view becomes active
+    const handlePrevTab = () => {
+        const currentIndex = SETTINGS_TABS.findIndex((t) => t.id === activeTab);
+        const prevIndex = (currentIndex - 1 + SETTINGS_TABS.length) % SETTINGS_TABS.length;
+        const targetTab = SETTINGS_TABS[prevIndex];
+        setActiveTab(targetTab.id);
+        setFocus(`settings-tab-${targetTab.id}`);
+    };
+
+    const handleNextTab = () => {
+        const currentIndex = SETTINGS_TABS.findIndex((t) => t.id === activeTab);
+        const nextIndex = (currentIndex + 1) % SETTINGS_TABS.length;
+        const targetTab = SETTINGS_TABS[nextIndex];
+        setActiveTab(targetTab.id);
+        setFocus(`settings-tab-${targetTab.id}`);
+    };
+
+    // Gamepad bumper (LB/RB) and Keyboard (PageUp/PageDown) tab switching
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!isActive || showCleanupModal) return;
+            if (e.key === 'PageUp') {
+                e.preventDefault();
+                handlePrevTab();
+            } else if (e.key === 'PageDown') {
+                e.preventDefault();
+                handleNextTab();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isActive, showCleanupModal, activeTab]);
+
+    // Reset scroll to top when switching tabs
+    useEffect(() => {
+        if (contentRef.current) {
+            contentRef.current.scrollTop = 0;
+        }
+    }, [activeTab]);
+
+    // Auto-focus active tab on load or when view becomes active
     useEffect(() => {
         if (isActive && config) {
             setTimeout(() => {
-                setFocus('browse-ra-button');
+                setFocus(`settings-tab-${activeTab}`);
             }, 100);
         }
     }, [isActive, !!config]);
@@ -491,93 +549,159 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
             });
     };
 
-    const handleTopArrowPress = (direction: string) => direction !== 'up';
+    const handleTopArrowPress = (direction: string) => {
+        if (direction === 'up') {
+            setFocus(`settings-tab-${activeTab}`);
+            return false;
+        }
+        return true;
+    };
 
     if (!config) return <div className="loading-screen"><h2>Loading settings...</h2></div>;
 
     return (
         <div id="settings-page" className="settings-page">
-            <div className="settings-content" ref={containerRef}>
+            <div
+                className="settings-content"
+                ref={(node) => {
+                    if (typeof containerRef === 'function') {
+                        containerRef(node);
+                    } else if (containerRef) {
+                        (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+                    }
+                    contentRef.current = node;
+                }}
+            >
                 <div className="settings-inner">
                     <div className="settings-header">
                         <h1>Settings</h1>
                         <div className="settings-status-box">{status}</div>
                     </div>
 
-                    <EmulatorSection
-                        raPath={raPath}
-                        isSaving={isSaving}
-                        isInstallingRA={isInstallingRA}
-                        handleBrowseRA={handleBrowseRA}
-                        handleInstallRA={handleInstallRA}
-                        handleTopArrowPress={handleTopArrowPress}
-                    />
+                    <div className="settings-tabs-bar" role="tablist" aria-label="Settings categories">
+                        <div className="tab-bumper-indicator show-gamepad" title="Previous Tab (LB)">
+                            <span className="bumper-badge">LB</span>
+                        </div>
+                        <div className="settings-tabs-list">
+                            {SETTINGS_TABS.map((tab) => {
+                                const isSelected = activeTab === tab.id;
+                                return (
+                                    <FocusableButton
+                                        key={tab.id}
+                                        focusKey={`settings-tab-${tab.id}`}
+                                        className={`settings-tab-btn ${isSelected ? 'active' : ''}`}
+                                        role="tab"
+                                        aria-selected={isSelected}
+                                        onClick={() => setActiveTab(tab.id)}
+                                        onEnterPress={() => setActiveTab(tab.id)}
+                                        onFocus={() => {
+                                            if (!getMouseActive()) {
+                                                setActiveTab(tab.id);
+                                            }
+                                        }}
+                                        onMouseEnter={() => getMouseActive() && setFocus(`settings-tab-${tab.id}`)}
+                                        onArrowPress={(direction) => {
+                                            if (direction === 'up') return false;
+                                            return true;
+                                        }}
+                                    >
+                                        <span className="settings-tab-icon">{tab.icon}</span>
+                                        <span className="settings-tab-label">{tab.label}</span>
+                                    </FocusableButton>
+                                );
+                            })}
+                        </div>
+                        <div className="tab-bumper-indicator show-gamepad" title="Next Tab (RB)">
+                            <span className="bumper-badge">RB</span>
+                        </div>
+                    </div>
 
-                    <LibrarySection
-                        libPath={libPath}
-                        isSaving={isSaving}
-                        usePlatformFolder={usePlatformFolder}
-                        disableMetadata={disableMetadata}
-                        handleBrowseLib={handleBrowseLib}
-                        handleSetDefaultLib={handleSetDefaultLib}
-                        handleTogglePlatformFolder={handleTogglePlatformFolder}
-                        handleToggleDisableMetadata={handleToggleDisableMetadata}
-                    />
+                    {activeTab === 'general' && (
+                        <>
+                            <EmulatorSection
+                                raPath={raPath}
+                                isSaving={isSaving}
+                                isInstallingRA={isInstallingRA}
+                                handleBrowseRA={handleBrowseRA}
+                                handleInstallRA={handleInstallRA}
+                                handleTopArrowPress={handleTopArrowPress}
+                            />
 
-                    <AppearanceSection
-                        themeBackground={themeBackground}
-                        themeCustomBackground={themeCustomBackground}
-                        themeFont={themeFont}
-                        themeTextColor={themeTextColor}
-                        themeCustomTextColor={themeCustomTextColor}
-                        isCustomTextColor={isCustomTextColor}
-                        themeBtnTextColor={themeBtnTextColor}
-                        themeCustomBtnTextColor={themeCustomBtnTextColor}
-                        isCustomBtnTextColor={isCustomBtnTextColor}
-                        isSaving={isSaving}
-                        onSelectBackground={handleSelectBackground}
-                        onSelectFont={handleSelectFont}
-                        onSelectTextColor={handleSelectTextColor}
-                        onSelectCustomTextColor={handleSelectCustomTextColor}
-                        onCustomTextColorChange={handleCustomTextColorChange}
-                        onSelectBtnTextColor={handleSelectBtnTextColor}
-                        onSelectCustomBtnTextColor={handleSelectCustomBtnTextColor}
-                        onCustomBtnTextColorChange={handleCustomBtnTextColorChange}
-                        onCustomColorChange={handleCustomColorChange}
-                        onResetAppearance={handleResetAppearance}
-                    />
+                            <LibrarySection
+                                libPath={libPath}
+                                isSaving={isSaving}
+                                usePlatformFolder={usePlatformFolder}
+                                disableMetadata={disableMetadata}
+                                handleBrowseLib={handleBrowseLib}
+                                handleSetDefaultLib={handleSetDefaultLib}
+                                handleTogglePlatformFolder={handleTogglePlatformFolder}
+                                handleToggleDisableMetadata={handleToggleDisableMetadata}
+                            />
+                        </>
+                    )}
 
-                    <MaintenanceSection
-                        isSaving={isSaving}
-                        isUpdatingCores={isUpdatingCores}
-                        isUpdatingBios={isUpdatingBios}
-                        isCleaningOrphaned={isCleaningOrphaned}
-                        handleClearCache={handleClearCache}
-                        handleUpdateCores={handleUpdateCores}
-                        handleUpdateBios={handleUpdateBios}
-                        handleCleanupOrphaned={handleCleanupOrphaned}
-                    />
+                    {activeTab === 'appearance' && (
+                        <AppearanceSection
+                            themeBackground={themeBackground}
+                            themeCustomBackground={themeCustomBackground}
+                            themeFont={themeFont}
+                            themeTextColor={themeTextColor}
+                            themeCustomTextColor={themeCustomTextColor}
+                            isCustomTextColor={isCustomTextColor}
+                            themeBtnTextColor={themeBtnTextColor}
+                            themeCustomBtnTextColor={themeCustomBtnTextColor}
+                            isCustomBtnTextColor={isCustomBtnTextColor}
+                            isSaving={isSaving}
+                            onSelectBackground={handleSelectBackground}
+                            onSelectFont={handleSelectFont}
+                            onSelectTextColor={handleSelectTextColor}
+                            onSelectCustomTextColor={handleSelectCustomTextColor}
+                            onCustomTextColorChange={handleCustomTextColorChange}
+                            onSelectBtnTextColor={handleSelectBtnTextColor}
+                            onSelectCustomBtnTextColor={handleSelectCustomBtnTextColor}
+                            onCustomBtnTextColorChange={handleCustomBtnTextColorChange}
+                            onCustomColorChange={handleCustomColorChange}
+                            onResetAppearance={handleResetAppearance}
+                        />
+                    )}
 
-                    <OfflineSection
-                        isSaving={isSaving}
-                        isSyncing={isSyncing}
-                        offlineMode={offlineMode}
-                        disableMetadata={disableMetadata}
-                        handleToggleOffline={handleToggleOffline}
-                        handleSyncMetadata={handleSyncMetadata}
-                    />
+                    {activeTab === 'accounts' && (
+                        <>
+                            <RomMConnectionSection
+                                clientToken={clientToken}
+                                setClientToken={setClientToken}
+                            />
 
-                    <RetroAchievementsSection
-                        cheevosUser={cheevosUser}
-                        setCheevosUser={setCheevosUser}
-                        cheevosPass={cheevosPass}
-                        setCheevosPass={setCheevosPass}
-                    />
+                            <RetroAchievementsSection
+                                cheevosUser={cheevosUser}
+                                setCheevosUser={setCheevosUser}
+                                cheevosPass={cheevosPass}
+                                setCheevosPass={setCheevosPass}
+                            />
 
-                    <RomMConnectionSection
-                        clientToken={clientToken}
-                        setClientToken={setClientToken}
-                    />
+                            <OfflineSection
+                                isSaving={isSaving}
+                                isSyncing={isSyncing}
+                                offlineMode={offlineMode}
+                                disableMetadata={disableMetadata}
+                                handleToggleOffline={handleToggleOffline}
+                                handleSyncMetadata={handleSyncMetadata}
+                            />
+                        </>
+                    )}
+
+                    {activeTab === 'maintenance' && (
+                        <MaintenanceSection
+                            isSaving={isSaving}
+                            isUpdatingCores={isUpdatingCores}
+                            isUpdatingBios={isUpdatingBios}
+                            isCleaningOrphaned={isCleaningOrphaned}
+                            handleClearCache={handleClearCache}
+                            handleUpdateCores={handleUpdateCores}
+                            handleUpdateBios={handleUpdateBios}
+                            handleCleanupOrphaned={handleCleanupOrphaned}
+                        />
+                    )}
 
                     <div className="settings-actions">
                         <FocusableButton
@@ -621,6 +745,15 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
                     <span>{status}</span>
                 </div>
                 <div className="footer-right">
+                    <div className="legend-item">
+                        <div className="bumper-group show-gamepad">
+                            <span className="bumper-badge">LB</span>
+                            <span className="bumper-separator">/</span>
+                            <span className="bumper-badge">RB</span>
+                        </div>
+                        <div className="key-icon show-keyboard">PgUp / PgDn</div>
+                        <span>Switch Tab</span>
+                    </div>
                     <LegendItem buttonAction="east" keyLabel="ESC" label="Back" />
                     <LegendItem buttonAction="south" keyLabel="ENTER" label="OK" />
                 </div>

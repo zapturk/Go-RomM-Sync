@@ -525,6 +525,133 @@ body.mouse-mode .game-card:hover,
     border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+/* Settings Tabs Bar */
+.settings-tabs-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    margin-bottom: 0.5rem;
+}
+
+.settings-tabs-list {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.settings-tab-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex: 1;
+    max-width: 220px;
+    height: 44px;
+    padding: 0 16px;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+}
+
+.settings-tab-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--app-text-color, #ffffff);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.settings-tab-btn.active {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: var(--app-text-color, #ffffff);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.settings-tab-btn.focused {
+    outline: none;
+    background: rgba(255, 255, 255, 0.25);
+    border-color: var(--app-text-color, #ffffff);
+    color: var(--app-text-color, #ffffff);
+    box-shadow: 0 0 0 2px var(--app-text-color, #ffffff), 0 6px 20px rgba(0, 0, 0, 0.4);
+    transform: translateY(-2px);
+}
+
+.settings-tab-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.settings-tab-label {
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+}
+
+.tab-bumper-indicator {
+    display: none;
+    align-items: center;
+    padding: 0 4px;
+    opacity: 0.8;
+}
+
+body.input-gamepad .tab-bumper-indicator {
+    display: flex;
+}
+
+.bumper-group {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.bumper-separator {
+    font-size: 0.8rem;
+    opacity: 0.6;
+    margin: 0 1px;
+}
+
+.bumper-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 7px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: var(--app-text-color, #fff);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+    letter-spacing: 0.5px;
+}
+
+@media (max-width: 768px) {
+    .settings-tab-btn {
+        font-size: 0.82rem;
+        padding: 0 10px;
+        height: 38px;
+        max-width: none;
+    }
+}
+
 .settings-card {
     background: rgba(255, 255, 255, 0.05);
     backdrop-filter: blur(10px);
@@ -1641,5 +1768,10 @@ body[data-font="press-start"] .theme-preset-name {
 body[data-font="press-start"] .color-swatch-name {
     font-size: 0.62rem;
     line-height: 1.3;
+}
+body[data-font="press-start"] .settings-tab-btn {
+    font-size: 0.62rem;
+    padding: 0 8px;
+    gap: 6px;
 }
 
