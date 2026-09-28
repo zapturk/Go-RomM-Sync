@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -587,25 +588,20 @@ func (a *App) resolveCoreAndController(id uint, game *types.Game, coreOverride s
 
 // findRomPath looks for a valid ROM file in the given directory.
 func (a *App) findRomPath(game *types.Game, romDir string) string {
+	if startupFile := a.GetGameStartupFile(game.ID); startupFile != "" {
+		targetPath := filepath.Join(romDir, filepath.Base(startupFile))
+		if info, err := os.Stat(targetPath); err == nil && !info.IsDir() {
+			return targetPath
+		}
+	}
+
 	files, err := os.ReadDir(romDir)
 	if err != nil {
 		return ""
 	}
 
 	if a.configManager.GetConfig().UsePlatformFolder {
-		expectedBase := filepath.Base(game.FullPath)
-		expectedNameWithoutExt := strings.TrimSuffix(expectedBase, filepath.Ext(expectedBase))
-		var filtered []os.DirEntry
-		for _, file := range files {
-			if file.IsDir() {
-				continue
-			}
-			nameWithoutExt := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
-			if strings.EqualFold(nameWithoutExt, expectedNameWithoutExt) {
-				filtered = append(filtered, file)
-			}
-		}
-		files = filtered
+		files = a.filterPlatformEntries(files, game)
 	}
 
 	if p := a.findCueFile(romDir, files); p != "" {
@@ -873,6 +869,138 @@ func (a *App) SetGameController(id uint, controllerType string) error {
 		}
 		cfg.GameControllers[key] = controllerType
 	})
+}
+
+// GetGameStartupFile returns the configured startup file name for the given game,
+// or empty string if not configured.
+func (a *App) GetGameStartupFile(id uint) string {
+	cfg := a.configManager.GetConfig()
+	key := strconv.FormatUint(uint64(id), 10)
+	if cfg.GameStartupFiles != nil {
+		if val, ok := cfg.GameStartupFiles[key]; ok && val != "" {
+			return val
+		}
+	}
+	return ""
+}
+
+// SetGameStartupFile saves the selected startup file name for the given game.
+func (a *App) SetGameStartupFile(id uint, fileName string) error {
+	key := strconv.FormatUint(uint64(id), 10)
+	return a.configManager.Update(func(cfg *types.AppConfig) {
+		if cfg.GameStartupFiles == nil {
+			cfg.GameStartupFiles = make(map[string]string)
+		}
+		cfg.GameStartupFiles[key] = fileName
+	})
+}
+
+// GetRomFile retrieves metadata for a specific ROM file.
+func (a *App) GetRomFile(id uint) (types.RomFile, error) {
+	return a.rommSrv.GetRomFile(id)
+}
+
+func isIgnoredStartupFile(name string) bool {
+	if name == "" || strings.HasPrefix(name, ".") {
+		return true
+	}
+	lower := strings.ToLower(name)
+	return lower == "metadata.json" || (strings.HasPrefix(lower, "metadata_") && strings.HasSuffix(lower, ".json"))
+}
+
+func sortStartupFiles(files []string) {
+	sort.SliceStable(files, func(i, j int) bool {
+		extI := strings.ToLower(filepath.Ext(files[i]))
+		extJ := strings.ToLower(filepath.Ext(files[j]))
+		if extI == ".m3u" && extJ != ".m3u" {
+			return true
+		}
+		if extJ == ".m3u" && extI != ".m3u" {
+			return false
+		}
+		if extI == ".cue" && extJ != ".cue" {
+			return true
+		}
+		if extJ == ".cue" && extI != ".cue" {
+			return false
+		}
+		return files[i] < files[j]
+	})
+}
+
+// GetRomStartupFiles returns all available ROM files for starting the game.
+func (a *App) GetRomStartupFiles(id uint) ([]string, error) {
+	game, err := a.GetRom(id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ROM info: %w", err)
+	}
+
+	seen := make(map[string]bool)
+	var filesList []string
+
+	addFile := func(name string) {
+		base := filepath.Base(name)
+		if isIgnoredStartupFile(base) || seen[base] {
+			return
+		}
+		seen[base] = true
+		filesList = append(filesList, base)
+	}
+
+	a.collectDiskStartupFiles(&game, addFile)
+	a.collectMetadataStartupFiles(&game, addFile)
+
+	sortStartupFiles(filesList)
+	return filesList, nil
+}
+
+func (a *App) collectDiskStartupFiles(game *types.Game, addFile func(string)) {
+	romDir := a.librarySrv.GetRomDir(game)
+	entries, err := os.ReadDir(romDir)
+	if err != nil {
+		return
+	}
+	filtered := entries
+	if a.configManager.GetConfig().UsePlatformFolder {
+		filtered = a.filterPlatformEntries(entries, game)
+	}
+	for _, entry := range filtered {
+		if !entry.IsDir() {
+			addFile(entry.Name())
+		}
+	}
+}
+
+func (a *App) collectMetadataStartupFiles(game *types.Game, addFile func(string)) {
+	for _, f := range game.Files {
+		if f.FileName != "" {
+			addFile(f.FileName)
+		} else if f.FilePath != "" {
+			addFile(f.FilePath)
+		}
+	}
+
+	if game.FSName != "" {
+		addFile(game.FSName)
+	} else if game.FullPath != "" {
+		addFile(game.FullPath)
+	}
+}
+
+func (a *App) filterPlatformEntries(entries []os.DirEntry, game *types.Game) []os.DirEntry {
+	expectedBase := filepath.Base(game.FullPath)
+	expectedNameWithoutExt := strings.TrimSuffix(expectedBase, filepath.Ext(expectedBase))
+	var filtered []os.DirEntry
+	for _, file := range entries {
+		if file.IsDir() {
+			continue
+		}
+		nameWithoutExt := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
+		if strings.EqualFold(nameWithoutExt, expectedNameWithoutExt) {
+			filtered = append(filtered, file)
+		}
+	}
+	return filtered
 }
 
 // --- Internal Provider Implementations ---

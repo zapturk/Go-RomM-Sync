@@ -400,6 +400,77 @@ func (c *Client) DownloadFile(ctx context.Context, game *types.Game) (reader io.
 	return resp.Body, filename, nil
 }
 
+// GetRomFile fetches metadata for a specific ROM file by its ID
+func (c *Client) GetRomFile(id uint) (types.RomFile, error) {
+	if c.Token == "" {
+		return types.RomFile{}, fmt.Errorf("not authenticated")
+	}
+
+	urlStr := fmt.Sprintf("%s/api/roms/%d/files", c.BaseURL, id)
+	req, err := http.NewRequest("GET", urlStr, http.NoBody)
+	if err != nil {
+		return types.RomFile{}, fmt.Errorf("failed to create ROM file request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	resp, err := c.APIClient.Do(req) //nolint:bodyclose // body is closed via defer
+	if err != nil {
+		return types.RomFile{}, fmt.Errorf("failed to perform ROM file request: %w", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
+		return types.RomFile{}, fmt.Errorf("ROM file fetch failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var romFile types.RomFile
+	if err := json.NewDecoder(resp.Body).Decode(&romFile); err != nil {
+		return types.RomFile{}, fmt.Errorf("failed to decode ROM file response: %w", err)
+	}
+	return romFile, nil
+}
+
+// DownloadRomFile downloads an individual ROM file from RomM
+func (c *Client) DownloadRomFile(ctx context.Context, fileID uint, fileName string) (reader io.ReadCloser, filename string, err error) {
+	if c.Token == "" {
+		return nil, "", fmt.Errorf("not authenticated")
+	}
+
+	urlPath := fmt.Sprintf("%s/api/roms/%d/files/content/%s", c.BaseURL, fileID, url.PathEscape(fileName))
+	req, err := http.NewRequestWithContext(ctx, "GET", urlPath, http.NoBody)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to create rom file download request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+
+	resp, err := c.FileClient.Do(req) //nolint:bodyclose // caller closes
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to perform rom file download request: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		_ = resp.Body.Close()
+		return nil, "", fmt.Errorf("rom file download failed with status %d", resp.StatusCode)
+	}
+
+	cd := resp.Header.Get("Content-Disposition")
+	if cd != "" && strings.Contains(cd, "filename=") {
+		parts := strings.Split(cd, "filename=")
+		if len(parts) > 1 {
+			filename = strings.Trim(parts[1], "\"")
+		}
+	}
+
+	if filename == "" {
+		filename = fileName
+	}
+
+	return resp.Body, filename, nil
+}
+
 // UploadSave uploads a save file to RomM
 func (c *Client) UploadSave(romID uint, emulator, filename string, content []byte) error {
 	return c.uploadAsset(romID, emulator, filename, content, "saves", "saveFile")

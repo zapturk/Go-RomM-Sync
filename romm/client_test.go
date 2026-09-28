@@ -438,3 +438,91 @@ func TestGetPlatform(t *testing.T) {
 		}
 	})
 }
+
+func TestGetRomFile(t *testing.T) {
+	t.Run("authenticated success", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/api/roms/101/files" {
+				t.Errorf("Expected path /api/roms/101/files, got %s", r.URL.Path)
+			}
+			if r.Header.Get("Authorization") != "Bearer test-token" {
+				t.Errorf("Expected Authorization header Bearer test-token, got %s", r.Header.Get("Authorization"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"id": 101,
+				"rom_id": 50,
+				"file_name": "disc1.cue",
+				"file_path": "disc1.cue",
+				"file_size_bytes": 1024,
+				"full_path": "/roms/psx/disc1.cue",
+				"is_top_level": true
+			}`))
+		}))
+		defer server.Close()
+
+		client := NewClient(server.URL)
+		client.Token = "test-token"
+
+		file, err := client.GetRomFile(101)
+		if err != nil {
+			t.Fatalf("GetRomFile failed: %v", err)
+		}
+		if file.ID != 101 || file.FileName != "disc1.cue" || file.RomID != 50 {
+			t.Errorf("Unexpected RomFile: %+v", file)
+		}
+	})
+
+	t.Run("unauthenticated", func(t *testing.T) {
+		client := NewClient("http://localhost")
+		_, err := client.GetRomFile(101)
+		if err == nil {
+			t.Error("Expected error for unauthenticated client, got nil")
+		}
+	})
+}
+
+func TestDownloadRomFile(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/api/roms/101/files/content/disc1.bin" {
+				t.Errorf("Expected path /api/roms/101/files/content/disc1.bin, got %s", r.URL.Path)
+			}
+			if r.Header.Get("Authorization") != "Bearer test-token" {
+				t.Errorf("Expected Authorization header Bearer test-token, got %s", r.Header.Get("Authorization"))
+			}
+			w.Header().Set("Content-Disposition", "attachment; filename=\"disc1.bin\"")
+			w.Write([]byte("fake-bin-data"))
+		}))
+		defer server.Close()
+
+		client := NewClient(server.URL)
+		client.Token = "test-token"
+
+		reader, filename, err := client.DownloadRomFile(context.Background(), 101, "disc1.bin")
+		if err != nil {
+			t.Fatalf("DownloadRomFile failed: %v", err)
+		}
+		defer reader.Close()
+
+		if filename != "disc1.bin" {
+			t.Errorf("Expected filename disc1.bin, got %s", filename)
+		}
+
+		content, err := io.ReadAll(reader)
+		if err != nil {
+			t.Fatalf("Failed to read body: %v", err)
+		}
+		if string(content) != "fake-bin-data" {
+			t.Errorf("Expected content 'fake-bin-data', got '%s'", string(content))
+		}
+	})
+
+	t.Run("unauthenticated", func(t *testing.T) {
+		client := NewClient("http://localhost")
+		_, _, err := client.DownloadRomFile(context.Background(), 101, "disc1.bin")
+		if err == nil {
+			t.Error("Expected error for unauthenticated client, got nil")
+		}
+	})
+}

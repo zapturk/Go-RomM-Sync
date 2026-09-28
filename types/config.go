@@ -17,6 +17,7 @@ type AppConfig struct {
 	UsePlatformFolder     bool              `json:"use_platform_folder"`     // Store ROMs directly in platform folder
 	DisableMetadata       bool              `json:"disable_metadata"`        // Disable metadata.json generation
 	GameControllers       map[string]string `json:"game_controllers"`        // Game ID -> Controller type ID
+	GameStartupFiles      map[string]string `json:"game_startup_files"`      // Game ID -> Selected startup file name
 	ThemeBackground       string            `json:"theme_background"`        // Selected background preset ID or custom mode
 	ThemeCustomBackground string            `json:"theme_custom_background"` // Custom color or image path
 	ThemeFont             string            `json:"theme_font"`              // Selected font ID

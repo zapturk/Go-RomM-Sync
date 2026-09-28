@@ -16,6 +16,7 @@ export namespace types {
 	    use_platform_folder: boolean;
 	    disable_metadata: boolean;
 	    game_controllers: Record<string, string>;
+	    game_startup_files: Record<string, string>;
 	    theme_background: string;
 	    theme_custom_background: string;
 	    theme_font: string;
@@ -43,6 +44,7 @@ export namespace types {
 	        this.use_platform_folder = source["use_platform_folder"];
 	        this.disable_metadata = source["disable_metadata"];
 	        this.game_controllers = source["game_controllers"];
+	        this.game_startup_files = source["game_startup_files"];
 	        this.theme_background = source["theme_background"];
 	        this.theme_custom_background = source["theme_custom_background"];
 	        this.theme_font = source["theme_font"];
@@ -88,6 +90,30 @@ export namespace types {
 	        this.md5_hash = source["md5_hash"];
 	    }
 	}
+	export class RomFile {
+	    id: number;
+	    rom_id: number;
+	    file_name: string;
+	    file_path: string;
+	    file_size_bytes: number;
+	    full_path: string;
+	    is_top_level: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new RomFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.rom_id = source["rom_id"];
+	        this.file_name = source["file_name"];
+	        this.file_path = source["file_path"];
+	        this.file_size_bytes = source["file_size_bytes"];
+	        this.full_path = source["full_path"];
+	        this.is_top_level = source["is_top_level"];
+	    }
+	}
 	export class Platform {
 	    id: number;
 	    name: string;
@@ -125,6 +151,8 @@ export namespace types {
 	    platform_display_name: string;
 	    platform: Platform;
 	    fs_name: string;
+	    has_multiple_files: boolean;
+	    files: RomFile[];
 	
 	    static createFrom(source: any = {}) {
 	        return new Game(source);
@@ -146,6 +174,8 @@ export namespace types {
 	        this.platform_display_name = source["platform_display_name"];
 	        this.platform = this.convertValues(source["platform"], Platform);
 	        this.fs_name = source["fs_name"];
+	        this.has_multiple_files = source["has_multiple_files"];
+	        this.files = this.convertValues(source["files"], RomFile);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -230,6 +260,7 @@ export namespace types {
 		    return a;
 		}
 	}
+	
 	
 	export class ServerSave {
 	    id: number;

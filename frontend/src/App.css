@@ -427,7 +427,8 @@ body.mouse-mode .game-card:hover,
 /* Core Selector Button */
 .core-selector-button,
 .firmware-selector-button,
-.controller-selector-button {
+.controller-selector-button,
+.startup-file-selector-button {
     flex: 1;
     background: rgba(0, 0, 0, 0.35);
     border: 1px solid rgba(255, 255, 255, 0.15);
@@ -448,7 +449,8 @@ body.mouse-mode .game-card:hover,
 
 .core-selector-button.focused,
 .firmware-selector-button.focused,
-.controller-selector-button.focused {
+.controller-selector-button.focused,
+.startup-file-selector-button.focused {
     outline: 3px solid #fff;
     border-color: #fff;
     background-color: rgba(255, 255, 255, 0.1);
@@ -457,6 +459,20 @@ body.mouse-mode .game-card:hover,
 
 .current-core {
     text-transform: capitalize;
+}
+
+.current-startup-file {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 170px;
+    text-align: left;
+}
+
+.game-startup-file-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
 }
 
 .dropdown-arrow {

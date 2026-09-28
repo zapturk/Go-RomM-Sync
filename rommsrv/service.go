@@ -133,6 +133,11 @@ func (s *Service) GetRom(id uint) (types.Game, error) {
 	return s.client.GetRom(id)
 }
 
+// GetRomFile fetches metadata for a single ROM file from RomM.
+func (s *Service) GetRomFile(id uint) (types.RomFile, error) {
+	return s.client.GetRomFile(id)
+}
+
 // GetPlatform fetches a single platform from RomM.
 func (s *Service) GetPlatform(id uint) (types.Platform, error) {
 	return s.client.GetPlatform(id)

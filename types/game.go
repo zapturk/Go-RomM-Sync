@@ -6,22 +6,35 @@ type LibraryResult[T any] struct {
 	Total int `json:"total"`
 }
 
+// RomFile represents an individual file belonging to a ROM in RomM
+type RomFile struct {
+	ID            uint   `json:"id"`
+	RomID         uint   `json:"rom_id"`
+	FileName      string `json:"file_name"`
+	FilePath      string `json:"file_path"`
+	FileSizeBytes int64  `json:"file_size_bytes"`
+	FullPath      string `json:"full_path"`
+	IsTopLevel    bool   `json:"is_top_level"`
+}
+
 // Game represents a ROM/Game from the RomM library
 type Game struct {
-	ID                  uint     `json:"id"`
-	Title               string   `json:"name"` // API returns "name", we map it to Title
-	RomID               uint     `json:"rom_id"`
-	CoverURL            string   `json:"url_cover"`
-	FullPath            string   `json:"full_path"`
-	Summary             string   `json:"summary"`
-	Genres              []string `json:"genres"`
-	HasSaves            bool     `json:"has_saves"` // Simplified for now, though API might return a list
-	FileSize            int64    `json:"fs_size_bytes"`
-	PlatformID          uint     `json:"platform_id"`
-	PlatformSlug        string   `json:"platform_slug"`
-	PlatformDisplayName string   `json:"platform_display_name"`
-	Platform            Platform `json:"platform"`
-	FSName              string   `json:"fs_name"`
+	ID                  uint      `json:"id"`
+	Title               string    `json:"name"` // API returns "name", we map it to Title
+	RomID               uint      `json:"rom_id"`
+	CoverURL            string    `json:"url_cover"`
+	FullPath            string    `json:"full_path"`
+	Summary             string    `json:"summary"`
+	Genres              []string  `json:"genres"`
+	HasSaves            bool      `json:"has_saves"` // Simplified for now, though API might return a list
+	FileSize            int64     `json:"fs_size_bytes"`
+	PlatformID          uint      `json:"platform_id"`
+	PlatformSlug        string    `json:"platform_slug"`
+	PlatformDisplayName string    `json:"platform_display_name"`
+	Platform            Platform  `json:"platform"`
+	FSName              string    `json:"fs_name"`
+	HasMultipleFiles    bool      `json:"has_multiple_files"`
+	Files               []RomFile `json:"files"`
 }
 
 // FileItem represents a local save or state file

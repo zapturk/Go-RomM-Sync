@@ -4,6 +4,7 @@ import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRomW
     GetServerSaves, GetServerStates, DownloadServerSave, DownloadServerState,
     OpenGameFolder, GetFirmware, SetPlatformFirmware, GetConfig, CancelDownload,
     GetGameController, SetGameController,
+    GetRomStartupFiles, GetGameStartupFile, SetGameStartupFile,
 } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
@@ -98,9 +99,11 @@ const handleEscapeKey = (
     isPickerOpen: boolean,
     isFirmwarePickerOpen: boolean,
     isControllerPickerOpen: boolean,
+    isStartupFilePickerOpen: boolean,
     closePicker: () => void,
     closeFirmwarePicker: () => void,
-    closeControllerPicker: () => void
+    closeControllerPicker: () => void,
+    closeStartupFilePicker: () => void
 ): boolean => {
     if (e.key !== 'Escape') return false;
     if (isPickerOpen) {
@@ -119,6 +122,12 @@ const handleEscapeKey = (
         e.preventDefault();
         e.stopImmediatePropagation();
         closeControllerPicker();
+        return true;
+    }
+    if (isStartupFilePickerOpen) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        closeStartupFilePicker();
         return true;
     }
     return false;
@@ -310,6 +319,9 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const [isFirmwarePickerOpen, setIsFirmwarePickerOpen] = useState(false);
     const [selectedControllerType, setSelectedControllerType] = useState<string>('769');
     const [isControllerPickerOpen, setIsControllerPickerOpen] = useState(false);
+    const [startupFiles, setStartupFiles] = useState<string[]>([]);
+    const [selectedStartupFile, setSelectedStartupFile] = useState<string>('');
+    const [isStartupFilePickerOpen, setIsStartupFilePickerOpen] = useState(false);
     const [offlineMode, setOfflineMode] = useState(false);
 
     const fadeTimeoutRef = useRef<any>(null);
@@ -435,6 +447,21 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
             }).catch((err: any) => {
                 console.warn('GetGameController failed:', err);
             });
+            GetRomStartupFiles(gameId).then((files: string[]) => {
+                const list = files || [];
+                setStartupFiles(list);
+                GetGameStartupFile(gameId).then((saved: string) => {
+                    if (saved && list.includes(saved)) {
+                        setSelectedStartupFile(saved);
+                    } else if (list.length > 0) {
+                        setSelectedStartupFile(list[0]);
+                    }
+                }).catch(() => {
+                    if (list.length > 0) setSelectedStartupFile(list[0]);
+                });
+            }).catch((err: any) => {
+                console.warn('GetRomStartupFiles failed:', err);
+            });
         }
     }, [gameId]);
 
@@ -445,12 +472,23 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const isWiiPlatform = platformSlug.includes('wii') || platformName.includes('wii') || fullPath.includes('wii');
     const isDolphinCore = selectedCore.includes('dolphin') || availableCores.some(c => c.includes('dolphin'));
     const isWii = isWiiPlatform || (isDolphinCore && !isGameCube);
+    const isMultiFile = !!(game?.has_multiple_files || (game?.files && game.files.length > 1) || startupFiles.length > 1);
+    const hasStartupFile = isMultiFile && startupFiles.length > 0;
 
     const handleSelectController = useCallback((controllerId: string) => {
         setSelectedControllerType(controllerId);
         if (gameId) {
             SetGameController(gameId, controllerId).catch((err: any) => {
                 console.error('Failed to set game controller:', err);
+            });
+        }
+    }, [gameId]);
+
+    const handleSelectStartupFile = useCallback((file: string) => {
+        setSelectedStartupFile(file);
+        if (gameId) {
+            SetGameStartupFile(gameId, file).catch((err: any) => {
+                console.error('Failed to set game startup file:', err);
             });
         }
     }, [gameId]);
@@ -470,6 +508,11 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         setTimeout(() => setFocus('controller-selector'), 100);
     }, []);
 
+    const closeStartupFilePicker = useCallback(() => {
+        setIsStartupFilePickerOpen(false);
+        setTimeout(() => setFocus('startup-file-selector'), 100);
+    }, []);
+
     // Download Handler
     const handleDownload = useCallback(() => {
         if (!game || downloading || isDownloaded) return;
@@ -480,6 +523,19 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 setSuccessStatus("Download complete!");
                 setDownloadProgress(100);
                 setIsDownloaded(true);
+                GetRomStartupFiles(game.id).then((files: string[]) => {
+                    const list = files || [];
+                    setStartupFiles(list);
+                    GetGameStartupFile(game.id).then((saved: string) => {
+                        if (saved && list.includes(saved)) {
+                            setSelectedStartupFile(saved);
+                        } else if (list.length > 0) {
+                            setSelectedStartupFile(list[0]);
+                        }
+                    }).catch(() => {
+                        if (list.length > 0) setSelectedStartupFile(list[0]);
+                    });
+                }).catch(console.error);
                 setTimeout(() => {
                     setFocus('play-button');
                 }, 100);
@@ -627,12 +683,12 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 handleSmartSync();
             }
 
-            handleEscapeKey(e, isPickerOpen, isFirmwarePickerOpen, isControllerPickerOpen, closePicker, closeFirmwarePicker, closeControllerPicker);
+            handleEscapeKey(e, isPickerOpen, isFirmwarePickerOpen, isControllerPickerOpen, isStartupFilePickerOpen, closePicker, closeFirmwarePicker, closeControllerPicker, closeStartupFilePicker);
         };
 
         window.addEventListener('keydown', handleKeyDown, true);
         return () => window.removeEventListener('keydown', handleKeyDown, true);
-    }, [isPickerOpen, isFirmwarePickerOpen, isControllerPickerOpen, closePicker, closeFirmwarePicker, closeControllerPicker, handleSmartSync]);
+    }, [isPickerOpen, isFirmwarePickerOpen, isControllerPickerOpen, isStartupFilePickerOpen, closePicker, closeFirmwarePicker, closeControllerPicker, closeStartupFilePicker, handleSmartSync]);
 
 
     return (
@@ -733,6 +789,32 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                             </div>
                         </div>
                     )}
+                    {isStartupFilePickerOpen && (
+                        <div className="core-picker-overlay" onClick={closeStartupFilePicker}>
+                            <div className="core-picker-modal" onClick={e => e.stopPropagation()}>
+                                <div className="core-picker-header">
+                                    <h3>Select Startup File</h3>
+                                </div>
+                                <div className="core-picker-list">
+                                    {startupFiles.map((file, idx) => (
+                                        <PickerOption
+                                            key={file}
+                                            name={file}
+                                            isSelected={file === selectedStartupFile}
+                                            isFirst={idx === 0}
+                                            onSelect={() => {
+                                                handleSelectStartupFile(file);
+                                                closeStartupFilePicker();
+                                            }}
+                                            focusKey={`startup-file-option-${idx}`}
+                                            className="core-option"
+                                        />
+                                    ))}
+                                </div>
+                                <CancelButton onCancel={closeStartupFilePicker} />
+                            </div>
+                        </div>
+                    )}
                     <div className="game-page-content">
                         <div className="game-sidebar">
                             <GameCover game={game} className="game-page-cover" />
@@ -785,6 +867,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                                     isDisabled={isPlaying}
                                                     hasFirmware={firmwares.length > 0}
                                                     hasController={isWii}
+                                                    hasStartupFile={hasStartupFile}
                                                     hasSaves={hasSavesOrStates}
                                                     onClick={() => setIsPickerOpen(true)}
                                                     onFocusRequest={() => setFocus('core-selector')}
@@ -800,6 +883,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                                     isDisabled={isPlaying}
                                                     hasCore={availableCores.length > 0}
                                                     hasFirmware={firmwares.length > 0}
+                                                    hasStartupFile={hasStartupFile}
                                                     hasSaves={hasSavesOrStates}
                                                     onClick={() => setIsControllerPickerOpen(true)}
                                                     onFocusRequest={() => setFocus('controller-selector')}
@@ -807,8 +891,25 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                                 />
                                             </div>
                                         )}
+                                        {hasStartupFile && (
+                                            <div className="game-startup-file-section">
+                                                <h3>Startup File</h3>
+                                                <InnerStartupFileSelector
+                                                    currentFile={selectedStartupFile}
+                                                    isDisabled={isPlaying}
+                                                    hasController={isWii}
+                                                    hasCore={availableCores.length > 0}
+                                                    hasFirmware={firmwares.length > 0}
+                                                    hasSaves={hasSavesOrStates}
+                                                    onClick={() => setIsStartupFilePickerOpen(true)}
+                                                    onFocusRequest={() => setFocus('startup-file-selector')}
+                                                    onFocusSaves={focusFirstAvailableSaveState}
+                                                />
+                                            </div>
+                                        )}
                                         <InnerPlayButton
                                             isDisabled={isPlaying}
+                                            hasStartupFile={hasStartupFile}
                                             hasController={isWii}
                                             hasCore={availableCores.length > 0}
                                             hasFirmware={firmwares.length > 0}
@@ -1018,11 +1119,12 @@ function InnerDownloadButton({ isDisabled, isDownloading, isExtracting, hasSaves
     );
 }
 
-function InnerCoreSelector({ currentCore, isDisabled, hasFirmware, hasController, hasSaves, onClick, onFocusRequest, onFocusSaves }: {
+function InnerCoreSelector({ currentCore, isDisabled, hasFirmware, hasController, hasStartupFile, hasSaves, onClick, onFocusRequest, onFocusSaves }: {
     currentCore: string;
     isDisabled: boolean;
     hasFirmware: boolean;
     hasController?: boolean;
+    hasStartupFile?: boolean;
     hasSaves: boolean;
     onClick: () => void;
     onFocusRequest: () => void;
@@ -1037,6 +1139,7 @@ function InnerCoreSelector({ currentCore, isDisabled, hasFirmware, hasController
                     return false;
                 case 'down':
                     if (hasController) setFocus('controller-selector');
+                    else if (hasStartupFile) setFocus('startup-file-selector');
                     else setFocus('play-button');
                     return false;
                 case 'right':
@@ -1071,11 +1174,12 @@ function InnerCoreSelector({ currentCore, isDisabled, hasFirmware, hasController
     );
 }
 
-function InnerControllerSelector({ currentController, isDisabled, hasCore, hasFirmware, hasSaves, onClick, onFocusRequest, onFocusSaves }: {
+function InnerControllerSelector({ currentController, isDisabled, hasCore, hasFirmware, hasStartupFile, hasSaves, onClick, onFocusRequest, onFocusSaves }: {
     currentController: string;
     isDisabled: boolean;
     hasCore: boolean;
     hasFirmware: boolean;
+    hasStartupFile?: boolean;
     hasSaves: boolean;
     onClick: () => void;
     onFocusRequest: () => void;
@@ -1090,7 +1194,8 @@ function InnerControllerSelector({ currentController, isDisabled, hasCore, hasFi
                     else if (hasFirmware) setFocus('firmware-selector');
                     return false;
                 case 'down':
-                    setFocus('play-button');
+                    if (hasStartupFile) setFocus('startup-file-selector');
+                    else setFocus('play-button');
                     return false;
                 case 'right':
                     hasSaves ? onFocusSaves() : setFocus('play-button');
@@ -1127,8 +1232,64 @@ function InnerControllerSelector({ currentController, isDisabled, hasCore, hasFi
     );
 }
 
-function InnerPlayButton({ isDisabled, hasController, hasCore, hasFirmware, hasSaves, onPlay, onFocusSaves }: {
+function InnerStartupFileSelector({ currentFile, isDisabled, hasController, hasCore, hasFirmware, hasSaves, onClick, onFocusRequest, onFocusSaves }: {
+    currentFile: string;
     isDisabled: boolean;
+    hasController?: boolean;
+    hasCore: boolean;
+    hasFirmware: boolean;
+    hasSaves: boolean;
+    onClick: () => void;
+    onFocusRequest: () => void;
+    onFocusSaves: () => void;
+}) {
+    const { ref, focused } = useFocusable({
+        focusKey: 'startup-file-selector',
+        onArrowPress: (direction: string) => {
+            switch (direction) {
+                case 'up':
+                    if (hasController) setFocus('controller-selector');
+                    else if (hasCore) setFocus('core-selector');
+                    else if (hasFirmware) setFocus('firmware-selector');
+                    return false;
+                case 'down':
+                    setFocus('play-button');
+                    return false;
+                case 'right':
+                    hasSaves ? onFocusSaves() : setFocus('play-button');
+                    return false;
+                case 'left':
+                    return false;
+                default:
+                    return true;
+            }
+        },
+        onEnterPress: onClick
+    });
+
+    return (
+        <div
+            id="startup-file-select"
+            ref={ref}
+            className={`startup-file-selector-button ${focused ? 'focused' : ''} ${isDisabled ? 'disabled' : ''}`}
+            onMouseEnter={() => {
+                if (getMouseActive() && !isDisabled) {
+                    onFocusRequest();
+                }
+            }}
+            onClick={onClick}
+        >
+            <span className="current-startup-file">
+                {currentFile || 'Select File'}
+            </span>
+            <div className="dropdown-arrow"></div>
+        </div>
+    );
+}
+
+function InnerPlayButton({ isDisabled, hasStartupFile, hasController, hasCore, hasFirmware, hasSaves, onPlay, onFocusSaves }: {
+    isDisabled: boolean;
+    hasStartupFile?: boolean;
     hasController?: boolean;
     hasCore: boolean;
     hasFirmware: boolean;
@@ -1141,7 +1302,8 @@ function InnerPlayButton({ isDisabled, hasController, hasCore, hasFirmware, hasS
         onArrowPress: (direction: string) => {
             switch (direction) {
                 case 'up':
-                    if (hasController) setFocus('controller-selector');
+                    if (hasStartupFile) setFocus('startup-file-selector');
+                    else if (hasController) setFocus('controller-selector');
                     else if (hasCore) setFocus('core-selector');
                     else if (hasFirmware) setFocus('firmware-selector');
                     return false;

@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -96,8 +97,6 @@ func (s *Service) GetMetadataPath(game *types.Game) string {
 func (s *Service) DownloadRomToLibrary(ctx context.Context, id uint) error {
 	libPath := s.config.GetConfig().LibraryPath
 	if libPath == "" {
-		// This is a bit tricky as the original logic tried to get a default path.
-		// We'll assume the caller handles default path logic or we provide a way to save it.
 		return fmt.Errorf("library path is not configured")
 	}
 
@@ -106,26 +105,34 @@ func (s *Service) DownloadRomToLibrary(ctx context.Context, id uint) error {
 		return fmt.Errorf("failed to get ROM info: %w", err)
 	}
 
-	reader, _, err := s.romm.GetClient().DownloadFile(ctx, &game)
+	destDir := s.GetRomDir(&game)
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	if (game.HasMultipleFiles || len(game.Files) > 1) && len(game.Files) > 0 {
+		return s.downloadMultiFileRom(ctx, &game, destDir)
+	}
+
+	return s.downloadSingleFileRom(ctx, &game, destDir)
+}
+
+func (s *Service) downloadSingleFileRom(ctx context.Context, game *types.Game, destDir string) error {
+	reader, _, err := s.romm.GetClient().DownloadFile(ctx, game)
 	if err != nil {
 		return err
 	}
 	defer reader.Close() //nolint:errcheck
 
-	destDir := s.GetRomDir(&game)
 	filename := filepath.Base(game.FullPath)
 	destPath := filepath.Join(destDir, filename)
-
-	if err := os.MkdirAll(destDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create destination directory: %w", err)
-	}
 
 	var downloadSuccess bool
 	defer func() {
 		if !downloadSuccess {
 			if _, err := os.Stat(destPath); err == nil {
 				s.ui.LogInfof("DownloadRomToLibrary: Cleaning up partial/failed download at %s", destPath)
-				_ = os.Remove(destPath) // Ignore error as it's just cleanup
+				_ = os.Remove(destPath)
 			}
 		}
 	}()
@@ -147,16 +154,114 @@ func (s *Service) DownloadRomToLibrary(ctx context.Context, id uint) error {
 		LastEmit: time.Now(),
 	}
 
-	s.ui.LogInfof("DownloadRomToLibrary: Starting download for ID %d, Size: %d", id, game.FileSize)
+	s.ui.LogInfof("DownloadRomToLibrary: Starting download for ID %d, Size: %d", game.ID, game.FileSize)
 	if _, err := io.Copy(io.MultiWriter(out, pw), reader); err != nil {
 		return fmt.Errorf("failed to save file: %w", err)
 	}
 	downloadSuccess = true
 
-	// Explicitly close the file handle so Windows allows extraction and deletion
 	_ = out.Close()
 
-	return s.postDownloadProcessing(id, &game, destPath, destDir)
+	return s.postDownloadProcessing(game.ID, game, destPath, destDir)
+}
+
+func (s *Service) downloadMultiFileRom(ctx context.Context, game *types.Game, destDir string) error {
+	totalSize := s.calculateTotalRomSize(game)
+	pw := &ProgressWriter{
+		Total:    totalSize,
+		GameID:   game.ID,
+		UI:       s.ui,
+		LastEmit: time.Now(),
+	}
+
+	s.ui.LogInfof("DownloadRomToLibrary: Starting multi-file download for ID %d (%d files, %d bytes)",
+		game.ID, len(game.Files), totalSize)
+
+	var downloadedPaths []string
+	var downloadSuccess bool
+	defer func() {
+		if !downloadSuccess {
+			for _, p := range downloadedPaths {
+				if _, err := os.Stat(p); err == nil {
+					s.ui.LogInfof("DownloadRomToLibrary: Cleaning up partial/failed multi-file download at %s", p)
+					_ = os.Remove(p)
+				}
+			}
+		}
+	}()
+
+	for _, file := range game.Files {
+		destPath, err := s.downloadSingleRomFile(ctx, &file, destDir, pw)
+		if err != nil {
+			return err
+		}
+		downloadedPaths = append(downloadedPaths, destPath)
+	}
+	downloadSuccess = true
+
+	for _, p := range downloadedPaths {
+		ext := strings.ToLower(filepath.Ext(p))
+		if ext == ".zip" || ext == ".7z" || ext == ".rar" {
+			_ = s.postDownloadProcessing(game.ID, game, p, destDir)
+		}
+	}
+
+	if err := s.SaveMetadata(game); err != nil {
+		return fmt.Errorf("failed to save metadata: %w", err)
+	}
+
+	s.ui.EventsEmit("library-status", map[string]interface{}{"game_id": game.ID, "status": "downloaded"})
+	return nil
+}
+
+func (s *Service) downloadSingleRomFile(ctx context.Context, file *types.RomFile, destDir string, pw *ProgressWriter) (string, error) {
+	filename := file.FileName
+	if filename == "" {
+		filename = filepath.Base(file.FilePath)
+	}
+	if filename == "" {
+		filename = filepath.Base(file.FullPath)
+	}
+	if filename == "" {
+		filename = fmt.Sprintf("file_%d", file.ID)
+	}
+
+	destPath := filepath.Join(destDir, filename)
+	reader, _, err := s.romm.GetClient().DownloadRomFile(ctx, file.ID, filename)
+	if err != nil {
+		return "", fmt.Errorf("failed to download rom file %s (ID %d): %w", filename, file.ID, err)
+	}
+	defer reader.Close() //nolint:errcheck
+
+	out, err := os.Create(destPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create destination file %s: %w", destPath, err)
+	}
+	defer func() {
+		if err := out.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+			s.ui.LogErrorf("DownloadRomToLibrary: Failed to close destination file: %v", err)
+		}
+	}()
+
+	if _, err := io.Copy(io.MultiWriter(out, pw), reader); err != nil {
+		_ = out.Close()
+		_ = os.Remove(destPath)
+		return "", fmt.Errorf("failed to save rom file %s: %w", filename, err)
+	}
+
+	_ = out.Close()
+	return destPath, nil
+}
+
+func (s *Service) calculateTotalRomSize(game *types.Game) int64 {
+	var total int64
+	for _, f := range game.Files {
+		total += f.FileSizeBytes
+	}
+	if total <= 0 && game.FileSize > 0 {
+		return game.FileSize
+	}
+	return total
 }
 
 func (s *Service) postDownloadProcessing(id uint, game *types.Game, destPath, destDir string) error {
@@ -356,10 +461,26 @@ func (s *Service) GetRomDownloadStatus(id uint) (bool, error) {
 
 	romDir := s.GetRomDir(&game)
 	if info, err := os.Stat(romDir); err == nil && info.IsDir() {
+		if (game.HasMultipleFiles || len(game.Files) > 1) && len(game.Files) > 0 {
+			return hasAllRomFiles(romDir, game.Files), nil
+		}
 		return s.findRomPath(romDir, &game) != "", nil
 	}
 
 	return false, nil
+}
+
+func hasAllRomFiles(romDir string, files []types.RomFile) bool {
+	for _, file := range files {
+		name := file.FileName
+		if name == "" {
+			name = filepath.Base(file.FullPath)
+		}
+		if _, err := os.Stat(filepath.Join(romDir, name)); err != nil {
+			return false
+		}
+	}
+	return true
 }
 
 // findRomPath looks for a valid ROM file in the given directory.
@@ -372,6 +493,19 @@ func (s *Service) findRomPath(romDir string, game *types.Game) string {
 	filtered := files
 	if s.config != nil && s.config.GetConfig().UsePlatformFolder && game != nil {
 		filtered = filterPlatformFolderFiles(files, game)
+	}
+
+	if s.config != nil && game != nil {
+		cfg := s.config.GetConfig()
+		if cfg.GameStartupFiles != nil {
+			key := strconv.FormatUint(uint64(game.ID), 10)
+			if startupFile, ok := cfg.GameStartupFiles[key]; ok && startupFile != "" {
+				target := filepath.Join(romDir, filepath.Base(startupFile))
+				if info, err := os.Stat(target); err == nil && !info.IsDir() {
+					return target
+				}
+			}
+		}
 	}
 
 	if cuePath := findCueFile(romDir, filtered); cuePath != "" {
