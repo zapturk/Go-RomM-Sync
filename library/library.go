@@ -515,11 +515,6 @@ func (s *Service) DeleteRom(id uint) error {
 	return nil
 }
 
-// FindRomPath is a public wrapper for finding a ROM path.
-func (s *Service) FindRomPath(romDir string, game *types.Game) string {
-	return s.findRomPath(romDir, game)
-}
-
 func (s *Service) GetBiosDir() string {
 	return filepath.Join(s.config.GetConfig().LibraryPath, constants.DirBios)
 }

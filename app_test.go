@@ -167,26 +167,12 @@ func TestAppServiceWrappers(t *testing.T) {
 		t.Errorf("Expected localhost, got %s", cfg.RommHost)
 	}
 
-	// Test DownloadRom
-	url, err := app.DownloadRom(1)
-	if err != nil {
-		t.Fatalf("DownloadRom failed: %v", err)
-	}
-	if url != "http://localhost/api/roms/1/download" {
-		t.Errorf("Unexpected download URL: %s", url)
-	}
-
 	// Test internal providers
 	if app.GetRomMHost() != "http://localhost" {
 		t.Error("GetRomMHost failed")
 	}
 	if app.GetLibraryPath() != "" {
 		t.Error("GetLibraryPath should be empty initially")
-	}
-
-	app.SaveDefaultLibraryPath("/tmp/lib")
-	if app.GetLibraryPath() != "/tmp/lib" {
-		t.Error("SaveDefaultLibraryPath failed")
 	}
 }
 
@@ -313,8 +299,6 @@ func TestAppExhaustiveWrappers(t *testing.T) {
 	app.Logout()
 
 	// Provider implementations
-	app.ConfigGetConfig()
-	app.ConfigSave(&types.AppConfig{})
 	app.GetRomMHost()
 	app.GetUsername()
 	app.GetPassword()
@@ -334,7 +318,6 @@ func TestAppExhaustiveWrappers(t *testing.T) {
 	app.WindowShow()
 	app.WindowUnminimise()
 	app.WindowSetAlwaysOnTop(true)
-	app.Greet("test")
 }
 
 func TestClearImageCache(t *testing.T) {

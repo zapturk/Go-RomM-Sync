@@ -77,6 +77,20 @@ func (cm *ConfigManager) GetConfig() types.AppConfig {
 	return *cm.Config
 }
 
+// writeConfig writes the current config to disk, creating the parent directory if needed.
+// perm controls the file permission bits of the written config file.
+func (cm *ConfigManager) writeConfig(perm os.FileMode) error {
+	dir := filepath.Dir(cm.ConfigPath)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+	data, err := json.MarshalIndent(cm.Config, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(cm.ConfigPath, data, perm)
+}
+
 // Save writes the current config to disk
 func (cm *ConfigManager) Save(newConfig *types.AppConfig) error {
 	cm.Mu.Lock()
@@ -84,18 +98,7 @@ func (cm *ConfigManager) Save(newConfig *types.AppConfig) error {
 
 	*cm.Config = *newConfig
 
-	// Ensure directory exists
-	dir := filepath.Dir(cm.ConfigPath)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	data, err := json.MarshalIndent(cm.Config, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(cm.ConfigPath, data, 0o644)
+	return cm.writeConfig(0o644)
 }
 
 // Update performs an atomic read-modify-write operation on the config (Thread-Safe)
@@ -105,18 +108,7 @@ func (cm *ConfigManager) Update(fn func(*types.AppConfig)) error {
 
 	fn(cm.Config)
 
-	// Ensure directory exists
-	dir := filepath.Dir(cm.ConfigPath)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	data, err := json.MarshalIndent(cm.Config, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(cm.ConfigPath, data, 0o644)
+	return cm.writeConfig(0o644)
 }
 
 // GetDefaultLibraryPath returns the cross-platform default library path
@@ -152,16 +144,5 @@ func (cm *ConfigManager) createDefault() error {
 	}
 	cm.Config = &defaultConfig
 
-	// Create the directory if it doesn't exist
-	dir := filepath.Dir(cm.ConfigPath)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	data, err := json.MarshalIndent(cm.Config, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(cm.ConfigPath, data, 0o600)
+	return cm.writeConfig(0o600)
 }
