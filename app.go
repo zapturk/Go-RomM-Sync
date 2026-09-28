@@ -338,14 +338,6 @@ func (a *App) SetPlatformFirmware(platformSlug string, fw *types.Firmware) error
 	return a.firmwareSrv.DownloadFirmware(platformSlug, fw)
 }
 
-func (a *App) DownloadRom(id uint) (string, error) {
-	cfg := a.configManager.GetConfig()
-	if cfg.RommHost == "" {
-		return "", fmt.Errorf("missing RomM host configuration")
-	}
-	return fmt.Sprintf("%s/api/roms/%d/download", strings.TrimRight(cfg.RommHost, "/"), id), nil
-}
-
 func (a *App) GetCover(romID uint, coverURL string) (string, error) {
 	return a.assetSrv.GetCover(romID, coverURL)
 }
@@ -885,14 +877,6 @@ func (a *App) SetGameController(id uint, controllerType string) error {
 
 // --- Internal Provider Implementations ---
 
-func (a *App) ConfigGetConfig() types.AppConfig {
-	return a.configManager.GetConfig()
-}
-
-func (a *App) ConfigSave(cfg *types.AppConfig) error {
-	return a.configManager.Save(cfg)
-}
-
 func (a *App) GetRomMHost() string {
 	return a.configManager.GetConfig().RommHost
 }
@@ -915,12 +899,6 @@ func (a *App) GetLibraryPath() string {
 
 func (a *App) GetBiosDir() string {
 	return a.firmwareSrv.GetBiosDir()
-}
-
-func (a *App) SaveDefaultLibraryPath(path string) error {
-	cfg := a.configManager.GetConfig()
-	cfg.LibraryPath = path
-	return a.configManager.Save(&cfg)
 }
 
 func (a *App) GetRetroArchPath() string {
@@ -957,22 +935,6 @@ func (a *App) DownloadFirmwareContent(ctx context.Context, id uint, fileName str
 
 func (a *App) GetLocalGame(id uint) (types.Game, error) {
 	return a.librarySrv.GetLocalGame(id)
-}
-
-func (a *App) RomMUploadSave(id uint, core, filename string, content []byte) error {
-	return a.rommSrv.GetClient().UploadSave(id, core, filename, content)
-}
-
-func (a *App) RomMUploadState(id uint, core, filename string, content []byte) error {
-	return a.rommSrv.GetClient().UploadState(id, core, filename, content)
-}
-
-func (a *App) RomMDownloadSave(ctx context.Context, id uint) (reader io.ReadCloser, filename string, err error) {
-	return a.rommSrv.GetClient().DownloadSave(ctx, id)
-}
-
-func (a *App) RomMDownloadState(ctx context.Context, id uint) (reader io.ReadCloser, filename string, err error) {
-	return a.rommSrv.GetClient().DownloadState(ctx, id)
 }
 
 func (a *App) GetRomDir(game *types.Game) string {
@@ -1081,8 +1043,4 @@ func (a *App) DeleteOrphanedRoms(files []string) (int, error) {
 // Lifecycle
 func (a *App) Quit() {
 	wailsRuntime.Quit(a.ctx)
-}
-
-func (a *App) Greet(name string) string {
-	return "Hello! Go-RomM-Sync is ready."
 }

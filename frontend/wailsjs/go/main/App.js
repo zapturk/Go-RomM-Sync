@@ -10,14 +10,6 @@ export function ClearImageCache() {
   return window['go']['main']['App']['ClearImageCache']();
 }
 
-export function ConfigGetConfig() {
-  return window['go']['main']['App']['ConfigGetConfig']();
-}
-
-export function ConfigSave(arg1) {
-  return window['go']['main']['App']['ConfigSave'](arg1);
-}
-
 export function DeleteOrphanedRoms(arg1) {
   return window['go']['main']['App']['DeleteOrphanedRoms'](arg1);
 }
@@ -44,10 +36,6 @@ export function DownloadFile(arg1, arg2) {
 
 export function DownloadFirmwareContent(arg1, arg2, arg3) {
   return window['go']['main']['App']['DownloadFirmwareContent'](arg1, arg2, arg3);
-}
-
-export function DownloadRom(arg1) {
-  return window['go']['main']['App']['DownloadRom'](arg1);
 }
 
 export function DownloadRomToLibrary(arg1) {
@@ -174,10 +162,6 @@ export function GetUsername() {
   return window['go']['main']['App']['GetUsername']();
 }
 
-export function Greet(arg1) {
-  return window['go']['main']['App']['Greet'](arg1);
-}
-
 export function LogErrorf(arg1, arg2) {
   return window['go']['main']['App']['LogErrorf'](arg1, arg2);
 }
@@ -214,28 +198,8 @@ export function Quit() {
   return window['go']['main']['App']['Quit']();
 }
 
-export function RomMDownloadSave(arg1, arg2) {
-  return window['go']['main']['App']['RomMDownloadSave'](arg1, arg2);
-}
-
-export function RomMDownloadState(arg1, arg2) {
-  return window['go']['main']['App']['RomMDownloadState'](arg1, arg2);
-}
-
-export function RomMUploadSave(arg1, arg2, arg3, arg4) {
-  return window['go']['main']['App']['RomMUploadSave'](arg1, arg2, arg3, arg4);
-}
-
-export function RomMUploadState(arg1, arg2, arg3, arg4) {
-  return window['go']['main']['App']['RomMUploadState'](arg1, arg2, arg3, arg4);
-}
-
 export function SaveConfig(arg1) {
   return window['go']['main']['App']['SaveConfig'](arg1);
-}
-
-export function SaveDefaultLibraryPath(arg1) {
-  return window['go']['main']['App']['SaveDefaultLibraryPath'](arg1);
 }
 
 export function SaveLastUsedCore(arg1, arg2) {
