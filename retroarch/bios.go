@@ -95,21 +95,7 @@ func GetBiosFilename(md5 string) string {
 	return ""
 }
 
-// GetAllBiosFilenames returns a list of all canonical BIOS filenames known to the system.
-func GetAllBiosFilenames() []string {
-	names := make(map[string]bool)
-	for _, info := range BiosMap {
-		names[info.Filename] = true
-	}
-
-	result := make([]string, 0, len(names))
-	for name := range names {
-		result = append(result, name)
-	}
-	return result
-}
-
-// GetBiosFilenamesForPlatform returns all canonical BIOS filenames associated with a specific platform.
+// GetBiosFilenamesForPlatform returns all canonical BIOS filenames associated with a specific platform.// GetBiosFilenamesForPlatform returns all canonical BIOS filenames associated with a specific platform.
 func GetBiosFilenamesForPlatform(platformSlug string) []string {
 	names := make(map[string]bool)
 	platformSlug = strings.ToLower(platformSlug)

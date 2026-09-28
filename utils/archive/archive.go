@@ -64,24 +64,7 @@ func ZipDirToBuffer(dirPath string) ([]byte, error) {
 // Extract extracts all files from an archive to the destination directory.
 // Returns true if files were extracted, false if not a recognized archive.
 func Extract(src, destDir string) (bool, error) {
-	format := sniffFormat(src)
-	if format == "" {
-		ext := strings.ToLower(filepath.Ext(src))
-		switch ext {
-		case ".zip":
-			format = formatZip
-		case ".7z":
-			format = format7z
-		case ".rar":
-			format = formatRar
-		}
-	}
-
-	if format == "" {
-		return false, nil
-	}
-
-	return tryExtractWithCondition(format, src, destDir, nil)
+	return extractByCondition(src, destDir, nil)
 }
 
 // ExtractCueBin checks if an archive contains .cue and .bin files and extracts them if it does.
