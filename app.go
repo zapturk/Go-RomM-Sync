@@ -948,7 +948,9 @@ func (a *App) GetRomStartupFiles(id uint) ([]string, error) {
 	}
 
 	a.collectDiskStartupFiles(&game, addFile)
-	a.collectMetadataStartupFiles(&game, addFile)
+	if len(filesList) == 0 {
+		a.collectMetadataStartupFiles(&game, addFile)
+	}
 
 	sortStartupFiles(filesList)
 	return filesList, nil

@@ -470,13 +470,81 @@ func (s *Service) GetRomDownloadStatus(id uint) (bool, error) {
 	return false, nil
 }
 
-func hasAllRomFiles(romDir string, files []types.RomFile) bool {
-	for _, file := range files {
-		name := file.FileName
-		if name == "" {
-			name = filepath.Base(file.FullPath)
+func isArchiveExt(ext string) bool {
+	ext = strings.ToLower(ext)
+	return ext == ".zip" || ext == ".7z" || ext == ".rar" || ext == ".tar" || ext == ".gz"
+}
+
+func matchesArchiveName(name, baseName, lowerBase string) bool {
+	return strings.EqualFold(name, baseName) || strings.HasPrefix(strings.ToLower(name), lowerBase)
+}
+
+func dirHasFiles(dir string) bool {
+	sub, err := os.ReadDir(dir)
+	return err == nil && len(sub) > 0
+}
+
+func matchArchiveEntry(baseName string, entries []os.DirEntry, romDir string) bool {
+	lowerBase := strings.ToLower(baseName)
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".") {
+			continue
 		}
-		if _, err := os.Stat(filepath.Join(romDir, name)); err != nil {
+		if entry.IsDir() {
+			if matchesArchiveName(entry.Name(), baseName, lowerBase) && dirHasFiles(filepath.Join(romDir, entry.Name())) {
+				return true
+			}
+			continue
+		}
+		entryBase := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
+		if matchesArchiveName(entryBase, baseName, lowerBase) {
+			return true
+		}
+	}
+	return false
+}
+
+func singleRomFileExists(romDir string, file *types.RomFile, entries []os.DirEntry) bool {
+	if file == nil {
+		return false
+	}
+	name := file.FileName
+	if name == "" {
+		name = filepath.Base(file.FullPath)
+	}
+	if name == "" {
+		name = filepath.Base(file.FilePath)
+	}
+	if name == "" {
+		return false
+	}
+
+	if info, err := os.Stat(filepath.Join(romDir, name)); err == nil && !info.IsDir() {
+		return true
+	}
+	if file.FilePath != "" {
+		if info, err := os.Stat(filepath.Join(romDir, file.FilePath)); err == nil && !info.IsDir() {
+			return true
+		}
+	}
+
+	ext := filepath.Ext(name)
+	if isArchiveExt(ext) {
+		baseName := strings.TrimSuffix(name, ext)
+		return matchArchiveEntry(baseName, entries, romDir)
+	}
+
+	return false
+}
+
+func hasAllRomFiles(romDir string, files []types.RomFile) bool {
+	entries, err := os.ReadDir(romDir)
+	if err != nil {
+		return false
+	}
+
+	for _, file := range files {
+		if !singleRomFileExists(romDir, &file, entries) {
 			return false
 		}
 	}

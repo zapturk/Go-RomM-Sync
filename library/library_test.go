@@ -728,3 +728,67 @@ func TestGetRomDownloadStatus_MultiFile(t *testing.T) {
 		t.Error("Expected status true when all files exist")
 	}
 }
+
+func TestGetRomDownloadStatus_ExtractedArchives(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "library_status_extracted")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{LibraryPath: tempDir}
+
+	game := types.Game{
+		ID:               30,
+		FullPath:         "PSX/Arc the Lad III",
+		HasMultipleFiles: true,
+		Files: []types.RomFile{
+			{ID: 301, RomID: 30, FileName: "Arc the Lad III (Disc 1).zip"},
+			{ID: 302, RomID: 30, FileName: "Arc the Lad III (Disc 2).zip"},
+		},
+	}
+	gameData, _ := json.Marshal(game)
+
+	rommSrv := rommsrv.New(mockRommConfig{})
+	rommSrv.GetClient().APIClient.Transport = &mockTransport{
+		roundTrip: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(gameData)),
+			}, nil
+		},
+	}
+
+	s := New(cm, rommSrv, &MockUIProvider{})
+
+	romDir := filepath.Join(tempDir, "PSX", "30")
+	os.MkdirAll(romDir, 0o755)
+
+	// Extracted files on disk (the original .zip files were removed after extraction)
+	os.WriteFile(filepath.Join(romDir, "Arc the Lad III (Disc 1).cue"), []byte("cue1"), 0o644)
+	os.WriteFile(filepath.Join(romDir, "Arc the Lad III (Disc 1).bin"), []byte("bin1"), 0o644)
+	os.WriteFile(filepath.Join(romDir, "Arc the Lad III (Disc 2).cue"), []byte("cue2"), 0o644)
+	os.WriteFile(filepath.Join(romDir, "Arc the Lad III (Disc 2).bin"), []byte("bin2"), 0o644)
+
+	status, err := s.GetRomDownloadStatus(30)
+	if err != nil {
+		t.Fatalf("GetRomDownloadStatus failed: %v", err)
+	}
+	if !status {
+		t.Error("Expected status true for extracted multi-file archives")
+	}
+
+	// If Disc 2 is deleted, it should return false
+	os.Remove(filepath.Join(romDir, "Arc the Lad III (Disc 2).cue"))
+	os.Remove(filepath.Join(romDir, "Arc the Lad III (Disc 2).bin"))
+
+	status, err = s.GetRomDownloadStatus(30)
+	if err != nil {
+		t.Fatalf("GetRomDownloadStatus failed: %v", err)
+	}
+	if status {
+		t.Error("Expected status false when Disc 2 is missing")
+	}
+}
