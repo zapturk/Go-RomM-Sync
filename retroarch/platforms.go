@@ -6,7 +6,10 @@ import (
 	"strings"
 )
 
-var dsRegex = regexp.MustCompile(`\bds\b`)
+var (
+	dsRegex = regexp.MustCompile(`\bds\b`)
+	gcRegex = regexp.MustCompile(`\b(n?gc)\b`)
+)
 
 // PlatformCoreMap maps common platform names or slugs to an ordered list
 // of known-working libretro core base names.
@@ -87,7 +90,7 @@ var platformSearchPatterns = []struct {
 	{"wiiu", []string{"wii u", "wiiu"}, false},
 	{"wiiware", []string{"wiiware", "wii ware"}, false},
 	{"wii", []string{"wii"}, false},
-	{"gamecube", []string{"gamecube", "gcn", "dolphin"}, false},
+	{"gamecube", []string{"gamecube", "gcn", "gc", "dolphin"}, false},
 	{"n64", []string{"n64", "nintendo 64"}, false},
 	{"ps2", []string{"ps2", "playstation 2"}, false},
 	{"ps1", []string{"playstation", "ps1", "psx"}, false},
@@ -154,17 +157,18 @@ func IdentifyPlatform(input string) string {
 		return "wii"
 	}
 
-	// 1. Direct check for exact slug matches (Primary)
-	if _, ok := PlatformCoreMap[lower]; ok {
-		return lower
-	}
-
-	// 2. Fuzzy matching based on search patterns
+	// 1. Fuzzy matching based on search patterns (resolves aliases/names to canonical slugs)
 	for _, entry := range platformSearchPatterns {
 		if matchPattern(entry, lower) {
 			return entry.slug
 		}
 	}
+
+	// 2. Direct check for exact slug matches (Fallback)
+	if _, ok := PlatformCoreMap[lower]; ok {
+		return lower
+	}
+
 	return ""
 }
 
@@ -186,6 +190,12 @@ func matchPattern(entry struct {
 		// Special check for "ds" to ensure it's a word, not a substring
 		if p == "ds" {
 			if dsRegex.MatchString(lower) {
+				return true
+			}
+			continue
+		}
+		if p == "gc" {
+			if gcRegex.MatchString(lower) {
 				return true
 			}
 			continue

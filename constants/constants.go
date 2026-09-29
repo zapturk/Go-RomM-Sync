@@ -82,3 +82,11 @@ const (
 	URLBuildbotBase           = "https://buildbot.libretro.com/nightly"
 	URLBuildbotStable         = "https://buildbot.libretro.com/stable"
 )
+
+// File Extensions
+const (
+	ExtCue = ".cue"
+	ExtM3u = ".m3u"
+	ExtZip = ".zip"
+	ExtBin = ".bin"
+)

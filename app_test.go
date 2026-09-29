@@ -522,3 +522,89 @@ func TestSaveConfigTheme(t *testing.T) {
 		t.Errorf("Expected ThemeBtnTextColor '#ffb703', got '%s'", savedCfg.ThemeBtnTextColor)
 	}
 }
+
+func TestGameStartupFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "app-startup-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	configPath := filepath.Join(tmpDir, "config.json")
+	cm := config.NewConfigManager()
+	cm.ConfigPath = configPath
+	cm.Config = &types.AppConfig{}
+
+	app := NewApp(cm)
+
+	// Initially empty
+	if file := app.GetGameStartupFile(1); file != "" {
+		t.Errorf("Expected empty startup file, got %s", file)
+	}
+
+	// Set startup file
+	if err := app.SetGameStartupFile(1, "disc2.cue"); err != nil {
+		t.Fatalf("SetGameStartupFile failed: %v", err)
+	}
+
+	if file := app.GetGameStartupFile(1); file != "disc2.cue" {
+		t.Errorf("Expected startup file 'disc2.cue', got '%s'", file)
+	}
+
+	// Verify persistence in config
+	savedCfg := cm.GetConfig()
+	if savedCfg.GameStartupFiles["1"] != "disc2.cue" {
+		t.Errorf("Expected config to contain 'disc2.cue', got '%s'", savedCfg.GameStartupFiles["1"])
+	}
+}
+
+func TestGetRomStartupFiles(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "app-startup-files-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	configPath := filepath.Join(tmpDir, "config.json")
+	cm := config.NewConfigManager()
+	cm.ConfigPath = configPath
+	cm.Config = &types.AppConfig{
+		LibraryPath: tmpDir,
+		OfflineMode: true,
+	}
+
+	app := NewApp(cm)
+
+	// Create ROM files on disk
+	romDir := filepath.Join(tmpDir, "psx", "42")
+	if err := os.MkdirAll(romDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	os.WriteFile(filepath.Join(romDir, "disc1.bin"), []byte("bin1"), 0o644)
+	os.WriteFile(filepath.Join(romDir, "disc2.bin"), []byte("bin2"), 0o644)
+	os.WriteFile(filepath.Join(romDir, "game.cue"), []byte("cue"), 0o644)
+	os.WriteFile(filepath.Join(romDir, "game.m3u"), []byte("m3u"), 0o644)
+
+	// Save metadata so GetRom(42) can read it offline
+	metaFile := filepath.Join(romDir, "metadata.json")
+	metaData := `{"id":42,"title":"Test Game","platform_slug":"psx","full_path":"psx/game.m3u"}`
+	os.WriteFile(metaFile, []byte(metaData), 0o644)
+
+	files, err := app.GetRomStartupFiles(42)
+	if err != nil {
+		t.Fatalf("GetRomStartupFiles failed: %v", err)
+	}
+
+	if len(files) != 4 {
+		t.Fatalf("Expected 4 files, got %d: %v", len(files), files)
+	}
+
+	// .m3u should be first, then .cue, then alphabetical
+	if files[0] != "game.m3u" {
+		t.Errorf("Expected first file to be game.m3u, got %s", files[0])
+	}
+	if files[1] != "game.cue" {
+		t.Errorf("Expected second file to be game.cue, got %s", files[1])
+	}
+}

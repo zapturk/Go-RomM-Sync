@@ -48,6 +48,8 @@ export function GetFirmware(arg1:number):Promise<Array<types.Firmware>>;
 
 export function GetGameController(arg1:number):Promise<string>;
 
+export function GetGameStartupFile(arg1:number):Promise<string>;
+
 export function GetLibrary(arg1:number,arg2:number,arg3:number,arg4:string):Promise<types.LibraryResult_go_romm_sync_types_Game_>;
 
 export function GetLibraryPath():Promise<string>;
@@ -73,6 +75,8 @@ export function GetRomDir(arg1:types.Game):Promise<string>;
 export function GetRomDownloadStatus(arg1:number):Promise<boolean>;
 
 export function GetRomMHost():Promise<string>;
+
+export function GetRomStartupFiles(arg1:number):Promise<Array<string>>;
 
 export function GetSaves(arg1:number):Promise<Array<types.FileItem>>;
 
@@ -113,6 +117,8 @@ export function SelectLibraryPath():Promise<string>;
 export function SelectRetroArchExecutable():Promise<string>;
 
 export function SetGameController(arg1:number,arg2:string):Promise<void>;
+
+export function SetGameStartupFile(arg1:number,arg2:string):Promise<void>;
 
 export function SetPlatformFirmware(arg1:string,arg2:types.Firmware):Promise<void>;
 

@@ -90,6 +90,10 @@ export function GetGameController(arg1) {
   return window['go']['main']['App']['GetGameController'](arg1);
 }
 
+export function GetGameStartupFile(arg1) {
+  return window['go']['main']['App']['GetGameStartupFile'](arg1);
+}
+
 export function GetLibrary(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['GetLibrary'](arg1, arg2, arg3, arg4);
 }
@@ -140,6 +144,10 @@ export function GetRomDownloadStatus(arg1) {
 
 export function GetRomMHost() {
   return window['go']['main']['App']['GetRomMHost']();
+}
+
+export function GetRomStartupFiles(arg1) {
+  return window['go']['main']['App']['GetRomStartupFiles'](arg1);
 }
 
 export function GetSaves(arg1) {
@@ -220,6 +228,10 @@ export function SelectRetroArchExecutable() {
 
 export function SetGameController(arg1, arg2) {
   return window['go']['main']['App']['SetGameController'](arg1, arg2);
+}
+
+export function SetGameStartupFile(arg1, arg2) {
+  return window['go']['main']['App']['SetGameStartupFile'](arg1, arg2);
 }
 
 export function SetPlatformFirmware(arg1, arg2) {

@@ -357,6 +357,51 @@ func TestPostDownloadProcessing_ExtractionInterference(t *testing.T) {
 	}
 }
 
+func TestPostDownloadProcessing_GameCube_NGC(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "library_ngc_test")
+	defer os.RemoveAll(tempDir)
+
+	archivePath := filepath.Join(tempDir, "game.zip")
+	zipFile, _ := os.Create(archivePath)
+	zw := zip.NewWriter(zipFile)
+	f, _ := zw.Create("game.rvz")
+	f.Write([]byte("fake rvz content"))
+	zw.Close()
+	zipFile.Close()
+
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{LibraryPath: tempDir}
+
+	rommSrv := rommsrv.New(mockRommConfig{})
+	ui := &MockUIProvider{}
+	s := New(cm, rommSrv, ui)
+
+	game := &types.Game{
+		ID:           337,
+		FullPath:     "ngc/game.zip",
+		PlatformSlug: "ngc",
+	}
+	destDir := filepath.Join(tempDir, "ngc", "337")
+	os.MkdirAll(destDir, 0o755)
+
+	finalArchivePath := filepath.Join(destDir, "game.zip")
+	os.Rename(archivePath, finalArchivePath)
+
+	err := s.postDownloadProcessing(337, game, finalArchivePath, destDir)
+	if err != nil {
+		t.Fatalf("postDownloadProcessing failed: %v", err)
+	}
+
+	if _, err := os.Stat(finalArchivePath); !os.IsNotExist(err) {
+		t.Errorf("Expected archive to be removed after successful GameCube extraction")
+	}
+
+	if _, err := os.Stat(filepath.Join(destDir, "game.rvz")); err != nil {
+		t.Errorf("Expected game.rvz to be extracted")
+	}
+}
+
 func TestMigrateLibrary(t *testing.T) {
 	tempDir, _ := os.MkdirTemp("", "library_migration_test")
 	defer os.RemoveAll(tempDir)
@@ -563,5 +608,232 @@ func TestDisableMetadata(t *testing.T) {
 	metaFile := filepath.Join(idDir, "metadata.json")
 	if _, err := os.Stat(metaFile); !os.IsNotExist(err) {
 		t.Errorf("Expected metadata.json to NOT exist, but it was created")
+	}
+}
+
+func TestFindRomPath_StartupFile(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "library_startup_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	disc1 := filepath.Join(tempDir, "disc1.iso")
+	disc2 := filepath.Join(tempDir, "disc2.iso")
+	os.WriteFile(disc1, []byte("disc1"), 0o644)
+	os.WriteFile(disc2, []byte("disc2"), 0o644)
+
+	cm := config.NewConfigManager()
+	cm.Config = &types.AppConfig{
+		GameStartupFiles: map[string]string{
+			"1": "disc2.iso",
+		},
+	}
+	s := New(cm, nil, nil)
+
+	game := &types.Game{
+		ID:       1,
+		FullPath: "psx/disc1.iso",
+	}
+
+	found := s.findRomPath(tempDir, game)
+	if found != disc2 {
+		t.Errorf("Expected startup file %s, got %s", disc2, found)
+	}
+}
+
+func TestDownloadRomToLibrary_MultiFile(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "library_dl_multi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{LibraryPath: tempDir}
+
+	game := types.Game{
+		ID:               10,
+		FullPath:         "PSX/FinalFantasy.cue",
+		HasMultipleFiles: true,
+		Files: []types.RomFile{
+			{ID: 101, RomID: 10, FileName: "disc1.cue", FileSizeBytes: 100},
+			{ID: 102, RomID: 10, FileName: "disc1.bin", FileSizeBytes: 500},
+		},
+	}
+	gameData, _ := json.Marshal(game)
+
+	rommSrv := rommsrv.New(mockRommConfig{})
+	rommSrv.GetClient().APIClient.Transport = &mockTransport{
+		roundTrip: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(gameData)),
+			}, nil
+		},
+	}
+	rommSrv.GetClient().FileClient.Transport = &mockTransport{
+		roundTrip: func(req *http.Request) (*http.Response, error) {
+			content := "file content"
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(content))),
+			}, nil
+		},
+	}
+
+	ui := &MockUIProvider{}
+	s := New(cm, rommSrv, ui)
+
+	err = s.DownloadRomToLibrary(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("DownloadRomToLibrary failed: %v", err)
+	}
+
+	cuePath := filepath.Join(tempDir, "PSX", "10", "disc1.cue")
+	binPath := filepath.Join(tempDir, "PSX", "10", "disc1.bin")
+	metaPath := filepath.Join(tempDir, "PSX", "10", "metadata.json")
+
+	if _, err := os.Stat(cuePath); err != nil {
+		t.Errorf("Expected cue file at %s: %v", cuePath, err)
+	}
+	if _, err := os.Stat(binPath); err != nil {
+		t.Errorf("Expected bin file at %s: %v", binPath, err)
+	}
+	if _, err := os.Stat(metaPath); err != nil {
+		t.Errorf("Expected metadata at %s: %v", metaPath, err)
+	}
+}
+
+func TestGetRomDownloadStatus_MultiFile(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "library_status_multi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{LibraryPath: tempDir}
+
+	game := types.Game{
+		ID:               20,
+		FullPath:         "PSX/Multi.cue",
+		HasMultipleFiles: true,
+		Files: []types.RomFile{
+			{ID: 201, RomID: 20, FileName: "multi.cue"},
+			{ID: 202, RomID: 20, FileName: "multi.bin"},
+		},
+	}
+	gameData, _ := json.Marshal(game)
+
+	rommSrv := rommsrv.New(mockRommConfig{})
+	rommSrv.GetClient().APIClient.Transport = &mockTransport{
+		roundTrip: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(gameData)),
+			}, nil
+		},
+	}
+
+	s := New(cm, rommSrv, &MockUIProvider{})
+
+	// Not downloaded yet
+	status, err := s.GetRomDownloadStatus(20)
+	if err != nil {
+		t.Fatalf("GetRomDownloadStatus failed: %v", err)
+	}
+	if status {
+		t.Error("Expected status false when no files exist")
+	}
+
+	// Partially downloaded (only multi.cue)
+	romDir := filepath.Join(tempDir, "PSX", "20")
+	os.MkdirAll(romDir, 0o755)
+	os.WriteFile(filepath.Join(romDir, "multi.cue"), []byte("cue"), 0o644)
+
+	status, err = s.GetRomDownloadStatus(20)
+	if err != nil {
+		t.Fatalf("GetRomDownloadStatus failed: %v", err)
+	}
+	if status {
+		t.Error("Expected status false when multi.bin is missing")
+	}
+
+	// Completely downloaded (both multi.cue and multi.bin)
+	os.WriteFile(filepath.Join(romDir, "multi.bin"), []byte("bin"), 0o644)
+
+	status, err = s.GetRomDownloadStatus(20)
+	if err != nil {
+		t.Fatalf("GetRomDownloadStatus failed: %v", err)
+	}
+	if !status {
+		t.Error("Expected status true when all files exist")
+	}
+}
+
+func TestGetRomDownloadStatus_ExtractedArchives(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "library_status_extracted")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{LibraryPath: tempDir}
+
+	game := types.Game{
+		ID:               30,
+		FullPath:         "PSX/Arc the Lad III",
+		HasMultipleFiles: true,
+		Files: []types.RomFile{
+			{ID: 301, RomID: 30, FileName: "Arc the Lad III (Disc 1).zip"},
+			{ID: 302, RomID: 30, FileName: "Arc the Lad III (Disc 2).zip"},
+		},
+	}
+	gameData, _ := json.Marshal(game)
+
+	rommSrv := rommsrv.New(mockRommConfig{})
+	rommSrv.GetClient().APIClient.Transport = &mockTransport{
+		roundTrip: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(gameData)),
+			}, nil
+		},
+	}
+
+	s := New(cm, rommSrv, &MockUIProvider{})
+
+	romDir := filepath.Join(tempDir, "PSX", "30")
+	os.MkdirAll(romDir, 0o755)
+
+	// Extracted files on disk (the original .zip files were removed after extraction)
+	os.WriteFile(filepath.Join(romDir, "Arc the Lad III (Disc 1).cue"), []byte("cue1"), 0o644)
+	os.WriteFile(filepath.Join(romDir, "Arc the Lad III (Disc 1).bin"), []byte("bin1"), 0o644)
+	os.WriteFile(filepath.Join(romDir, "Arc the Lad III (Disc 2).cue"), []byte("cue2"), 0o644)
+	os.WriteFile(filepath.Join(romDir, "Arc the Lad III (Disc 2).bin"), []byte("bin2"), 0o644)
+
+	status, err := s.GetRomDownloadStatus(30)
+	if err != nil {
+		t.Fatalf("GetRomDownloadStatus failed: %v", err)
+	}
+	if !status {
+		t.Error("Expected status true for extracted multi-file archives")
+	}
+
+	// If Disc 2 is deleted, it should return false
+	os.Remove(filepath.Join(romDir, "Arc the Lad III (Disc 2).cue"))
+	os.Remove(filepath.Join(romDir, "Arc the Lad III (Disc 2).bin"))
+
+	status, err = s.GetRomDownloadStatus(30)
+	if err != nil {
+		t.Fatalf("GetRomDownloadStatus failed: %v", err)
+	}
+	if status {
+		t.Error("Expected status false when Disc 2 is missing")
 	}
 }
