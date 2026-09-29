@@ -405,49 +405,31 @@ func (c *Client) DownloadFile(ctx context.Context, game *types.Game) (reader io.
 	return resp.Body, filename, nil
 }
 
-// GetRomFile fetches metadata for a specific ROM file by its ID
-func (c *Client) GetRomFile(id uint) (types.RomFile, error) {
-	urlStr := fmt.Sprintf("%s/api/roms/%d/files", c.BaseURL, id)
-	return fetchJSON[types.RomFile](c, urlStr, "ROM file")
-}
-
 // DownloadRomFile downloads an individual ROM file from RomM
-func (c *Client) DownloadRomFile(ctx context.Context, fileID uint, fileName string) (reader io.ReadCloser, filename string, err error) {
+func (c *Client) DownloadRomFile(ctx context.Context, fileID uint, fileName string) (io.ReadCloser, error) {
 	if c.Token == "" {
-		return nil, "", fmt.Errorf("not authenticated")
+		return nil, fmt.Errorf("not authenticated")
 	}
 
 	urlPath := fmt.Sprintf("%s/api/roms/%d/files/content/%s", c.BaseURL, fileID, url.PathEscape(fileName))
 	req, err := http.NewRequestWithContext(ctx, "GET", urlPath, http.NoBody)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to create rom file download request: %w", err)
+		return nil, fmt.Errorf("failed to create rom file download request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
 	resp, err := c.FileClient.Do(req) //nolint:bodyclose // caller closes
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to perform rom file download request: %w", err)
+		return nil, fmt.Errorf("failed to perform rom file download request: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		_ = resp.Body.Close()
-		return nil, "", fmt.Errorf("rom file download failed with status %d", resp.StatusCode)
+		return nil, fmt.Errorf("rom file download failed with status %d", resp.StatusCode)
 	}
 
-	cd := resp.Header.Get("Content-Disposition")
-	if cd != "" && strings.Contains(cd, "filename=") {
-		parts := strings.Split(cd, "filename=")
-		if len(parts) > 1 {
-			filename = strings.Trim(parts[1], "\"")
-		}
-	}
-
-	if filename == "" {
-		filename = fileName
-	}
-
-	return resp.Body, filename, nil
+	return resp.Body, nil
 }
 
 // UploadSave uploads a save file to RomM

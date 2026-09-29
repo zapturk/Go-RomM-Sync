@@ -182,10 +182,8 @@ func (s *Service) downloadMultiFileRom(ctx context.Context, game *types.Game, de
 	defer func() {
 		if !downloadSuccess {
 			for _, p := range downloadedPaths {
-				if _, err := os.Stat(p); err == nil {
-					s.ui.LogInfof("DownloadRomToLibrary: Cleaning up partial/failed multi-file download at %s", p)
-					_ = os.Remove(p)
-				}
+				s.ui.LogInfof("DownloadRomToLibrary: Cleaning up partial/failed multi-file download at %s", p)
+				_ = os.Remove(p)
 			}
 		}
 	}()
@@ -227,7 +225,7 @@ func (s *Service) downloadSingleRomFile(ctx context.Context, file *types.RomFile
 	}
 
 	destPath := filepath.Join(destDir, filename)
-	reader, _, err := s.romm.GetClient().DownloadRomFile(ctx, file.ID, filename)
+	reader, err := s.romm.GetClient().DownloadRomFile(ctx, file.ID, filename)
 	if err != nil {
 		return "", fmt.Errorf("failed to download rom file %s (ID %d): %w", filename, file.ID, err)
 	}
@@ -288,7 +286,7 @@ func (s *Service) postDownloadProcessing(id uint, game *types.Game, destPath, de
 		} else if extracted {
 			s.ui.LogInfof("DownloadRomToLibrary: Extracted PS2 files from archive: %s", destPath)
 		}
-	case "gamecube", "ngc", "gc", "gcn":
+	case "gamecube":
 		extracted, err = archive.ExtractGameCube(destPath, destDir)
 		if err != nil {
 			s.ui.LogErrorf("DownloadRomToLibrary: GameCube extraction failed for %s: %v", destPath, err)
@@ -478,13 +476,14 @@ func isArchiveExt(ext string) bool {
 	return ext == ".zip" || ext == ".7z" || ext == ".rar" || ext == ".tar" || ext == ".gz"
 }
 
-func matchesArchiveName(name, baseName, lowerBase string) bool {
-	return strings.EqualFold(name, baseName) || strings.HasPrefix(strings.ToLower(name), lowerBase)
-}
-
 func dirHasFiles(dir string) bool {
-	sub, err := os.ReadDir(dir)
-	return err == nil && len(sub) > 0
+	f, err := os.Open(dir)
+	if err != nil {
+		return false
+	}
+	defer f.Close() //nolint:errcheck
+	names, err := f.Readdirnames(1)
+	return err == nil && len(names) > 0
 }
 
 func matchArchiveEntry(baseName string, entries []os.DirEntry, romDir string) bool {
@@ -494,13 +493,13 @@ func matchArchiveEntry(baseName string, entries []os.DirEntry, romDir string) bo
 			continue
 		}
 		if entry.IsDir() {
-			if matchesArchiveName(entry.Name(), baseName, lowerBase) && dirHasFiles(filepath.Join(romDir, entry.Name())) {
+			if strings.HasPrefix(strings.ToLower(entry.Name()), lowerBase) && dirHasFiles(filepath.Join(romDir, entry.Name())) {
 				return true
 			}
 			continue
 		}
 		entryBase := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
-		if matchesArchiveName(entryBase, baseName, lowerBase) {
+		if strings.HasPrefix(strings.ToLower(entryBase), lowerBase) {
 			return true
 		}
 	}
@@ -563,7 +562,7 @@ func (s *Service) findRomPath(romDir string, game *types.Game) string {
 
 	filtered := files
 	if s.config != nil && s.config.GetConfig().UsePlatformFolder && game != nil {
-		filtered = filterPlatformFolderFiles(files, game)
+		filtered = FilterPlatformFolderFiles(files, game)
 	}
 
 	if s.config != nil && game != nil {
@@ -590,7 +589,8 @@ func (s *Service) findRomPath(romDir string, game *types.Game) string {
 	return findRecognizedRom(romDir, filtered)
 }
 
-func filterPlatformFolderFiles(files []os.DirEntry, game *types.Game) []os.DirEntry {
+// FilterPlatformFolderFiles filters directory entries matching the game's expected base filename.
+func FilterPlatformFolderFiles(files []os.DirEntry, game *types.Game) []os.DirEntry {
 	expectedBase := filepath.Base(game.FullPath)
 	expectedNameWithoutExt := strings.TrimSuffix(expectedBase, filepath.Ext(expectedBase))
 	var filtered []os.DirEntry

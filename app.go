@@ -601,7 +601,7 @@ func (a *App) findRomPath(game *types.Game, romDir string) string {
 	}
 
 	if a.configManager.GetConfig().UsePlatformFolder {
-		files = a.filterPlatformEntries(files, game)
+		files = library.FilterPlatformFolderFiles(files, game)
 	}
 
 	if p := a.findCueFile(romDir, files); p != "" {
@@ -814,17 +814,15 @@ func (a *App) GetCoresForGame(id uint) ([]string, error) {
 
 // GetResolvedPlatformSlug returns a canonical platform slug, falling back to folder name if needed.
 func (a *App) GetResolvedPlatformSlug(game *types.Game) string {
-	if slug := game.Platform.Slug; slug != "" {
-		if canonical := retroarch.IdentifyPlatform(slug); canonical != "" {
-			return canonical
-		}
-		return slug
+	slugCandidate := game.Platform.Slug
+	if slugCandidate == "" {
+		slugCandidate = game.PlatformSlug
 	}
-	if slug := game.PlatformSlug; slug != "" {
-		if canonical := retroarch.IdentifyPlatform(slug); canonical != "" {
+	if slugCandidate != "" {
+		if canonical := retroarch.IdentifyPlatform(slugCandidate); canonical != "" {
 			return canonical
 		}
-		return slug
+		return slugCandidate
 	}
 	relDir := filepath.Dir(game.FullPath)
 	parts := strings.Split(filepath.ToSlash(relDir), "/")
@@ -902,11 +900,6 @@ func (a *App) SetGameStartupFile(id uint, fileName string) error {
 	})
 }
 
-// GetRomFile retrieves metadata for a specific ROM file.
-func (a *App) GetRomFile(id uint) (types.RomFile, error) {
-	return a.rommSrv.GetRomFile(id)
-}
-
 func isIgnoredStartupFile(name string) bool {
 	if name == "" || strings.HasPrefix(name, ".") {
 		return true
@@ -916,20 +909,20 @@ func isIgnoredStartupFile(name string) bool {
 }
 
 func sortStartupFiles(files []string) {
+	rank := func(f string) int {
+		switch strings.ToLower(filepath.Ext(f)) {
+		case constants.ExtM3u:
+			return 0
+		case constants.ExtCue:
+			return 1
+		default:
+			return 2
+		}
+	}
 	sort.SliceStable(files, func(i, j int) bool {
-		extI := strings.ToLower(filepath.Ext(files[i]))
-		extJ := strings.ToLower(filepath.Ext(files[j]))
-		if extI == constants.ExtM3u && extJ != constants.ExtM3u {
-			return true
-		}
-		if extJ == constants.ExtM3u && extI != constants.ExtM3u {
-			return false
-		}
-		if extI == constants.ExtCue && extJ != constants.ExtCue {
-			return true
-		}
-		if extJ == constants.ExtCue && extI != constants.ExtCue {
-			return false
+		rI, rJ := rank(files[i]), rank(files[j])
+		if rI != rJ {
+			return rI < rJ
 		}
 		return files[i] < files[j]
 	})
@@ -971,7 +964,7 @@ func (a *App) collectDiskStartupFiles(game *types.Game, addFile func(string)) {
 	}
 	filtered := entries
 	if a.configManager.GetConfig().UsePlatformFolder {
-		filtered = a.filterPlatformEntries(entries, game)
+		filtered = library.FilterPlatformFolderFiles(entries, game)
 	}
 	for _, entry := range filtered {
 		if !entry.IsDir() {
@@ -994,22 +987,6 @@ func (a *App) collectMetadataStartupFiles(game *types.Game, addFile func(string)
 	} else if game.FullPath != "" {
 		addFile(game.FullPath)
 	}
-}
-
-func (a *App) filterPlatformEntries(entries []os.DirEntry, game *types.Game) []os.DirEntry {
-	expectedBase := filepath.Base(game.FullPath)
-	expectedNameWithoutExt := strings.TrimSuffix(expectedBase, filepath.Ext(expectedBase))
-	var filtered []os.DirEntry
-	for _, file := range entries {
-		if file.IsDir() {
-			continue
-		}
-		nameWithoutExt := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
-		if strings.EqualFold(nameWithoutExt, expectedNameWithoutExt) {
-			filtered = append(filtered, file)
-		}
-	}
-	return filtered
 }
 
 // --- Internal Provider Implementations ---

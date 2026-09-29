@@ -30,9 +30,6 @@ var PlatformCoreMap = map[string][]string{
 	"dreamcast":    {"flycast_libretro"},
 	"pce":          {"mednafen_pce_fast_libretro", "mednafen_pce_libretro"},
 	"gamecube":     {"dolphin_libretro"},
-	"ngc":          {"dolphin_libretro"},
-	"gc":           {"dolphin_libretro"},
-	"gcn":          {"dolphin_libretro"},
 	"wii":          {"dolphin_libretro"},
 	"wiiware":      {"dolphin_libretro"},
 	"3ds":          {constants.CoreAzahar, constants.CoreCitra},
@@ -93,7 +90,7 @@ var platformSearchPatterns = []struct {
 	{"wiiu", []string{"wii u", "wiiu"}, false},
 	{"wiiware", []string{"wiiware", "wii ware"}, false},
 	{"wii", []string{"wii"}, false},
-	{"gamecube", []string{"gamecube", "ngc", "gcn", "gc", "dolphin"}, false},
+	{"gamecube", []string{"gamecube", "gcn", "gc", "dolphin"}, false},
 	{"n64", []string{"n64", "nintendo 64"}, false},
 	{"ps2", []string{"ps2", "playstation 2"}, false},
 	{"ps1", []string{"playstation", "ps1", "psx"}, false},
@@ -197,7 +194,7 @@ func matchPattern(entry struct {
 			}
 			continue
 		}
-		if p == "gc" || p == "ngc" {
+		if p == "gc" {
 			if gcRegex.MatchString(lower) {
 				return true
 			}

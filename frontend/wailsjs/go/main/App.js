@@ -142,10 +142,6 @@ export function GetRomDownloadStatus(arg1) {
   return window['go']['main']['App']['GetRomDownloadStatus'](arg1);
 }
 
-export function GetRomFile(arg1) {
-  return window['go']['main']['App']['GetRomFile'](arg1);
-}
-
 export function GetRomMHost() {
   return window['go']['main']['App']['GetRomMHost']();
 }

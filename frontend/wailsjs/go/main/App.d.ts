@@ -74,8 +74,6 @@ export function GetRomDir(arg1:types.Game):Promise<string>;
 
 export function GetRomDownloadStatus(arg1:number):Promise<boolean>;
 
-export function GetRomFile(arg1:number):Promise<types.RomFile>;
-
 export function GetRomMHost():Promise<string>;
 
 export function GetRomStartupFiles(arg1:number):Promise<Array<string>>;
