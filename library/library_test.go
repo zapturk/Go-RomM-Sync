@@ -357,6 +357,51 @@ func TestPostDownloadProcessing_ExtractionInterference(t *testing.T) {
 	}
 }
 
+func TestPostDownloadProcessing_GameCube_NGC(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "library_ngc_test")
+	defer os.RemoveAll(tempDir)
+
+	archivePath := filepath.Join(tempDir, "game.zip")
+	zipFile, _ := os.Create(archivePath)
+	zw := zip.NewWriter(zipFile)
+	f, _ := zw.Create("game.rvz")
+	f.Write([]byte("fake rvz content"))
+	zw.Close()
+	zipFile.Close()
+
+	cm := config.NewConfigManager()
+	cm.ConfigPath = filepath.Join(tempDir, "config.json")
+	cm.Config = &types.AppConfig{LibraryPath: tempDir}
+
+	rommSrv := rommsrv.New(mockRommConfig{})
+	ui := &MockUIProvider{}
+	s := New(cm, rommSrv, ui)
+
+	game := &types.Game{
+		ID:           337,
+		FullPath:     "ngc/game.zip",
+		PlatformSlug: "ngc",
+	}
+	destDir := filepath.Join(tempDir, "ngc", "337")
+	os.MkdirAll(destDir, 0o755)
+
+	finalArchivePath := filepath.Join(destDir, "game.zip")
+	os.Rename(archivePath, finalArchivePath)
+
+	err := s.postDownloadProcessing(337, game, finalArchivePath, destDir)
+	if err != nil {
+		t.Fatalf("postDownloadProcessing failed: %v", err)
+	}
+
+	if _, err := os.Stat(finalArchivePath); !os.IsNotExist(err) {
+		t.Errorf("Expected archive to be removed after successful GameCube extraction")
+	}
+
+	if _, err := os.Stat(filepath.Join(destDir, "game.rvz")); err != nil {
+		t.Errorf("Expected game.rvz to be extracted")
+	}
+}
+
 func TestMigrateLibrary(t *testing.T) {
 	tempDir, _ := os.MkdirTemp("", "library_migration_test")
 	defer os.RemoveAll(tempDir)

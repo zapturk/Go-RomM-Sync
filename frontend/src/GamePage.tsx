@@ -468,7 +468,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
     const platformSlug = (game?.platform_slug || game?.platform?.slug || '').toLowerCase();
     const platformName = (game?.platform_display_name || game?.platform?.name || '').toLowerCase();
     const fullPath = (game?.full_path || '').toLowerCase();
-    const isGameCube = platformSlug.includes('gamecube') || platformSlug === 'gc' || platformName.includes('gamecube') || fullPath.includes('gamecube');
+    const isGameCube = platformSlug.includes('gamecube') || platformSlug === 'gc' || platformSlug === 'ngc' || platformName.includes('gamecube') || fullPath.includes('gamecube') || fullPath.includes('/ngc/');
     const isWiiPlatform = platformSlug.includes('wii') || platformName.includes('wii') || fullPath.includes('wii');
     const isDolphinCore = selectedCore.includes('dolphin') || availableCores.some(c => c.includes('dolphin'));
     const isWii = isWiiPlatform || (isDolphinCore && !isGameCube);
@@ -861,7 +861,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                         </div>
                                         <div className="game-core-section">
                                             <h3>Core</h3>
-                                            {availableCores.length > 0 && (
+                                            {availableCores.length > 0 ? (
                                                 <InnerCoreSelector
                                                     currentCore={selectedCore}
                                                     isDisabled={isPlaying}
@@ -873,6 +873,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                                     onFocusRequest={() => setFocus('core-selector')}
                                                     onFocusSaves={focusFirstAvailableSaveState}
                                                 />
+                                            ) : (
+                                                <div className="firmware-status">No core available</div>
                                             )}
                                         </div>
                                         {isWii && (

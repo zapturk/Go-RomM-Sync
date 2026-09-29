@@ -25,6 +25,7 @@ func NewCoreResolver(lib LibraryProvider) *CoreResolver {
 
 // ResolveOptions carries the inputs needed to resolve cores for a game.
 type ResolveOptions struct {
+	GameID       uint   // local game ID
 	PlatformSlug string // canonical slug, e.g. "snes"
 	FullPath     string // server-side full path, e.g. "snes/game.sfc"
 	LastUsed     string // previously saved core preference for this platform
@@ -65,7 +66,7 @@ func (r *CoreResolver) Resolve(opts ResolveOptions) []string {
 
 	// Strategy 4: local file scan (handles zips with real content inside)
 	if len(all) == 0 && r.library != nil {
-		if cores := r.scanLocalFiles(opts.FullPath); len(cores) > 0 {
+		if cores := r.scanLocalFiles(opts); len(cores) > 0 {
 			all = append(all, cores...)
 		}
 	}
@@ -79,8 +80,8 @@ func (r *CoreResolver) Resolve(opts ResolveOptions) []string {
 
 // scanLocalFiles scans the local ROM directory for a game and returns cores
 // based on the actual files present (including peeking inside ZIPs).
-func (r *CoreResolver) scanLocalFiles(fullPath string) []string {
-	dir := r.library.GetRomDir(&types.Game{FullPath: fullPath})
+func (r *CoreResolver) scanLocalFiles(opts ResolveOptions) []string {
+	dir := r.library.GetRomDir(&types.Game{ID: opts.GameID, FullPath: opts.FullPath})
 	if dir == "" {
 		return nil
 	}

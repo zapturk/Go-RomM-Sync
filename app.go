@@ -621,7 +621,7 @@ func (a *App) findRomPath(game *types.Game, romDir string) string {
 
 func (a *App) findCueFile(romDir string, files []os.DirEntry) string {
 	for _, file := range files {
-		if !file.IsDir() && strings.ToLower(filepath.Ext(file.Name())) == ".cue" {
+		if !file.IsDir() && strings.ToLower(filepath.Ext(file.Name())) == constants.ExtCue {
 			return filepath.Join(romDir, file.Name())
 		}
 	}
@@ -801,6 +801,7 @@ func (a *App) GetCoresForGame(id uint) ([]string, error) {
 	}
 
 	cores := a.coreResolver.Resolve(retroarch.ResolveOptions{
+		GameID:       game.ID,
 		PlatformSlug: platformSlug,
 		FullPath:     game.FullPath,
 		LastUsed:     lastUsed,
@@ -813,11 +814,17 @@ func (a *App) GetCoresForGame(id uint) ([]string, error) {
 
 // GetResolvedPlatformSlug returns a canonical platform slug, falling back to folder name if needed.
 func (a *App) GetResolvedPlatformSlug(game *types.Game) string {
-	if game.Platform.Slug != "" {
-		return game.Platform.Slug
+	if slug := game.Platform.Slug; slug != "" {
+		if canonical := retroarch.IdentifyPlatform(slug); canonical != "" {
+			return canonical
+		}
+		return slug
 	}
-	if game.PlatformSlug != "" {
-		return game.PlatformSlug
+	if slug := game.PlatformSlug; slug != "" {
+		if canonical := retroarch.IdentifyPlatform(slug); canonical != "" {
+			return canonical
+		}
+		return slug
 	}
 	relDir := filepath.Dir(game.FullPath)
 	parts := strings.Split(filepath.ToSlash(relDir), "/")
@@ -912,16 +919,16 @@ func sortStartupFiles(files []string) {
 	sort.SliceStable(files, func(i, j int) bool {
 		extI := strings.ToLower(filepath.Ext(files[i]))
 		extJ := strings.ToLower(filepath.Ext(files[j]))
-		if extI == ".m3u" && extJ != ".m3u" {
+		if extI == constants.ExtM3u && extJ != constants.ExtM3u {
 			return true
 		}
-		if extJ == ".m3u" && extI != ".m3u" {
+		if extJ == constants.ExtM3u && extI != constants.ExtM3u {
 			return false
 		}
-		if extI == ".cue" && extJ != ".cue" {
+		if extI == constants.ExtCue && extJ != constants.ExtCue {
 			return true
 		}
-		if extJ == ".cue" && extI != ".cue" {
+		if extJ == constants.ExtCue && extI != constants.ExtCue {
 			return false
 		}
 		return files[i] < files[j]

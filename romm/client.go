@@ -317,36 +317,41 @@ func (c *Client) GetFirmware(platformID uint) ([]types.Firmware, error) {
 	return fetchAssets[types.Firmware](c, urlStr, "firmware")
 }
 
-// GetRom fetches a single ROM by its ID
-func (c *Client) GetRom(id uint) (types.Game, error) {
+func fetchJSON[T any](c *Client, urlStr, itemType string) (T, error) {
+	var zero T
 	if c.Token == "" {
-		return types.Game{}, fmt.Errorf("not authenticated")
+		return zero, fmt.Errorf("not authenticated")
 	}
 
-	urlStr := fmt.Sprintf("%s/api/roms/%d", c.BaseURL, id)
 	req, err := http.NewRequest("GET", urlStr, http.NoBody)
 	if err != nil {
-		return types.Game{}, fmt.Errorf("failed to create ROM request: %w", err)
+		return zero, fmt.Errorf("failed to create %s request: %w", itemType, err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.APIClient.Do(req) //nolint:bodyclose // body is closed via fileio.Close wrapper
+	resp, err := c.APIClient.Do(req) //nolint:bodyclose // body is closed via defer
 	if err != nil {
-		return types.Game{}, fmt.Errorf("failed to perform ROM request: %w", err)
+		return zero, fmt.Errorf("failed to perform %s request: %w", itemType, err)
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
-		return types.Game{}, fmt.Errorf("ROM fetch failed with status %d: %s", resp.StatusCode, string(body))
+		return zero, fmt.Errorf("%s fetch failed with status %d: %s", itemType, resp.StatusCode, string(body))
 	}
 
-	var game types.Game
-	if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
-		return types.Game{}, fmt.Errorf("failed to decode ROM response: %w", err)
+	var result T
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return zero, fmt.Errorf("failed to decode %s response: %w", itemType, err)
 	}
-	return game, nil
+	return result, nil
+}
+
+// GetRom fetches a single ROM by its ID
+func (c *Client) GetRom(id uint) (types.Game, error) {
+	urlStr := fmt.Sprintf("%s/api/roms/%d", c.BaseURL, id)
+	return fetchJSON[types.Game](c, urlStr, "ROM")
 }
 
 // DownloadFile downloads a ROM file from RomM
@@ -402,34 +407,8 @@ func (c *Client) DownloadFile(ctx context.Context, game *types.Game) (reader io.
 
 // GetRomFile fetches metadata for a specific ROM file by its ID
 func (c *Client) GetRomFile(id uint) (types.RomFile, error) {
-	if c.Token == "" {
-		return types.RomFile{}, fmt.Errorf("not authenticated")
-	}
-
 	urlStr := fmt.Sprintf("%s/api/roms/%d/files", c.BaseURL, id)
-	req, err := http.NewRequest("GET", urlStr, http.NoBody)
-	if err != nil {
-		return types.RomFile{}, fmt.Errorf("failed to create ROM file request: %w", err)
-	}
-
-	req.Header.Set("Authorization", "Bearer "+c.Token)
-
-	resp, err := c.APIClient.Do(req) //nolint:bodyclose // body is closed via defer
-	if err != nil {
-		return types.RomFile{}, fmt.Errorf("failed to perform ROM file request: %w", err)
-	}
-	defer resp.Body.Close() //nolint:errcheck
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
-		return types.RomFile{}, fmt.Errorf("ROM file fetch failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var romFile types.RomFile
-	if err := json.NewDecoder(resp.Body).Decode(&romFile); err != nil {
-		return types.RomFile{}, fmt.Errorf("failed to decode ROM file response: %w", err)
-	}
-	return romFile, nil
+	return fetchJSON[types.RomFile](c, urlStr, "ROM file")
 }
 
 // DownloadRomFile downloads an individual ROM file from RomM

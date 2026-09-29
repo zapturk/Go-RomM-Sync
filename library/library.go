@@ -276,6 +276,9 @@ func (s *Service) postDownloadProcessing(id uint, game *types.Game, destPath, de
 		slug = game.PlatformSlug
 	}
 	slug = strings.ToLower(slug)
+	if canonical := retroarch.IdentifyPlatform(slug); canonical != "" {
+		slug = canonical
+	}
 
 	switch slug {
 	case "ps2":
@@ -285,7 +288,7 @@ func (s *Service) postDownloadProcessing(id uint, game *types.Game, destPath, de
 		} else if extracted {
 			s.ui.LogInfof("DownloadRomToLibrary: Extracted PS2 files from archive: %s", destPath)
 		}
-	case "gamecube":
+	case "gamecube", "ngc", "gc", "gcn":
 		extracted, err = archive.ExtractGameCube(destPath, destDir)
 		if err != nil {
 			s.ui.LogErrorf("DownloadRomToLibrary: GameCube extraction failed for %s: %v", destPath, err)
@@ -605,7 +608,7 @@ func filterPlatformFolderFiles(files []os.DirEntry, game *types.Game) []os.DirEn
 
 func findCueFile(romDir string, files []os.DirEntry) string {
 	for _, file := range files {
-		if !file.IsDir() && strings.ToLower(filepath.Ext(file.Name())) == ".cue" {
+		if !file.IsDir() && strings.ToLower(filepath.Ext(file.Name())) == constants.ExtCue {
 			return filepath.Join(romDir, file.Name())
 		}
 	}
@@ -946,7 +949,7 @@ func (s *Service) trackGamePaths(game *types.Game, trackedPaths map[string]bool)
 		trackedPaths[filepath.Clean(romPath)] = true
 
 		// For CUE/BIN games, also track the associated BIN files
-		if strings.ToLower(filepath.Ext(romPath)) == ".cue" {
+		if strings.ToLower(filepath.Ext(romPath)) == constants.ExtCue {
 			expectedBase := filepath.Base(game.FullPath)
 			expectedNameWithoutExt := strings.TrimSuffix(expectedBase, filepath.Ext(expectedBase))
 			files, err := os.ReadDir(romDir)
