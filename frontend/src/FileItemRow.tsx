@@ -164,6 +164,22 @@ export const getItemName = (item: any) => {
 
 export const getItemCore = (item: any) => item?.core || item?.emulator || '';
 
+export const formatCoreDisplay = (core: string): string => {
+    if (!core) return '';
+    const norm = core.replace(/\\/g, '/');
+    if (norm.includes('User/GC/')) {
+        const parts = norm.split('User/GC/')[1];
+        return `Dolphin (${parts.replace('/', ' - ')})`;
+    }
+    if (norm.endsWith('User/GC')) {
+        return 'Dolphin (GC)';
+    }
+    if (norm === 'Card A' || norm === 'Card B') {
+        return `Dolphin (${norm})`;
+    }
+    return norm;
+};
+
 export const formatItemDate = (dateStr?: string) => {
     if (!dateStr) return '';
     try {
@@ -304,7 +320,7 @@ export const FileItemRow = ({
             </div>
             <div className="file-item-badges">
                 <FileStatusBadge status={status} />
-                {coreName && <span className="file-core">{coreName}</span>}
+                {coreName && <span className="file-core">{formatCoreDisplay(coreName)}</span>}
             </div>
             <FileItemRowActions
                 isDisabled={isDisabled}

@@ -51,8 +51,18 @@ const getCleanName = (item: any) => {
     return raw.replace(TIMESTAMP_REGEX, '');
 };
 
+const normalizeCoreForMatch = (core: string): string => {
+    if (!core) return '';
+    const norm = core.replace(/\\/g, '/').toLowerCase();
+    if (norm.includes('card b')) return 'card b';
+    if (norm.includes('card a')) return 'card a';
+    if (norm.includes('user/gc')) return 'user/gc';
+    if (norm.includes('dolphin')) return 'dolphin';
+    return norm;
+};
+
 const isMatchingItem = (o: any, name: string, core: string) => 
-    getCleanName(o) === name && getItemCore(o) === core;
+    getCleanName(o) === name && normalizeCoreForMatch(getItemCore(o)) === normalizeCoreForMatch(core);
 
 const getItemTime = (item: any): number => {
     if (!item || !item.updated_at) return 0;
@@ -165,7 +175,8 @@ function useGameSavesAndStates(
     isDownloaded: boolean,
     setDownloadStatus: (status: string | null) => void,
     setSuccessStatus: (msg: string) => void,
-    selectedCore?: string
+    selectedCore?: string,
+    isGameCube?: boolean
 ) {
     const [saves, setSaves] = useState<types.FileItem[]>([]);
     const [states, setStates] = useState<types.FileItem[]>([]);
@@ -258,13 +269,15 @@ function useGameSavesAndStates(
             if (action === SyncAction.Upload && local) {
                 await uploadFn(gameId, local.core, local.name).catch(console.error);
             } else if (action === SyncAction.Download && serverClean) {
-                const targetEmulator = (type === 'saves' && selectedCore) ? selectedCore : serverClean.emulator;
+                const targetEmulator = (isGameCube && (serverClean.emulator || '').match(/(?:User[\\\/]GC|Card [AB])/i))
+                    ? serverClean.emulator
+                    : ((type === 'saves' && selectedCore) ? selectedCore : serverClean.emulator);
                 await downloadFn(gameId, serverClean.id, targetEmulator, name, serverClean.updated_at).catch(console.error);
             }
         }
         setSuccessStatus(`Smart sync for ${type} complete!`);
         fetchAppData();
-    }, [gameId, fetchAppData, setSuccessStatus, setDownloadStatus]);
+    }, [gameId, isGameCube, selectedCore, fetchAppData, setSuccessStatus, setDownloadStatus]);
 
     const handleSelectSlot = useCallback((slotName: string) => {
         SetGameSaveSlot(gameId, slotName).then(() => {
@@ -371,14 +384,16 @@ function useGameSavesAndStates(
     const handleDownloadServerSave = useCallback((save: types.ServerSave) => {
         setDownloadStatus(`Downloading save ${save.file_name}...`);
         const cleanFileName = save.file_name.replace(TIMESTAMP_REGEX, "");
-        const targetEmulator = selectedCore || save.emulator;
+        const targetEmulator = (isGameCube && (save.emulator || '').match(/(?:User[\\\/]GC|Card [AB])/i))
+            ? save.emulator
+            : (selectedCore || save.emulator);
         DownloadServerSave(gameId, save.id, targetEmulator, cleanFileName, save.updated_at).then(() => {
             setSuccessStatus("Server save downloaded successfully!");
             fetchAppData();
         }).catch((err: string) => {
             setDownloadStatus(`Download error: ${err}`);
         });
-    }, [gameId, selectedCore, fetchAppData, setSuccessStatus, setDownloadStatus]);
+    }, [gameId, isGameCube, selectedCore, fetchAppData, setSuccessStatus, setDownloadStatus]);
 
     const handleDownloadServerState = useCallback((state: types.ServerState) => {
         setDownloadStatus(`Downloading state ${state.file_name}...`);
@@ -499,6 +514,16 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         }, 3000);
     };
 
+    const platformSlug = (game?.platform_slug || game?.platform?.slug || '').toLowerCase();
+    const platformName = (game?.platform_display_name || game?.platform?.name || '').toLowerCase();
+    const fullPath = (game?.full_path || '').toLowerCase();
+    const isGameCube = platformSlug.includes('gamecube') || platformSlug === 'gc' || platformSlug === 'ngc' || platformName.includes('gamecube') || fullPath.includes('gamecube') || fullPath.includes('/ngc/');
+    const isWiiPlatform = platformSlug.includes('wii') || platformName.includes('wii') || fullPath.includes('wii');
+    const isDolphinCore = selectedCore.includes('dolphin') || availableCores.some(c => c.includes('dolphin'));
+    const isWii = isWiiPlatform || (isDolphinCore && !isGameCube);
+    const isMultiFile = !!(game?.has_multiple_files || (game?.files && game.files.length > 1) || startupFiles.length > 1);
+    const hasStartupFile = isMultiFile && startupFiles.length > 0;
+
     const {
         saves,
         states,
@@ -527,7 +552,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         isDownloaded,
         setDownloadStatus,
         setSuccessStatus,
-        selectedCore
+        selectedCore,
+        isGameCube
     );
 
     const [isNewSlotModalOpen, setIsNewSlotModalOpen] = useState(false);
@@ -669,15 +695,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         }
     }, [gameId]);
 
-    const platformSlug = (game?.platform_slug || game?.platform?.slug || '').toLowerCase();
-    const platformName = (game?.platform_display_name || game?.platform?.name || '').toLowerCase();
-    const fullPath = (game?.full_path || '').toLowerCase();
-    const isGameCube = platformSlug.includes('gamecube') || platformSlug === 'gc' || platformSlug === 'ngc' || platformName.includes('gamecube') || fullPath.includes('gamecube') || fullPath.includes('/ngc/');
-    const isWiiPlatform = platformSlug.includes('wii') || platformName.includes('wii') || fullPath.includes('wii');
-    const isDolphinCore = selectedCore.includes('dolphin') || availableCores.some(c => c.includes('dolphin'));
-    const isWii = isWiiPlatform || (isDolphinCore && !isGameCube);
-    const isMultiFile = !!(game?.has_multiple_files || (game?.files && game.files.length > 1) || startupFiles.length > 1);
-    const hasStartupFile = isMultiFile && startupFiles.length > 0;
+
 
     const handleSelectController = useCallback((controllerId: string) => {
         setSelectedControllerType(controllerId);

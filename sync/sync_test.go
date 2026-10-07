@@ -838,3 +838,317 @@ func TestBridgeGameSaves_OrphanBackupMigrated(t *testing.T) {
 		t.Errorf("expected orphan backup to be moved from core dir")
 	}
 }
+
+func TestGetSaves_GameCube_Variants(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "sync_test_gc_variants")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	game := types.Game{ID: 10, PlatformSlug: "gamecube", FullPath: "gamecube/game.iso"}
+	gameData, _ := json.Marshal(game)
+
+	lib, romm, _ := setupServices(tempDir, gameData, nil)
+	s := New(lib, romm, &MockUIProvider{})
+
+	romDir := s.library.GetRomDir(&game)
+	savesDir := filepath.Join(romDir, constants.DirSaves)
+	gcBase := filepath.Join(savesDir, "dolphin-emu", "User", "GC")
+	filesToCreate := []struct {
+		relDir   string
+		filename string
+	}{
+		{"USA/Card A", "GM8E01.gci"},
+		{"EUR/Card B", "GM8P01.gci"},
+		{"JAP/Card A", "GM8J01.gci"},
+		{"JPN/Card A", "JPN01.gci"},
+		{"", "MemoryCardA.USA.raw"},
+		{"", "MemoryCardB.EUR.gcp"},
+	}
+
+	for _, fc := range filesToCreate {
+		dir := filepath.Join(gcBase, fc.relDir)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("failed to mkdir %s: %v", dir, err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, fc.filename), []byte("save data"), 0o644); err != nil {
+			t.Fatalf("failed to write %s: %v", fc.filename, err)
+		}
+	}
+	// Write SRAM.raw in User/GC/ to ensure it is ignored
+	if err := os.WriteFile(filepath.Join(gcBase, "SRAM.raw"), []byte("sram_data"), 0o644); err != nil {
+		t.Fatalf("failed to write SRAM.raw: %v", err)
+	}
+
+	saves, err := s.GetSaves(10)
+	if err != nil {
+		t.Fatalf("GetSaves failed: %v", err)
+	}
+
+	if len(saves) != len(filesToCreate) {
+		t.Fatalf("expected %d saves, got %d: %+v", len(filesToCreate), len(saves), saves)
+	}
+
+	saveMap := make(map[string]string)
+	for _, sv := range saves {
+		saveMap[sv.Name] = sv.Core
+	}
+
+	if _, ok := saveMap["SRAM.raw"]; ok {
+		t.Errorf("SRAM.raw should not be tracked as a save file")
+	}
+
+	expected := map[string]string{
+		"GM8E01.gci":          "dolphin-emu/User/GC/USA/Card A",
+		"GM8P01.gci":          "dolphin-emu/User/GC/EUR/Card B",
+		"GM8J01.gci":          "dolphin-emu/User/GC/JAP/Card A",
+		"JPN01.gci":           "dolphin-emu/User/GC/JPN/Card A",
+		"MemoryCardA.USA.raw": "dolphin-emu/User/GC",
+		"MemoryCardB.EUR.gcp": "dolphin-emu/User/GC",
+	}
+
+	for name, expCore := range expected {
+		if core, ok := saveMap[name]; !ok {
+			t.Errorf("missing save %s", name)
+		} else if core != expCore {
+			t.Errorf("for save %s, expected core %q, got %q", name, expCore, core)
+		}
+	}
+}
+
+func TestDownloadServerSave_GameCube(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "sync_test_gc_dl")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	fakeData := []byte("gc_server_save")
+	game := types.Game{ID: 10, PlatformSlug: "gamecube", FullPath: "gamecube/game.iso"}
+	gameData, _ := json.Marshal(game)
+
+	lib, romm, _ := setupServices(tempDir, gameData, fakeData)
+	s := New(lib, romm, &MockUIProvider{})
+
+	tests := []struct {
+		name         string
+		core         string
+		filename     string
+		expectedPath string
+	}{
+		{
+			name:         "Card A emulator name with USA GCI",
+			core:         "Card A",
+			filename:     "GM8E01.gci",
+			expectedPath: filepath.Join("dolphin-emu", "User", "GC", "USA", "Card A", "GM8E01.gci"),
+		},
+		{
+			name:         "Card B emulator name with EUR GCI",
+			core:         "Card B",
+			filename:     "GM8P01.gci",
+			expectedPath: filepath.Join("dolphin-emu", "User", "GC", "EUR", "Card B", "GM8P01.gci"),
+		},
+		{
+			name:         "dolphin_libretro core detects JAP region from GCI",
+			core:         "dolphin_libretro",
+			filename:     "GM8J01.gci",
+			expectedPath: filepath.Join("dolphin-emu", "User", "GC", "JAP", "Card A", "GM8J01.gci"),
+		},
+		{
+			name:         "Full path core",
+			core:         "dolphin-emu/User/GC/USA/Card A",
+			filename:     "CustomUSA.gci",
+			expectedPath: filepath.Join("dolphin-emu", "User", "GC", "USA", "Card A", "CustomUSA.gci"),
+		},
+		{
+			name:         "Windows backslash core",
+			core:         `dolphin-emu\User\GC\USA\Card A`,
+			filename:     "WinUSA.gci",
+			expectedPath: filepath.Join("dolphin-emu", "User", "GC", "USA", "Card A", "WinUSA.gci"),
+		},
+		{
+			name:         "Raw memory card",
+			core:         "dolphin_libretro",
+			filename:     "MemoryCardA.USA.raw",
+			expectedPath: filepath.Join("dolphin-emu", "User", "GC", "MemoryCardA.USA.raw"),
+		},
+	}
+
+	romDir := s.library.GetRomDir(&game)
+	savesBase := filepath.Join(romDir, constants.DirSaves)
+	for idx, tc := range tests {
+		err := s.DownloadServerSave(10, uint(100+idx), tc.core, tc.filename, "")
+		if err != nil {
+			t.Errorf("test %q failed: %v", tc.name, err)
+			continue
+		}
+		fullExpected := filepath.Join(savesBase, tc.expectedPath)
+		if _, err := os.Stat(fullExpected); os.IsNotExist(err) {
+			t.Errorf("test %q: expected file at %s but not found", tc.name, fullExpected)
+		}
+	}
+}
+
+func TestDeleteGameFile_GameCube(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "sync_test_gc_del")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	game := types.Game{ID: 10, PlatformSlug: "gamecube", FullPath: "gamecube/game.iso"}
+	gameData, _ := json.Marshal(game)
+
+	lib, romm, _ := setupServices(tempDir, gameData, nil)
+	s := New(lib, romm, &MockUIProvider{})
+
+	romDir := s.library.GetRomDir(&game)
+	savesDir := filepath.Join(romDir, constants.DirSaves)
+	gcDir := filepath.Join(savesDir, "dolphin-emu", "User", "GC", "USA", "Card A")
+	_ = os.MkdirAll(gcDir, 0o755)
+
+	targetFile1 := filepath.Join(gcDir, "GM8E01.gci")
+	_ = os.WriteFile(targetFile1, []byte("data1"), 0o644)
+
+	// Delete using "Card A" as core
+	if err := s.DeleteGameFile(10, "saves", "Card A", "GM8E01.gci"); err != nil {
+		t.Fatalf("DeleteGameFile Card A failed: %v", err)
+	}
+	if _, err := os.Stat(targetFile1); !os.IsNotExist(err) {
+		t.Errorf("expected %s to be deleted", targetFile1)
+	}
+
+	targetFile2 := filepath.Join(gcDir, "WinUSA.gci")
+	_ = os.WriteFile(targetFile2, []byte("data2"), 0o644)
+
+	// Delete using Windows backslash core
+	if err := s.DeleteGameFile(10, "saves", `dolphin-emu\User\GC\USA\Card A`, "WinUSA.gci"); err != nil {
+		t.Fatalf("DeleteGameFile Windows path failed: %v", err)
+	}
+	if _, err := os.Stat(targetFile2); !os.IsNotExist(err) {
+		t.Errorf("expected %s to be deleted", targetFile2)
+	}
+
+	rawFile := filepath.Join(savesDir, "dolphin-emu", "User", "GC", "MemoryCardA.USA.raw")
+	_ = os.WriteFile(rawFile, []byte("raw_data"), 0o644)
+
+	// Delete raw card using dolphin-emu/User/GC
+	if err := s.DeleteGameFile(10, "saves", "dolphin-emu/User/GC", "MemoryCardA.USA.raw"); err != nil {
+		t.Fatalf("DeleteGameFile raw card failed: %v", err)
+	}
+	if _, err := os.Stat(rawFile); !os.IsNotExist(err) {
+		t.Errorf("expected %s to be deleted", rawFile)
+	}
+}
+
+func TestGameCube_AutoMigrateMisplaced(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "sync_test_gc_migrate")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	game := types.Game{ID: 10, PlatformSlug: "gamecube", FullPath: "gamecube/game.iso"}
+	gameData, _ := json.Marshal(game)
+
+	lib, romm, _ := setupServices(tempDir, gameData, nil)
+	s := New(lib, romm, &MockUIProvider{})
+
+	romDir := s.library.GetRomDir(&game)
+	savesDir := filepath.Join(romDir, constants.DirSaves)
+	_ = os.MkdirAll(savesDir, 0o755)
+
+	misplacedGCI := filepath.Join(savesDir, "GM8E01.gci")
+	misplacedRaw := filepath.Join(savesDir, "MemoryCardA.USA.raw")
+	_ = os.WriteFile(misplacedGCI, []byte("gci_data"), 0o644)
+	_ = os.WriteFile(misplacedRaw, []byte("raw_data"), 0o644)
+
+	if err := s.FlattenGameSaves(10); err != nil {
+		t.Fatalf("FlattenGameSaves failed: %v", err)
+	}
+
+	// GM8E01.gci should be moved to dolphin-emu/User/GC/USA/Card A/
+	expectedGCI := filepath.Join(savesDir, "dolphin-emu", "User", "GC", "USA", "Card A", "GM8E01.gci")
+	if _, err := os.Stat(expectedGCI); os.IsNotExist(err) {
+		t.Errorf("expected misplaced GCI to be migrated to %s", expectedGCI)
+	}
+	if _, err := os.Stat(misplacedGCI); !os.IsNotExist(err) {
+		t.Errorf("expected original misplaced GCI to be removed")
+	}
+
+	// MemoryCardA.USA.raw should be moved to dolphin-emu/User/GC/
+	expectedRaw := filepath.Join(savesDir, "dolphin-emu", "User", "GC", "MemoryCardA.USA.raw")
+	if _, err := os.Stat(expectedRaw); os.IsNotExist(err) {
+		t.Errorf("expected misplaced raw card to be migrated to %s", expectedRaw)
+	}
+	if _, err := os.Stat(misplacedRaw); !os.IsNotExist(err) {
+		t.Errorf("expected original misplaced raw card to be removed")
+	}
+}
+
+func TestGetSaves_GameCube_MigratesUserDir(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "sync_test_gc_user_migrate")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	game := types.Game{ID: 10, PlatformSlug: "gamecube", FullPath: "gamecube/game.iso"}
+	gameData, _ := json.Marshal(game)
+
+	lib, romm, _ := setupServices(tempDir, gameData, nil)
+	s := New(lib, romm, &MockUIProvider{})
+
+	romDir := s.library.GetRomDir(&game)
+	savesDir := filepath.Join(romDir, constants.DirSaves)
+	userDir := filepath.Join(savesDir, "User", "GC", "USA", "Card A")
+	_ = os.MkdirAll(userDir, 0o755)
+	_ = os.WriteFile(filepath.Join(userDir, "01-GKYE-test.gci"), []byte("gci_data"), 0o644)
+
+	saves, err := s.GetSaves(10)
+	if err != nil {
+		t.Fatalf("GetSaves failed: %v", err)
+	}
+
+	if len(saves) != 1 || saves[0].Name != "01-GKYE-test.gci" {
+		t.Fatalf("expected 1 save with name 01-GKYE-test.gci, got: %+v", saves)
+	}
+
+	// Verify User directory was migrated to dolphin-emu/User
+	migratedFile := filepath.Join(savesDir, "dolphin-emu", "User", "GC", "USA", "Card A", "01-GKYE-test.gci")
+	if _, err := os.Stat(migratedFile); os.IsNotExist(err) {
+		t.Errorf("expected file to be migrated to %s", migratedFile)
+	}
+	if _, err := os.Stat(filepath.Join(savesDir, "User")); !os.IsNotExist(err) {
+		t.Errorf("expected saves/User to be removed after migration")
+	}
+}
+
+func TestGetStates_GameCube_Dolphin(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "sync_test_gc_states")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	game := types.Game{ID: 10, PlatformSlug: "gamecube", FullPath: "gamecube/game.iso"}
+	gameData, _ := json.Marshal(game)
+
+	lib, romm, _ := setupServices(tempDir, gameData, nil)
+	s := New(lib, romm, &MockUIProvider{})
+
+	romDir := s.library.GetRomDir(&game)
+	statesDir := filepath.Join(romDir, constants.DirStates, "dolphin-emu")
+	_ = os.MkdirAll(statesDir, 0o755)
+	_ = os.WriteFile(filepath.Join(statesDir, "game.state"), []byte("state_data"), 0o644)
+
+	states, err := s.GetStates(10)
+	if err != nil {
+		t.Fatalf("GetStates failed: %v", err)
+	}
+
+	if len(states) != 1 || states[0].Name != "game.state" || states[0].Core != "dolphin-emu" {
+		t.Fatalf("expected 1 state with name game.state and core dolphin-emu, got: %+v", states)
+	}
+}

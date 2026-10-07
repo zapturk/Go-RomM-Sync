@@ -983,6 +983,11 @@ func (s *Service) trackGamePaths(game *types.Game, trackedPaths map[string]bool)
 			if err != nil {
 				return nil
 			}
+			normPath := filepath.ToSlash(path)
+			if strings.Contains(normPath, "/dolphin-emu/User/") {
+				trackedPaths[filepath.Clean(path)] = true
+				return nil
+			}
 			nameWithoutExt := strings.TrimSuffix(info.Name(), filepath.Ext(info.Name()))
 			if strings.EqualFold(nameWithoutExt, expectedNameWithoutExt) {
 				trackedPaths[filepath.Clean(path)] = true
