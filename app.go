@@ -478,6 +478,10 @@ func (a *App) ValidateAssetPath(core, filename string) (coreBase, fileBase strin
 	return a.syncSrv.ValidateAssetPath(core, filename)
 }
 
+func (a *App) BridgeGameSaves(id uint, targetCore string) error {
+	return a.syncSrv.BridgeGameSaves(id, targetCore)
+}
+
 // Launch
 func (a *App) checkAndDownloadFirmware(id uint) error {
 	game, err := a.GetRom(id)
@@ -551,7 +555,10 @@ func (a *App) PlayRomWithCore(id uint, coreOverride string) error {
 		return err
 	}
 
-	platformSlug, _, controllerType := a.resolveCoreAndController(id, &game, coreOverride)
+	platformSlug, coreToSave, controllerType := a.resolveCoreAndController(id, &game, coreOverride)
+	if coreToSave != "" {
+		_ = a.syncSrv.BridgeGameSaves(id, coreToSave)
+	}
 	cheevosUser, cheevosPass := a.GetCheevosCredentials()
 
 	err = retroarch.Launch(a, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platformSlug, a.GetBiosDir(), controllerType)

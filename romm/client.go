@@ -7,12 +7,15 @@ import (
 	"fmt"
 	"go-romm-sync/constants"
 	"go-romm-sync/types"
+	"go-romm-sync/utils"
 	"io"
 	"mime/multipart"
 	"net"
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -494,13 +497,72 @@ func (c *Client) uploadAsset(romID uint, emulator, filename string, content []by
 	return nil
 }
 
-// GetSaves fetches the list of saves from the RomM server for a given ROM
+var timestampRegex = regexp.MustCompile(` \[\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-\d+)?\]`)
+
+// CleanSaveFileName removes RomM timestamp suffixes from save file names.
+func CleanSaveFileName(filename string) string {
+	return timestampRegex.ReplaceAllString(filename, "")
+}
+
+func parseSaveTime(ts string) time.Time {
+	if ts == "" {
+		return time.Time{}
+	}
+	t, err := utils.ParseTimestamp(ts)
+	if err == nil {
+		return t
+	}
+	return time.Time{}
+}
+
+func isSaveNewer(a, b *types.ServerSave) bool {
+	ta := parseSaveTime(a.UpdatedAt)
+	tb := parseSaveTime(b.UpdatedAt)
+	if !ta.Equal(tb) {
+		return ta.After(tb)
+	}
+	if a.UpdatedAt != b.UpdatedAt {
+		return a.UpdatedAt > b.UpdatedAt
+	}
+	return a.ID > b.ID
+}
+
+func sortServerSavesDescending(saves []types.ServerSave) {
+	sort.SliceStable(saves, func(i, j int) bool {
+		return isSaveNewer(&saves[i], &saves[j])
+	})
+}
+
+// DeduplicateLatestSaves groups saves by clean file name and keeps the most recent save for each.
+func DeduplicateLatestSaves(saves []types.ServerSave) []types.ServerSave {
+	latestByName := make(map[string]types.ServerSave)
+	for i := range saves {
+		s := saves[i]
+		clean := CleanSaveFileName(s.GetEffectiveFileName())
+		if clean == "" {
+			clean = s.GetEffectiveFileName()
+		}
+		existing, ok := latestByName[clean]
+		if !ok || isSaveNewer(&s, &existing) {
+			latestByName[clean] = s
+		}
+	}
+	result := make([]types.ServerSave, 0, len(latestByName))
+	for _, s := range latestByName {
+		result = append(result, s)
+	}
+	sortServerSavesDescending(result)
+	return result
+}
+
+// GetSaves fetches the list of saves from the RomM server for a given ROM.
 func (c *Client) GetSaves(romID uint) ([]types.ServerSave, error) {
 	return fetchAssets[types.ServerSave](c, fmt.Sprintf("%s/api/saves?rom_id=%d", c.BaseURL, romID), "saves")
 }
 
 // GetSavesForSlot fetches saves for a specific slot for a ROM.
 // If slot is empty (""), it fetches all saves and filters to those with no slot (legacy).
+// It returns the most recent save for each file in the slot, sorted descending.
 func (c *Client) GetSavesForSlot(romID uint, slot string) ([]types.ServerSave, error) {
 	if slot == "" {
 		all, err := c.GetSaves(romID)
@@ -513,7 +575,7 @@ func (c *Client) GetSavesForSlot(romID uint, slot string) ([]types.ServerSave, e
 				legacy = append(legacy, s)
 			}
 		}
-		return legacy, nil
+		return DeduplicateLatestSaves(legacy), nil
 	}
 	urlStr := fmt.Sprintf("%s/api/saves?rom_id=%d&slot=%s", c.BaseURL, romID, url.QueryEscape(slot))
 	saves, err := fetchAssets[types.ServerSave](c, urlStr, "saves")
@@ -526,7 +588,7 @@ func (c *Client) GetSavesForSlot(romID uint, slot string) ([]types.ServerSave, e
 			matched = append(matched, s)
 		}
 	}
-	return matched, nil
+	return DeduplicateLatestSaves(matched), nil
 }
 
 // GetSaveSummary fetches the save summary for a given ROM (/api/saves/summary).

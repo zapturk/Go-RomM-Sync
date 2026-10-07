@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRomWithCore, GetCoresForGame,
     GetSaves, GetStates, DeleteSave, DeleteState, UploadSave, UploadState,
     GetServerSaves, GetServerStates, DownloadServerSave, DownloadServerState,
     OpenGameFolder, GetFirmware, SetPlatformFirmware, GetConfig, CancelDownload,
     GetGameController, SetGameController,
     GetRomStartupFiles, GetGameStartupFile, SetGameStartupFile,
-    GetSaveSlots, GetGameSaveSlot, SetGameSaveSlot, CreateSaveSlot, DeleteSaveSlot, DeleteServerSave,
+    GetSaveSlots, GetGameSaveSlot, SetGameSaveSlot, CreateSaveSlot, DeleteSaveSlot, DeleteServerSave, UploadSaveToSlot,
 } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
@@ -45,21 +45,29 @@ const formatFileSize = (bytes: number) => {
 
 
 
+const getCleanName = (item: any) => {
+    const raw = item?.name || item?.file_name || '';
+    return raw.replace(TIMESTAMP_REGEX, '');
+};
+
 const isMatchingItem = (o: any, name: string, core: string) => 
-    getItemName(o) === name && getItemCore(o) === core;
+    getCleanName(o) === name && getItemCore(o) === core;
 
 const getItemTime = (item: any): number => {
     if (!item || !item.updated_at) return 0;
     return new Date(item.updated_at).getTime();
 };
 
-const getFileStatus = (item: any, otherList: any[]) => {
-    const name = getItemName(item);
+const getFileStatus = (item: any, otherList: any[], isSave = true) => {
+    const cleanName = getCleanName(item);
     const core = getItemCore(item);
     const itemTime = getItemTime(item);
-    if (!name || !core || !itemTime) return undefined;
+    if (!cleanName || !itemTime) return undefined;
 
-    const other = otherList.find(o => isMatchingItem(o, name, core));
+    let other = otherList.find(o => isMatchingItem(o, cleanName, core));
+    if (!other && isSave) {
+        other = otherList.find(o => getCleanName(o) === cleanName);
+    }
     const otherTime = getItemTime(other);
     if (!otherTime) return undefined;
 
@@ -155,7 +163,8 @@ function useGameSavesAndStates(
     offlineMode: boolean,
     isDownloaded: boolean,
     setDownloadStatus: (status: string | null) => void,
-    setSuccessStatus: (msg: string) => void
+    setSuccessStatus: (msg: string) => void,
+    selectedCore?: string
 ) {
     const [saves, setSaves] = useState<types.FileItem[]>([]);
     const [states, setStates] = useState<types.FileItem[]>([]);
@@ -173,13 +182,36 @@ function useGameSavesAndStates(
         GetGameSaveSlot(gameId).then(res => setActiveSlot(res || 'default')).catch(console.error);
     }, [gameId]);
 
-    const filteredServerSaves = serverSaves.filter(s => {
-        const sSlot = s.slot || '';
-        if (activeSlot === '') {
-            return sSlot === '';
+    const filteredServerSaves = useMemo(() => {
+        const slotSaves = serverSaves.filter(s => {
+            const sSlot = s.slot || '';
+            if (activeSlot === '') {
+                return sSlot === '';
+            }
+            return sSlot === activeSlot;
+        });
+
+        // Group by clean file name, picking the most recent (highest updated_at, tie-break id)
+        const latestByName = new Map<string, types.ServerSave>();
+        for (const save of slotSaves) {
+            const clean = save.file_name.replace(TIMESTAMP_REGEX, "");
+            const existing = latestByName.get(clean);
+            if (!existing) {
+                latestByName.set(clean, save);
+            } else {
+                const saveTime = new Date(save.updated_at).getTime();
+                const existingTime = new Date(existing.updated_at).getTime();
+                if (saveTime > existingTime || (saveTime === existingTime && save.id > existing.id)) {
+                    latestByName.set(clean, save);
+                }
+            }
         }
-        return sSlot === activeSlot;
-    });
+
+        return Array.from(latestByName.values()).sort((a, b) => {
+            const diff = new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+            return diff !== 0 ? diff : b.id - a.id;
+        });
+    }, [serverSaves, activeSlot]);
 
     const focusFallbackAfterDeletion = useCallback((
         primaryList: any[],
@@ -217,13 +249,18 @@ function useGameSavesAndStates(
 
         for (const name of Array.from(allNames)) {
             const local = localList.find(s => s.name === name);
-            const serverClean = serverList.find(s => s.file_name.replace(TIMESTAMP_REGEX, "") === name);
+            const matchingServerSaves = serverList.filter(s => s.file_name.replace(TIMESTAMP_REGEX, "") === name);
+            const serverClean = matchingServerSaves.sort((a, b) => {
+                const diff = new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+                return diff !== 0 ? diff : b.id - a.id;
+            })[0];
 
             const action = determineSyncAction(local, serverClean);
             if (action === SyncAction.Upload && local) {
                 await uploadFn(gameId, local.core, local.name).catch(console.error);
             } else if (action === SyncAction.Download && serverClean) {
-                await downloadFn(gameId, serverClean.id, serverClean.emulator, name, serverClean.updated_at).catch(console.error);
+                const targetEmulator = (type === 'saves' && selectedCore) ? selectedCore : serverClean.emulator;
+                await downloadFn(gameId, serverClean.id, targetEmulator, name, serverClean.updated_at).catch(console.error);
             }
         }
         setSuccessStatus(`Smart sync for ${type} complete!`);
@@ -246,14 +283,26 @@ function useGameSavesAndStates(
             setDownloadStatus("Slot name cannot be empty");
             return;
         }
-        CreateSaveSlot(gameId, trimmed).then(() => {
+        CreateSaveSlot(gameId, trimmed).then(async () => {
             setActiveSlot(trimmed);
-            setSuccessStatus(`Created save slot: ${trimmed}`);
+            if (saves.length > 0) {
+                setDownloadStatus(`Backfilling local saves to slot "${trimmed}"...`);
+                for (const s of saves) {
+                    try {
+                        await UploadSaveToSlot(gameId, s.core, s.name, trimmed);
+                    } catch (e) {
+                        console.error("Backfill upload error:", e);
+                    }
+                }
+                setSuccessStatus(`Created save slot "${trimmed}" and backfilled local save!`);
+            } else {
+                setSuccessStatus(`Created save slot: ${trimmed}`);
+            }
             fetchAppData();
         }).catch((err: string) => {
             setDownloadStatus(`Error creating slot: ${err}`);
         });
-    }, [gameId, fetchAppData, setSuccessStatus, setDownloadStatus]);
+    }, [gameId, saves, fetchAppData, setSuccessStatus, setDownloadStatus]);
 
     const handleDeleteSlot = useCallback((slotName: string) => {
         const trimmed = slotName.trim();
@@ -323,13 +372,14 @@ function useGameSavesAndStates(
     const handleDownloadServerSave = useCallback((save: types.ServerSave) => {
         setDownloadStatus(`Downloading save ${save.file_name}...`);
         const cleanFileName = save.file_name.replace(TIMESTAMP_REGEX, "");
-        DownloadServerSave(gameId, save.id, save.emulator, cleanFileName, save.updated_at).then(() => {
+        const targetEmulator = selectedCore || save.emulator;
+        DownloadServerSave(gameId, save.id, targetEmulator, cleanFileName, save.updated_at).then(() => {
             setSuccessStatus("Server save downloaded successfully!");
             fetchAppData();
         }).catch((err: string) => {
             setDownloadStatus(`Download error: ${err}`);
         });
-    }, [gameId, fetchAppData, setSuccessStatus, setDownloadStatus]);
+    }, [gameId, selectedCore, fetchAppData, setSuccessStatus, setDownloadStatus]);
 
     const handleDownloadServerState = useCallback((state: types.ServerState) => {
         setDownloadStatus(`Downloading state ${state.file_name}...`);
@@ -358,6 +408,20 @@ function useGameSavesAndStates(
         setSuccessStatus("Smart sync complete!");
     }, [offlineMode, handleSyncSaves, handleSyncStates, setDownloadStatus, setSuccessStatus]);
 
+    const handleBackfillCurrentSlot = useCallback(async () => {
+        if (offlineMode || saves.length === 0) return;
+        setDownloadStatus(`Backfilling slot "${activeSlot || 'Legacy'}" with local saves...`);
+        for (const s of saves) {
+            try {
+                await UploadSaveToSlot(gameId, s.core, s.name, activeSlot);
+            } catch (e) {
+                console.error("Backfill error:", e);
+            }
+        }
+        setSuccessStatus(`Successfully backfilled slot "${activeSlot || 'Legacy'}"!`);
+        fetchAppData();
+    }, [gameId, saves, activeSlot, offlineMode, fetchAppData, setSuccessStatus, setDownloadStatus]);
+
     const hasSavesOrStates = serverSaves.length > 0 || saves.length > 0 || serverStates.length > 0 || states.length > 0;
 
     return {
@@ -381,6 +445,7 @@ function useGameSavesAndStates(
         handleDownloadServerSave,
         handleDownloadServerState,
         handleSmartSync,
+        handleBackfillCurrentSlot,
     };
 }
 
@@ -456,12 +521,14 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         handleDownloadServerSave,
         handleDownloadServerState,
         handleSmartSync,
+        handleBackfillCurrentSlot,
     } = useGameSavesAndStates(
         gameId,
         offlineMode,
         isDownloaded,
         setDownloadStatus,
-        setSuccessStatus
+        setSuccessStatus,
+        selectedCore
     );
 
     const [isNewSlotModalOpen, setIsNewSlotModalOpen] = useState(false);
@@ -536,7 +603,10 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         });
 
         const unlistenStarted = EventsOn(APP_EVENTS.GAME_STARTED, () => setIsPlaying(true));
-        const unlistenExited = EventsOn(APP_EVENTS.GAME_EXITED, () => setIsPlaying(false));
+        const unlistenExited = EventsOn(APP_EVENTS.GAME_EXITED, () => {
+            setIsPlaying(false);
+            fetchAppData();
+        });
 
         return () => {
             unlisten();
@@ -865,6 +935,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                             isFirst={idx === 0}
                                             onSelect={() => {
                                                 setSelectedCore(core);
+                                                const coreCleanName = core.replace('_libretro', '').replace(/_/g, ' ');
+                                                setSuccessStatus(`Switched active core to ${coreCleanName}. Saves are shared.`);
                                                 closePicker();
                                             }}
                                             focusKey={`core-option-${idx}`}
@@ -1181,14 +1253,24 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                                 item={save}
                                                 onDownload={() => handleDownloadServerSave(save)}
                                                 onDelete={() => handleDeleteServerSave(save.id)}
-                                                status={getFileStatus(save, saves)}
+                                                status={getFileStatus(save, saves, true)}
                                                 isDisabled={isPlaying || offlineMode}
                                             />
                                         ))}
                                         {(filteredServerSaves.length === 0 || offlineMode) && (
-                                            <p className="no-files">
-                                                {offlineMode ? "Server sync unavailable offline" : `No server saves found in slot "${activeSlot || 'Legacy'}".`}
-                                            </p>
+                                            <div className="no-files">
+                                                <p>{offlineMode ? "Server sync unavailable offline" : `No server saves found in slot "${activeSlot || 'Legacy'}".`}</p>
+                                                {!offlineMode && saves.length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-secondary"
+                                                        style={{ marginTop: '8px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer' }}
+                                                        onClick={handleBackfillCurrentSlot}
+                                                    >
+                                                        Backfill slot with local save
+                                                    </button>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
 
@@ -1201,7 +1283,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                                 item={save}
                                                 onDelete={() => handleDeleteSave(save.core, save.name, idx)}
                                                 onUpload={() => handleUploadSave(save.core, save.name)}
-                                                status={getFileStatus(save, filteredServerSaves)}
+                                                status={getFileStatus(save, filteredServerSaves, true)}
                                                 isDisabled={isPlaying}
                                                 isOffline={offlineMode}
                                             />
@@ -1218,7 +1300,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                                 focusKeyPrefix={`server-state-${idx}`}
                                                 item={state}
                                                 onDownload={() => handleDownloadServerState(state)}
-                                                status={getFileStatus(state, states)}
+                                                status={getFileStatus(state, states, false)}
                                                 isDisabled={isPlaying || offlineMode}
                                             />
                                         ))}
@@ -1234,7 +1316,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                                 item={state}
                                                 onDelete={() => handleDeleteState(state.core, state.name, idx)}
                                                 onUpload={() => handleUploadState(state.core, state.name)}
-                                                status={getFileStatus(state, serverStates)}
+                                                status={getFileStatus(state, serverStates, false)}
                                                 isDisabled={isPlaying}
                                                 isOffline={offlineMode}
                                             />

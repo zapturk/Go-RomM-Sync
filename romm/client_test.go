@@ -536,6 +536,42 @@ func TestGetSavesForSlot(t *testing.T) {
 	}
 }
 
+func TestGetSavesForSlot_ReturnsMostRecentSave(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[
+			{"id": 1, "filename": "metroid [2026-10-01_10-00-00].srm", "slot": "speedrun", "updated_at": "2026-10-01T10:00:00Z"},
+			{"id": 5, "filename": "metroid [2026-10-07_12-00-00].srm", "slot": "speedrun", "updated_at": "2026-10-07T12:00:00Z"},
+			{"id": 3, "filename": "metroid [2026-10-05_09-00-00].srm", "slot": "speedrun", "updated_at": "2026-10-05T09:00:00Z"},
+			{"id": 2, "filename": "metroid.rtc", "slot": "speedrun", "updated_at": "2026-10-06T11:00:00Z"}
+		]`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+	client.Token = "test-token"
+
+	saves, err := client.GetSavesForSlot(1, "speedrun")
+	if err != nil {
+		t.Fatalf("GetSavesForSlot failed: %v", err)
+	}
+
+	if len(saves) != 2 {
+		t.Fatalf("Expected 2 saves, got %d: %v", len(saves), saves)
+	}
+
+	if saves[0].ID != 5 {
+		t.Errorf("Expected newest save id 5 first, got id %d", saves[0].ID)
+	}
+	if CleanSaveFileName(saves[0].GetEffectiveFileName()) != "metroid.srm" {
+		t.Errorf("Expected clean filename metroid.srm, got %s", CleanSaveFileName(saves[0].GetEffectiveFileName()))
+	}
+
+	if saves[1].ID != 2 {
+		t.Errorf("Expected second save id 2, got id %d", saves[1].ID)
+	}
+}
+
 func TestGetSaveSummary(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

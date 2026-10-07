@@ -4,6 +4,8 @@ import {context} from '../models';
 import {types} from '../models';
 import {io} from '../models';
 
+export function BridgeGameSaves(arg1:number,arg2:string):Promise<void>;
+
 export function CancelDownload(arg1:number):Promise<void>;
 
 export function ClearImageCache():Promise<void>;

@@ -353,6 +353,36 @@ func TestGetServerSavesForSlot(t *testing.T) {
 	}
 }
 
+func TestGetServerSavesForSlot_MostRecentSave(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("slot") == "main" {
+			w.Write([]byte(`[
+				{"id": 1, "filename": "game [2026-09-01_10-00-00].srm", "slot": "main", "updated_at": "2026-09-01T10:00:00Z"},
+				{"id": 4, "filename": "game [2026-10-07_12-00-00].srm", "slot": "main", "updated_at": "2026-10-07T12:00:00Z"}
+			]`))
+		} else {
+			w.Write([]byte(`[]`))
+		}
+	}))
+	defer server.Close()
+
+	cfg := &MockConfigProvider{Host: server.URL}
+	s := New(cfg)
+	s.client.Token = "test-token"
+
+	saves, err := s.GetServerSavesForSlot(1, "main")
+	if err != nil {
+		t.Fatalf("GetServerSavesForSlot failed: %v", err)
+	}
+	if len(saves) != 1 {
+		t.Fatalf("Expected 1 save (the latest), got %d", len(saves))
+	}
+	if saves[0].ID != 4 {
+		t.Errorf("Expected most recent save id 4, got id %d", saves[0].ID)
+	}
+}
+
 func TestDeleteServerSaves(t *testing.T) {
 	var deleted bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

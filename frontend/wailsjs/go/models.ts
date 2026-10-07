@@ -292,6 +292,7 @@ export namespace types {
 	    updated_at: string;
 	    file_size_bytes: number;
 	    slot: string;
+	    filename?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ServerSave(source);
@@ -306,6 +307,7 @@ export namespace types {
 	        this.updated_at = source["updated_at"];
 	        this.file_size_bytes = source["file_size_bytes"];
 	        this.slot = source["slot"];
+	        this.filename = source["filename"];
 	    }
 	}
 	export class ServerState {
