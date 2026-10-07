@@ -80,6 +80,14 @@ func (s *Service) GetRomDir(game *types.Game) string {
 	return filepath.Join(libPath, relPath, fmt.Sprintf("%d", game.ID))
 }
 
+// UsesPlatformFolder returns true if the library is configured to use platform folders.
+func (s *Service) UsesPlatformFolder() bool {
+	if s.config != nil {
+		return s.config.GetConfig().UsePlatformFolder
+	}
+	return false
+}
+
 // GetMetadataPath returns the path to the game's metadata file.
 func (s *Service) GetMetadataPath(game *types.Game) string {
 	destDir := s.GetRomDir(game)

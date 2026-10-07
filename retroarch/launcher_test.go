@@ -342,3 +342,40 @@ func TestSyncDolphinRemap(t *testing.T) {
 		t.Errorf("Expected created remap to contain device 769, got:\n%s", string(createdData))
 	}
 }
+
+func TestWriteTempConfig_DisableSortSavefiles(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "test_cfg")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	savesDir := filepath.Join(tempDir, "saves")
+	statesDir := filepath.Join(tempDir, "states")
+	systemDir := filepath.Join(tempDir, "system")
+
+	cfgPath := writeTempConfig(&MockUI{}, savesDir, statesDir, systemDir, "user", "pass")
+	if cfgPath == "" {
+		t.Fatal("expected temp config to be created")
+	}
+	defer os.Remove(cfgPath)
+
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("failed to read temp config: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, `sort_savefiles_enable = "false"`) {
+		t.Errorf("expected temp config to contain sort_savefiles_enable = \"false\", got:\n%s", content)
+	}
+	if !strings.Contains(content, `sort_savefiles_by_content_enable = "false"`) {
+		t.Errorf("expected temp config to contain sort_savefiles_by_content_enable = \"false\", got:\n%s", content)
+	}
+	if !strings.Contains(content, fmt.Sprintf("savefile_directory = %q", savesDir)) {
+		t.Errorf("expected temp config to contain savefile_directory, got:\n%s", content)
+	}
+	if !strings.Contains(content, fmt.Sprintf("savestate_directory = %q", statesDir)) {
+		t.Errorf("expected temp config to contain savestate_directory, got:\n%s", content)
+	}
+}

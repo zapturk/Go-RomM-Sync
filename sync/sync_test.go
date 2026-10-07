@@ -215,7 +215,7 @@ func TestDownloadServerAsset(t *testing.T) {
 		t.Fatalf("DownloadServerSave failed: %v", err)
 	}
 
-	localPath := filepath.Join(tempDir, "snes", "1", "saves", "snes", "game.srm")
+	localPath := filepath.Join(tempDir, "snes", "1", "saves", "game.srm")
 	if _, err := os.Stat(localPath); err != nil {
 		t.Errorf("Expected local file to be created at %s", localPath)
 	}
@@ -407,46 +407,53 @@ func TestBridgeGameSaves_CrossCore(t *testing.T) {
 	t1 := time.Now().Add(-2 * time.Hour).Truncate(time.Second)
 	_ = os.Chtimes(mgbaFile, t1, t1)
 
-	// Bridge to target core gpsp_libretro
-	if err := s.BridgeGameSaves(10, "gpsp_libretro"); err != nil {
+	// Flatten / Bridge moves legacy core save to flat saves directory
+	if err := s.BridgeGameSaves(10, ""); err != nil {
 		t.Fatalf("BridgeGameSaves failed: %v", err)
 	}
 
-	gpspFile := filepath.Join(tempDir, "gba", "10", "saves", "gpsp_libretro", "pokemon.srm")
-	gpspData, err := os.ReadFile(gpspFile)
+	flatFile := filepath.Join(tempDir, "gba", "10", "saves", "pokemon.srm")
+	flatData, err := os.ReadFile(flatFile)
 	if err != nil {
-		t.Fatalf("failed to read bridged gpsp save: %v", err)
+		t.Fatalf("failed to read migrated flat save: %v", err)
 	}
-	if string(gpspData) != "mgba_save_data" {
-		t.Errorf("expected bridged content 'mgba_save_data', got %q", string(gpspData))
+	if string(flatData) != "mgba_save_data" {
+		t.Errorf("expected migrated content 'mgba_save_data', got %q", string(flatData))
 	}
-	gpspInfo, err := os.Stat(gpspFile)
-	if err != nil || !gpspInfo.ModTime().Equal(t1) {
-		t.Errorf("expected bridged file to preserve modtime %v, got %v", t1, gpspInfo.ModTime())
+	flatInfo, err := os.Stat(flatFile)
+	if err != nil || !flatInfo.ModTime().Equal(t1) {
+		t.Errorf("expected flat file to preserve modtime %v, got %v", t1, flatInfo.ModTime())
+	}
+	if _, err := os.Stat(mgbaFile); !os.IsNotExist(err) {
+		t.Errorf("expected legacy mgba save to be removed after migration")
 	}
 
-	// Now simulate user playing on gpsp and updating the save
+	// Now simulate user having a newer save in another core folder
+	gpspDir := filepath.Join(tempDir, "gba", "10", "saves", "gpsp_libretro")
+	_ = os.MkdirAll(gpspDir, 0o755)
+	gpspFile := filepath.Join(gpspDir, "pokemon.srm")
 	t2 := time.Now().Add(-1 * time.Hour).Truncate(time.Second)
 	if err := os.WriteFile(gpspFile, []byte("newer_gpsp_save"), 0o644); err != nil {
 		t.Fatalf("failed to update gpsp save: %v", err)
 	}
 	_ = os.Chtimes(gpspFile, t2, t2)
 
-	// Bridge across all cores (empty targetCore)
+	// Flatten again: newer gpsp save should replace flat save, and flat save backed up to .bak
 	if err := s.BridgeGameSaves(10, ""); err != nil {
-		t.Fatalf("BridgeGameSaves across all cores failed: %v", err)
+		t.Fatalf("BridgeGameSaves failed: %v", err)
 	}
 
-	mgbaData, err := os.ReadFile(mgbaFile)
+	flatData2, err := os.ReadFile(flatFile)
 	if err != nil {
-		t.Fatalf("failed to read mgba save: %v", err)
+		t.Fatalf("failed to read flat save: %v", err)
 	}
-	if string(mgbaData) != "newer_gpsp_save" {
-		t.Errorf("expected mgba save to be updated to 'newer_gpsp_save', got %q", string(mgbaData))
+	if string(flatData2) != "newer_gpsp_save" {
+		t.Errorf("expected flat save to be updated to 'newer_gpsp_save', got %q", string(flatData2))
 	}
-	mgbaInfo, err := os.Stat(mgbaFile)
-	if err != nil || !mgbaInfo.ModTime().Equal(t2) {
-		t.Errorf("expected mgba file modtime to be updated to %v, got %v", t2, mgbaInfo.ModTime())
+
+	bakData, err := os.ReadFile(flatFile + ".bak")
+	if err != nil || string(bakData) != "mgba_save_data" {
+		t.Errorf("expected backup to contain 'mgba_save_data', got %q (err: %v)", string(bakData), err)
 	}
 }
 
@@ -545,39 +552,37 @@ func TestBridgeGameSaves_BackupOnOverwrite(t *testing.T) {
 	s := New(lib, romm, &MockUIProvider{})
 
 	savesDir := filepath.Join(tempDir, "gba", "40", "saves")
+	flatFile := filepath.Join(savesDir, "game.srm")
 	mgbaFile := filepath.Join(savesDir, "mgba_libretro", "game.srm")
-	gpspFile := filepath.Join(savesDir, "gpsp_libretro", "game.srm")
 
 	_ = os.MkdirAll(filepath.Dir(mgbaFile), 0o755)
-	_ = os.MkdirAll(filepath.Dir(gpspFile), 0o755)
 
 	tOld := time.Now().Add(-2 * time.Hour).Truncate(time.Second)
-	_ = os.WriteFile(gpspFile, []byte("old_gpsp_progress"), 0o644)
-	_ = os.Chtimes(gpspFile, tOld, tOld)
+	_ = os.WriteFile(flatFile, []byte("old_flat_progress"), 0o644)
+	_ = os.Chtimes(flatFile, tOld, tOld)
 
 	tNew := time.Now().Add(-1 * time.Hour).Truncate(time.Second)
 	_ = os.WriteFile(mgbaFile, []byte("new_mgba_progress"), 0o644)
 	_ = os.Chtimes(mgbaFile, tNew, tNew)
 
-	// Bridge to target core gpsp
-	if err := s.BridgeGameSaves(40, "gpsp_libretro"); err != nil {
+	if err := s.BridgeGameSaves(40, ""); err != nil {
 		t.Fatalf("BridgeGameSaves failed: %v", err)
 	}
 
-	// Verify gpspFile was updated
-	data, _ := os.ReadFile(gpspFile)
+	// Verify flatFile was updated with new_mgba_progress
+	data, _ := os.ReadFile(flatFile)
 	if string(data) != "new_mgba_progress" {
-		t.Errorf("expected gpsp save to be updated to new_mgba_progress, got %q", string(data))
+		t.Errorf("expected flat save to be updated to new_mgba_progress, got %q", string(data))
 	}
 
 	// Verify backup was created so old progress was not lost
-	bakFile := gpspFile + ".bak"
+	bakFile := flatFile + ".bak"
 	bakData, err := os.ReadFile(bakFile)
 	if err != nil {
 		t.Fatalf("expected backup file %s to exist: %v", bakFile, err)
 	}
-	if string(bakData) != "old_gpsp_progress" {
-		t.Errorf("expected backup content 'old_gpsp_progress', got %q", string(bakData))
+	if string(bakData) != "old_flat_progress" {
+		t.Errorf("expected backup content 'old_flat_progress', got %q", string(bakData))
 	}
 }
 
@@ -600,28 +605,20 @@ func TestBridgeGameSaves_BackfillPlatformCores(t *testing.T) {
 	_ = os.MkdirAll(filepath.Dir(gambatteFile), 0o755)
 	_ = os.WriteFile(gambatteFile, []byte("zelda_save"), 0o644)
 
-	// Bridge across all cores (backfilling)
+	// Flatten / migrate legacy core save
 	if err := s.BridgeGameSaves(50, ""); err != nil {
 		t.Fatalf("BridgeGameSaves failed: %v", err)
 	}
 
-	// Check that other GB platform cores (mgba_libretro, sameboy_libretro) got backfilled
-	for _, core := range []string{"mgba_libretro", "sameboy_libretro"} {
-		destFile := filepath.Join(savesDir, core, "zelda.srm")
-		data, err := os.ReadFile(destFile)
-		if err != nil {
-			t.Errorf("expected backfilled file for core %s: %v", core, err)
-			continue
-		}
-		if string(data) != "zelda_save" {
-			t.Errorf("expected 'zelda_save' for core %s, got %q", core, string(data))
-		}
-	}
-
-	// Check flat save was also backfilled
+	// Check flat save was created
 	flatFile := filepath.Join(savesDir, "zelda.srm")
 	if data, err := os.ReadFile(flatFile); err != nil || string(data) != "zelda_save" {
-		t.Errorf("expected flat save file to be backfilled")
+		t.Errorf("expected flat save file with 'zelda_save', got %q (err: %v)", string(data), err)
+	}
+
+	// Legacy folder should be removed
+	if _, err := os.Stat(gambatteFile); !os.IsNotExist(err) {
+		t.Errorf("expected legacy gambatte save to be cleaned up")
 	}
 }
 
@@ -655,10 +652,10 @@ func TestBridgeGameSaves_RomFilesNeverCopied(t *testing.T) {
 		t.Fatalf("BridgeGameSaves failed: %v", err)
 	}
 
-	// Verify metroid.srm was bridged to vba_next_libretro
-	vbaFile := filepath.Join(savesDir, "vba_next_libretro", "metroid.srm")
-	if data, err := os.ReadFile(vbaFile); err != nil || string(data) != "save_data" {
-		t.Errorf("expected metroid.srm to be bridged to vba_next_libretro")
+	// Verify metroid.srm was migrated to flat savesDir
+	flatFile := filepath.Join(savesDir, "metroid.srm")
+	if data, err := os.ReadFile(flatFile); err != nil || string(data) != "save_data" {
+		t.Errorf("expected metroid.srm to be in flat saves directory")
 	}
 
 	// Verify ROM files are NEVER copied to saves directory or core subdirectories
@@ -685,7 +682,7 @@ func TestDownloadServerSave_BackupOnOverwrite(t *testing.T) {
 	lib, romm, _ := setupServices(tempDir, gameData, []byte("server_save_content"))
 	s := New(lib, romm, &MockUIProvider{})
 
-	localSave := filepath.Join(tempDir, "gba", "70", "saves", "mgba_libretro", "game.srm")
+	localSave := filepath.Join(tempDir, "gba", "70", "saves", "game.srm")
 	_ = os.MkdirAll(filepath.Dir(localSave), 0o755)
 	_ = os.WriteFile(localSave, []byte("local_progress_to_preserve"), 0o644)
 
@@ -707,5 +704,137 @@ func TestDownloadServerSave_BackupOnOverwrite(t *testing.T) {
 	}
 	if string(bakData) != "local_progress_to_preserve" {
 		t.Errorf("expected backup to have 'local_progress_to_preserve', got %q", string(bakData))
+	}
+}
+
+func TestBridgeGameSaves_OlderCoreSavePreservedAsBackup(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "sync_test_older_core")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	game := types.Game{ID: 80, PlatformSlug: "gba", FullPath: "gba/game.gba"}
+	gameData, _ := json.Marshal(game)
+
+	lib, romm, _ := setupServices(tempDir, gameData, nil)
+	s := New(lib, romm, &MockUIProvider{})
+
+	savesDir := filepath.Join(tempDir, "gba", "80", "saves")
+	flatFile := filepath.Join(savesDir, "game.srm")
+	coreDir := filepath.Join(savesDir, "mgba_libretro")
+	coreFile := filepath.Join(coreDir, "game.srm")
+
+	_ = os.MkdirAll(coreDir, 0o755)
+
+	tNew := time.Now().Add(-1 * time.Hour).Truncate(time.Second)
+	_ = os.WriteFile(flatFile, []byte("newer_flat_save"), 0o644)
+	_ = os.Chtimes(flatFile, tNew, tNew)
+
+	tOld := time.Now().Add(-2 * time.Hour).Truncate(time.Second)
+	_ = os.WriteFile(coreFile, []byte("older_core_save_to_keep"), 0o644)
+	_ = os.Chtimes(coreFile, tOld, tOld)
+
+	if err := s.BridgeGameSaves(80, ""); err != nil {
+		t.Fatalf("BridgeGameSaves failed: %v", err)
+	}
+
+	// Flat save should keep the newer content
+	flatData, err := os.ReadFile(flatFile)
+	if err != nil || string(flatData) != "newer_flat_save" {
+		t.Errorf("expected flat save to keep 'newer_flat_save', got %q (err: %v)", string(flatData), err)
+	}
+
+	// Older core save should be preserved in .bak so nothing is lost
+	bakFile := flatFile + ".bak"
+	bakData, err := os.ReadFile(bakFile)
+	if err != nil {
+		t.Fatalf("expected backup file %s to exist: %v", bakFile, err)
+	}
+	if string(bakData) != "older_core_save_to_keep" {
+		t.Errorf("expected backup to have 'older_core_save_to_keep', got %q", string(bakData))
+	}
+
+	// Legacy core folder should be cleaned up
+	if _, err := os.Stat(coreFile); !os.IsNotExist(err) {
+		t.Errorf("expected legacy core file to be removed after safe migration")
+	}
+}
+
+func TestBridgeGameSaves_IdenticalFilesDeduplicated(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "sync_test_identical")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	game := types.Game{ID: 90, PlatformSlug: "gba", FullPath: "gba/game.gba"}
+	gameData, _ := json.Marshal(game)
+
+	lib, romm, _ := setupServices(tempDir, gameData, nil)
+	s := New(lib, romm, &MockUIProvider{})
+
+	savesDir := filepath.Join(tempDir, "gba", "90", "saves")
+	flatFile := filepath.Join(savesDir, "game.srm")
+	coreDir := filepath.Join(savesDir, "mgba_libretro")
+	coreFile := filepath.Join(coreDir, "game.srm")
+
+	_ = os.MkdirAll(coreDir, 0o755)
+	_ = os.WriteFile(flatFile, []byte("identical_content"), 0o644)
+	_ = os.WriteFile(coreFile, []byte("identical_content"), 0o644)
+
+	if err := s.BridgeGameSaves(90, ""); err != nil {
+		t.Fatalf("BridgeGameSaves failed: %v", err)
+	}
+
+	// Flat save remains
+	flatData, err := os.ReadFile(flatFile)
+	if err != nil || string(flatData) != "identical_content" {
+		t.Errorf("expected flat save to have 'identical_content', got %q", string(flatData))
+	}
+
+	// Core file removed and no unnecessary .bak created
+	if _, err := os.Stat(coreFile); !os.IsNotExist(err) {
+		t.Errorf("expected core file to be removed")
+	}
+	if _, err := os.Stat(flatFile + ".bak"); !os.IsNotExist(err) {
+		t.Errorf("did not expect .bak file for identical contents")
+	}
+}
+
+func TestBridgeGameSaves_OrphanBackupMigrated(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "sync_test_orphan_bak")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	game := types.Game{ID: 95, PlatformSlug: "gba", FullPath: "gba/game.gba"}
+	gameData, _ := json.Marshal(game)
+
+	lib, romm, _ := setupServices(tempDir, gameData, nil)
+	s := New(lib, romm, &MockUIProvider{})
+
+	savesDir := filepath.Join(tempDir, "gba", "95", "saves")
+	coreDir := filepath.Join(savesDir, "mgba_libretro")
+	orphanBak := filepath.Join(coreDir, "game.srm.bak")
+
+	_ = os.MkdirAll(coreDir, 0o755)
+	_ = os.WriteFile(orphanBak, []byte("orphan_backup_data"), 0o644)
+
+	if err := s.BridgeGameSaves(95, ""); err != nil {
+		t.Fatalf("BridgeGameSaves failed: %v", err)
+	}
+
+	// Flat backup should exist
+	flatBak := filepath.Join(savesDir, "game.srm.bak")
+	data, err := os.ReadFile(flatBak)
+	if err != nil || string(data) != "orphan_backup_data" {
+		t.Errorf("expected flat backup with 'orphan_backup_data', got %q (err: %v)", string(data), err)
+	}
+
+	// Core dir should be cleaned up
+	if _, err := os.Stat(orphanBak); !os.IsNotExist(err) {
+		t.Errorf("expected orphan backup to be moved from core dir")
 	}
 }

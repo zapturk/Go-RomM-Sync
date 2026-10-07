@@ -221,6 +221,9 @@ func prepareLaunchEnv(ui UIProvider, baseDir, romBaseDir, platform, customBiosDi
 	if err := os.MkdirAll(savesDir, 0o755); err != nil {
 		ui.LogErrorf("MkdirAll failed for %s: %v", savesDir, err)
 	}
+	if err := os.MkdirAll(statesDir, 0o755); err != nil {
+		ui.LogErrorf("MkdirAll failed for %s: %v", statesDir, err)
+	}
 
 	systemDir := resolveSystemDir(ui, baseDir, platform, customBiosDir)
 	if err := os.MkdirAll(systemDir, 0o755); err != nil {
@@ -260,7 +263,8 @@ func writeTempConfig(ui UIProvider, savesDir, statesDir, systemDir, cheevosUser,
 	}
 
 	content := fmt.Sprintf(
-		"savefile_directory = %q\nsavestate_directory = %q\nsystem_directory = %q\n",
+		"savefile_directory = %q\nsavestate_directory = %q\nsystem_directory = %q\n"+
+			"sort_savefiles_enable = \"false\"\nsort_savefiles_by_content_enable = \"false\"\n",
 		savesDir, statesDir, systemDir,
 	)
 	if cheevosUser != "" && cheevosPass != "" {
