@@ -10,8 +10,9 @@ import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRomW
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
 import { GameCover } from "./GameCover";
-import { TrashIcon, FolderIcon, PlayIcon, DownloadIcon } from "./components/Icons";
+import { TrashIcon, FolderIcon, PlayIcon, DownloadIcon, SaveIcon, StateIcon } from "./components/Icons";
 import { FileItemRow, getItemName, getItemCore } from "./FileItemRow";
+import { FocusableButton } from "./components/FocusableButton";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
 import { TIMESTAMP_REGEX, APP_EVENTS, WII_CONTROLLER_OPTIONS } from './constants';
@@ -225,12 +226,10 @@ function useGameSavesAndStates(
             setFocus(`${primaryPrefix}-${nextIdx}-upload`);
         } else if (secondaryList.length > 0) {
             setFocus(`${secondaryPrefix}-0-upload`);
-        } else if (isDownloaded) {
-            setFocus('play-button');
         } else {
-            setFocus('download-button');
+            setFocus(`game-tab-${primaryPrefix === 'save' ? 'saves' : 'states'}`);
         }
-    }, [isDownloaded]);
+    }, []);
 
     const syncFiles = useCallback(async (
         type: 'saves' | 'states',
@@ -558,20 +557,37 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
     const [firmwareDownloading, setFirmwareDownloading] = useState(false);
     const [firmwareStatus, setFirmwareStatus] = useState<string>('');
+    const [activeTab, setActiveTab] = useState<'saves' | 'states'>('saves');
 
-    const focusFirstAvailableSaveState = () => {
+    const focusSidebar = useCallback(() => {
+        if (isDownloaded) {
+            setFocus('play-button');
+        } else {
+            setFocus('download-button');
+        }
+    }, [isDownloaded]);
+
+    const focusFirstSaveItem = useCallback(() => {
         if (slots.length > 0) {
             setFocus('slot-pill-0');
         } else if (filteredServerSaves.length > 0) {
             setFocus('server-save-0-download');
         } else if (saves.length > 0) {
             setFocus('save-0-upload');
-        } else if (serverStates.length > 0) {
+        }
+    }, [slots.length, filteredServerSaves.length, saves.length]);
+
+    const focusFirstStateItem = useCallback(() => {
+        if (serverStates.length > 0) {
             setFocus('server-state-0-download');
         } else if (states.length > 0) {
             setFocus('state-0-upload');
         }
-    };
+    }, [serverStates.length, states.length]);
+
+    const focusFirstAvailableSaveState = useCallback(() => {
+        setFocus(`game-tab-${activeTab}`);
+    }, [activeTab]);
 
     useEffect(() => {
         const unsubscribe = EventsOn("offline-mode-changed", (newOfflineMode: boolean) => {
@@ -871,6 +887,16 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 handleSmartSync();
             }
 
+            if (e.key === 'PageUp') {
+                e.preventDefault();
+                setActiveTab('saves');
+                setFocus('game-tab-saves');
+            } else if (e.key === 'PageDown') {
+                e.preventDefault();
+                setActiveTab('states');
+                setFocus('game-tab-states');
+            }
+
             handleEscapeKey(
                 e,
                 isPickerOpen,
@@ -901,7 +927,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         closeFirmwarePicker,
         closeControllerPicker,
         closeStartupFilePicker,
-        handleSmartSync
+        handleSmartSync,
+        activeTab
     ]);
 
 
@@ -1197,133 +1224,301 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                 </p>
                             </div>
                             <div className="game-saves-states-section">
-                                <div className="game-saves-column">
-                                    <div className="save-slots-container">
-                                        <div className="save-slots-title-row">
-                                            <h3>Save Slots</h3>
-                                            <div className="save-slots-actions">
-                                                <SlotActionButton
-                                                    label="+ New Slot"
-                                                    title="Create New Save Slot"
-                                                    className="slot-add-btn"
-                                                    focusKey="slot-btn-add"
-                                                    onClick={() => {
-                                                        setNewSlotName('');
-                                                        setIsNewSlotModalOpen(true);
-                                                    }}
-                                                />
-                                                {activeSlot !== "" && (
+                                <div className="game-tabs-bar" role="tablist" aria-label="Game saves and states">
+                                    <div className="tab-bumper-indicator show-gamepad" title="Previous Tab (LB)">
+                                        <span className="bumper-badge">LB</span>
+                                    </div>
+                                    <div className="game-tabs-list">
+                                        <FocusableButton
+                                            focusKey="game-tab-saves"
+                                            className={`game-tab-btn ${activeTab === 'saves' ? 'active' : ''}`}
+                                            role="tab"
+                                            aria-selected={activeTab === 'saves'}
+                                            onClick={() => setActiveTab('saves')}
+                                            onEnterPress={() => setActiveTab('saves')}
+                                            onFocus={() => {
+                                                if (!getMouseActive()) setActiveTab('saves');
+                                            }}
+                                            onMouseEnter={() => {
+                                                if (getMouseActive()) setFocus('game-tab-saves');
+                                            }}
+                                            onArrowPress={(direction) => {
+                                                if (direction === 'left') {
+                                                    focusSidebar();
+                                                    return false;
+                                                }
+                                                if (direction === 'right') {
+                                                    setActiveTab('states');
+                                                    setFocus('game-tab-states');
+                                                    return false;
+                                                }
+                                                if (direction === 'down') {
+                                                    focusFirstSaveItem();
+                                                    return false;
+                                                }
+                                                if (direction === 'up') return false;
+                                                return true;
+                                            }}
+                                        >
+                                            <SaveIcon size={18} />
+                                            <span>Saves</span>
+                                            <span className="game-tab-badge">{serverSaves.length + saves.length}</span>
+                                        </FocusableButton>
+
+                                        <FocusableButton
+                                            focusKey="game-tab-states"
+                                            className={`game-tab-btn ${activeTab === 'states' ? 'active' : ''}`}
+                                            role="tab"
+                                            aria-selected={activeTab === 'states'}
+                                            onClick={() => setActiveTab('states')}
+                                            onEnterPress={() => setActiveTab('states')}
+                                            onFocus={() => {
+                                                if (!getMouseActive()) setActiveTab('states');
+                                            }}
+                                            onMouseEnter={() => {
+                                                if (getMouseActive()) setFocus('game-tab-states');
+                                            }}
+                                            onArrowPress={(direction) => {
+                                                if (direction === 'left') {
+                                                    setActiveTab('saves');
+                                                    setFocus('game-tab-saves');
+                                                    return false;
+                                                }
+                                                if (direction === 'right') return false;
+                                                if (direction === 'down') {
+                                                    focusFirstStateItem();
+                                                    return false;
+                                                }
+                                                if (direction === 'up') return false;
+                                                return true;
+                                            }}
+                                        >
+                                            <StateIcon size={18} />
+                                            <span>Save States</span>
+                                            <span className="game-tab-badge">{serverStates.length + states.length}</span>
+                                        </FocusableButton>
+                                    </div>
+                                    <div className="tab-bumper-indicator show-gamepad" title="Next Tab (RB)">
+                                        <span className="bumper-badge">RB</span>
+                                    </div>
+                                </div>
+
+                                {activeTab === 'saves' && (
+                                    <div className="game-tab-content">
+                                        <div className="save-slots-container">
+                                            <div className="save-slots-title-row">
+                                                <h3>Save Slots</h3>
+                                                <div className="save-slots-actions">
                                                     <SlotActionButton
-                                                        label="Delete Slot"
-                                                        title={`Delete save slot "${activeSlot}" and its server saves`}
-                                                        className="slot-delete-btn"
-                                                        focusKey="slot-btn-delete"
-                                                        onClick={() => setIsDeleteSlotModalOpen(true)}
+                                                        label="+ New Slot"
+                                                        title="Create New Save Slot"
+                                                        className="slot-add-btn"
+                                                        focusKey="slot-btn-add"
+                                                        onClick={() => {
+                                                            setNewSlotName('');
+                                                            setIsNewSlotModalOpen(true);
+                                                        }}
+                                                        onArrowPress={(dir) => {
+                                                            if (dir === 'up') {
+                                                                setFocus('game-tab-saves');
+                                                                return false;
+                                                            }
+                                                            return true;
+                                                        }}
                                                     />
+                                                    {activeSlot !== "" && (
+                                                        <SlotActionButton
+                                                            label="Delete Slot"
+                                                            title={`Delete save slot "${activeSlot}" and its server saves`}
+                                                            className="slot-delete-btn"
+                                                            focusKey="slot-btn-delete"
+                                                            onClick={() => setIsDeleteSlotModalOpen(true)}
+                                                            onArrowPress={(dir) => {
+                                                                if (dir === 'up') {
+                                                                    setFocus('game-tab-saves');
+                                                                    return false;
+                                                                }
+                                                                return true;
+                                                            }}
+                                                        />
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="save-slots-pills-row">
+                                                {slots.map((s, idx) => {
+                                                    const isSelected = (s.slot || '') === (activeSlot || '');
+                                                    const displayName = s.slot === '' ? 'Legacy' : s.slot;
+                                                    return (
+                                                        <SlotPillButton
+                                                            key={s.slot || '__legacy__'}
+                                                            slotName={s.slot}
+                                                            displayName={displayName}
+                                                            count={s.count}
+                                                            isSelected={isSelected}
+                                                            focusKey={`slot-pill-${idx}`}
+                                                            onSelect={() => handleSelectSlot(s.slot)}
+                                                            onArrowPress={(dir) => {
+                                                                if (dir === 'up') {
+                                                                    setFocus('game-tab-saves');
+                                                                    return false;
+                                                                }
+                                                                if (dir === 'left' && idx === 0) {
+                                                                    focusSidebar();
+                                                                    return false;
+                                                                }
+                                                                return true;
+                                                            }}
+                                                        />
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        <div className="save-section-card">
+                                            <div className="save-section-header">
+                                                <div className="save-section-title-group">
+                                                    <h3>
+                                                        Server Saves {activeSlot ? `(${activeSlot === '' ? 'Legacy' : activeSlot})` : ''}
+                                                    </h3>
+                                                    <span className="save-count-tag">{filteredServerSaves.length}</span>
+                                                </div>
+                                            </div>
+                                            <div className="file-list">
+                                                {filteredServerSaves.map((save, idx) => (
+                                                    <FileItemRow
+                                                        key={`server-save-${idx}`}
+                                                        focusKeyPrefix={`server-save-${idx}`}
+                                                        item={save}
+                                                        itemType="save"
+                                                        onDownload={() => handleDownloadServerSave(save)}
+                                                        onDelete={() => handleDeleteServerSave(save.id)}
+                                                        status={getFileStatus(save, saves, true)}
+                                                        isDisabled={isPlaying || offlineMode}
+                                                        onArrowLeft={focusSidebar}
+                                                        onArrowUp={idx === 0 ? () => {
+                                                            if (slots.length > 0) setFocus('slot-pill-0');
+                                                            else setFocus('game-tab-saves');
+                                                        } : undefined}
+                                                    />
+                                                ))}
+                                                {(filteredServerSaves.length === 0 || offlineMode) && (
+                                                    <div className="no-files">
+                                                        <p>{offlineMode ? "Server sync unavailable offline" : `No server saves found in slot "${activeSlot || 'Legacy'}".`}</p>
+                                                        {!offlineMode && saves.length > 0 && (
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-secondary"
+                                                                style={{ marginTop: '8px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer' }}
+                                                                onClick={handleBackfillCurrentSlot}
+                                                            >
+                                                                Backfill slot with local save
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="save-slots-pills-row">
-                                            {slots.map((s, idx) => {
-                                                const isSelected = (s.slot || '') === (activeSlot || '');
-                                                const displayName = s.slot === '' ? 'Legacy' : s.slot;
-                                                return (
-                                                    <SlotPillButton
-                                                        key={s.slot || '__legacy__'}
-                                                        slotName={s.slot}
-                                                        displayName={displayName}
-                                                        count={s.count}
-                                                        isSelected={isSelected}
-                                                        focusKey={`slot-pill-${idx}`}
-                                                        onSelect={() => handleSelectSlot(s.slot)}
+
+                                        <div className="save-section-card">
+                                            <div className="save-section-header">
+                                                <div className="save-section-title-group">
+                                                    <h3>Local Saves</h3>
+                                                    <span className="save-count-tag">{saves.length}</span>
+                                                </div>
+                                            </div>
+                                            <div className="file-list">
+                                                {saves.map((save, idx) => (
+                                                    <FileItemRow
+                                                        key={`save-${idx}`}
+                                                        focusKeyPrefix={`save-${idx}`}
+                                                        item={save}
+                                                        itemType="save"
+                                                        onDelete={() => handleDeleteSave(save.core, save.name, idx)}
+                                                        onUpload={() => handleUploadSave(save.core, save.name)}
+                                                        status={getFileStatus(save, filteredServerSaves, true)}
+                                                        isDisabled={isPlaying}
+                                                        isOffline={offlineMode}
+                                                        onArrowLeft={focusSidebar}
+                                                        onArrowUp={idx === 0 ? () => {
+                                                            if (filteredServerSaves.length > 0) {
+                                                                setFocus(`server-save-${filteredServerSaves.length - 1}-download`);
+                                                            } else if (slots.length > 0) {
+                                                                setFocus('slot-pill-0');
+                                                            } else {
+                                                                setFocus('game-tab-saves');
+                                                            }
+                                                        } : undefined}
                                                     />
-                                                );
-                                            })}
+                                                ))}
+                                                {saves.length === 0 && <p className="no-files">No local saves found.</p>}
+                                            </div>
                                         </div>
                                     </div>
+                                )}
 
-                                    <h3 style={{ marginTop: '10px' }}>
-                                        Server Saves {activeSlot ? `(${activeSlot === '' ? 'Legacy' : activeSlot})` : ''}
-                                    </h3>
-                                    <div className="file-list">
-                                        {filteredServerSaves.map((save, idx) => (
-                                            <FileItemRow
-                                                key={`server-save-${idx}`}
-                                                focusKeyPrefix={`server-save-${idx}`}
-                                                item={save}
-                                                onDownload={() => handleDownloadServerSave(save)}
-                                                onDelete={() => handleDeleteServerSave(save.id)}
-                                                status={getFileStatus(save, saves, true)}
-                                                isDisabled={isPlaying || offlineMode}
-                                            />
-                                        ))}
-                                        {(filteredServerSaves.length === 0 || offlineMode) && (
-                                            <div className="no-files">
-                                                <p>{offlineMode ? "Server sync unavailable offline" : `No server saves found in slot "${activeSlot || 'Legacy'}".`}</p>
-                                                {!offlineMode && saves.length > 0 && (
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-secondary"
-                                                        style={{ marginTop: '8px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer' }}
-                                                        onClick={handleBackfillCurrentSlot}
-                                                    >
-                                                        Backfill slot with local save
-                                                    </button>
+                                {activeTab === 'states' && (
+                                    <div className="game-tab-content">
+                                        <div className="save-section-card">
+                                            <div className="save-section-header">
+                                                <div className="save-section-title-group">
+                                                    <h3>Server States</h3>
+                                                    <span className="save-count-tag">{serverStates.length}</span>
+                                                </div>
+                                            </div>
+                                            <div className="file-list">
+                                                {serverStates.map((state, idx) => (
+                                                    <FileItemRow
+                                                        key={`server-state-${idx}`}
+                                                        focusKeyPrefix={`server-state-${idx}`}
+                                                        item={state}
+                                                        itemType="state"
+                                                        onDownload={() => handleDownloadServerState(state)}
+                                                        status={getFileStatus(state, states, false)}
+                                                        isDisabled={isPlaying || offlineMode}
+                                                        onArrowLeft={focusSidebar}
+                                                        onArrowUp={idx === 0 ? () => setFocus('game-tab-states') : undefined}
+                                                    />
+                                                ))}
+                                                {(serverStates.length === 0 || offlineMode) && (
+                                                    <p className="no-files">{offlineMode ? "Server sync unavailable offline" : "No server states found."}</p>
                                                 )}
                                             </div>
-                                        )}
-                                    </div>
+                                        </div>
 
-                                    <h3 style={{ marginTop: '20px' }}>Local Saves</h3>
-                                    <div className="file-list">
-                                        {saves.map((save, idx) => (
-                                            <FileItemRow
-                                                key={`save-${idx}`}
-                                                focusKeyPrefix={`save-${idx}`}
-                                                item={save}
-                                                onDelete={() => handleDeleteSave(save.core, save.name, idx)}
-                                                onUpload={() => handleUploadSave(save.core, save.name)}
-                                                status={getFileStatus(save, filteredServerSaves, true)}
-                                                isDisabled={isPlaying}
-                                                isOffline={offlineMode}
-                                            />
-                                        ))}
-                                        {saves.length === 0 && <p className="no-files">No local saves found.</p>}
+                                        <div className="save-section-card">
+                                            <div className="save-section-header">
+                                                <div className="save-section-title-group">
+                                                    <h3>Local States</h3>
+                                                    <span className="save-count-tag">{states.length}</span>
+                                                </div>
+                                            </div>
+                                            <div className="file-list">
+                                                {states.map((state, idx) => (
+                                                    <FileItemRow
+                                                        key={`state-${idx}`}
+                                                        focusKeyPrefix={`state-${idx}`}
+                                                        item={state}
+                                                        itemType="state"
+                                                        onDelete={() => handleDeleteState(state.core, state.name, idx)}
+                                                        onUpload={() => handleUploadState(state.core, state.name)}
+                                                        status={getFileStatus(state, serverStates, false)}
+                                                        isDisabled={isPlaying}
+                                                        isOffline={offlineMode}
+                                                        onArrowLeft={focusSidebar}
+                                                        onArrowUp={idx === 0 ? () => {
+                                                            if (serverStates.length > 0) {
+                                                                setFocus(`server-state-${serverStates.length - 1}-download`);
+                                                            } else {
+                                                                setFocus('game-tab-states');
+                                                            }
+                                                        } : undefined}
+                                                    />
+                                                ))}
+                                                {states.length === 0 && <p className="no-files">No local states found.</p>}
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="game-states-column">
-                                    <h3>Server States</h3>
-                                    <div className="file-list">
-                                        {serverStates.map((state, idx) => (
-                                            <FileItemRow
-                                                key={`server-state-${idx}`}
-                                                focusKeyPrefix={`server-state-${idx}`}
-                                                item={state}
-                                                onDownload={() => handleDownloadServerState(state)}
-                                                status={getFileStatus(state, states, false)}
-                                                isDisabled={isPlaying || offlineMode}
-                                            />
-                                        ))}
-                                        {(serverStates.length === 0 || offlineMode) && <p className="no-files">{offlineMode ? "Server sync unavailable offline" : "No server states found."}</p>}
-                                    </div>
-
-                                    <h3 style={{ marginTop: '20px' }}>Local States</h3>
-                                    <div className="file-list">
-                                        {states.map((state, idx) => (
-                                            <FileItemRow
-                                                key={`state-${idx}`}
-                                                focusKeyPrefix={`state-${idx}`}
-                                                item={state}
-                                                onDelete={() => handleDeleteState(state.core, state.name, idx)}
-                                                onUpload={() => handleUploadState(state.core, state.name)}
-                                                status={getFileStatus(state, serverStates, false)}
-                                                isDisabled={isPlaying}
-                                                isOffline={offlineMode}
-                                            />
-                                        ))}
-                                        {states.length === 0 && <p className="no-files">No local states found.</p>}
-                                    </div>
-                                </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1802,6 +1997,7 @@ interface SlotPillButtonProps {
     isSelected: boolean;
     focusKey: string;
     onSelect: () => void;
+    onArrowPress?: (direction: string) => boolean;
 }
 
 function SlotPillButton({
@@ -1809,12 +2005,13 @@ function SlotPillButton({
     count,
     isSelected,
     focusKey,
-    onSelect
+    onSelect,
+    onArrowPress
 }: SlotPillButtonProps) {
     const { ref, focused } = useFocusable({
         focusKey,
         onEnterPress: onSelect,
-        onArrowPress: () => true
+        onArrowPress: onArrowPress || (() => true)
     });
 
     return (
@@ -1843,6 +2040,7 @@ interface SlotActionButtonProps {
     className: string;
     focusKey: string;
     onClick: () => void;
+    onArrowPress?: (direction: string) => boolean;
 }
 
 function SlotActionButton({
@@ -1850,12 +2048,13 @@ function SlotActionButton({
     title,
     className,
     focusKey,
-    onClick
+    onClick,
+    onArrowPress
 }: SlotActionButtonProps) {
     const { ref, focused } = useFocusable({
         focusKey,
         onEnterPress: onClick,
-        onArrowPress: () => true
+        onArrowPress: onArrowPress || (() => true)
     });
 
     return (
