@@ -10,6 +10,10 @@ export function ClearImageCache() {
   return window['go']['main']['App']['ClearImageCache']();
 }
 
+export function CreateSaveSlot(arg1, arg2) {
+  return window['go']['main']['App']['CreateSaveSlot'](arg1, arg2);
+}
+
 export function DeleteOrphanedRoms(arg1) {
   return window['go']['main']['App']['DeleteOrphanedRoms'](arg1);
 }
@@ -20,6 +24,14 @@ export function DeleteRom(arg1) {
 
 export function DeleteSave(arg1, arg2, arg3) {
   return window['go']['main']['App']['DeleteSave'](arg1, arg2, arg3);
+}
+
+export function DeleteSaveSlot(arg1, arg2) {
+  return window['go']['main']['App']['DeleteSaveSlot'](arg1, arg2);
+}
+
+export function DeleteServerSave(arg1) {
+  return window['go']['main']['App']['DeleteServerSave'](arg1);
 }
 
 export function DeleteState(arg1, arg2, arg3) {
@@ -90,6 +102,10 @@ export function GetGameController(arg1) {
   return window['go']['main']['App']['GetGameController'](arg1);
 }
 
+export function GetGameSaveSlot(arg1) {
+  return window['go']['main']['App']['GetGameSaveSlot'](arg1);
+}
+
 export function GetGameStartupFile(arg1) {
   return window['go']['main']['App']['GetGameStartupFile'](arg1);
 }
@@ -150,12 +166,20 @@ export function GetRomStartupFiles(arg1) {
   return window['go']['main']['App']['GetRomStartupFiles'](arg1);
 }
 
+export function GetSaveSlots(arg1) {
+  return window['go']['main']['App']['GetSaveSlots'](arg1);
+}
+
 export function GetSaves(arg1) {
   return window['go']['main']['App']['GetSaves'](arg1);
 }
 
 export function GetServerSaves(arg1) {
   return window['go']['main']['App']['GetServerSaves'](arg1);
+}
+
+export function GetServerSavesForSlot(arg1, arg2) {
+  return window['go']['main']['App']['GetServerSavesForSlot'](arg1, arg2);
 }
 
 export function GetServerStates(arg1) {
@@ -230,6 +254,10 @@ export function SetGameController(arg1, arg2) {
   return window['go']['main']['App']['SetGameController'](arg1, arg2);
 }
 
+export function SetGameSaveSlot(arg1, arg2) {
+  return window['go']['main']['App']['SetGameSaveSlot'](arg1, arg2);
+}
+
 export function SetGameStartupFile(arg1, arg2) {
   return window['go']['main']['App']['SetGameStartupFile'](arg1, arg2);
 }
@@ -264,6 +292,10 @@ export function UpdateRetroArchCores() {
 
 export function UploadSave(arg1, arg2, arg3) {
   return window['go']['main']['App']['UploadSave'](arg1, arg2, arg3);
+}
+
+export function UploadSaveToSlot(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['UploadSaveToSlot'](arg1, arg2, arg3, arg4);
 }
 
 export function UploadState(arg1, arg2, arg3) {

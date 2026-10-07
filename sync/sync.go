@@ -219,13 +219,13 @@ func (s *Service) scanFlatCoreFiles(game *types.Game, coreName, coreDir string) 
 }
 
 // UploadSave reads a local save file and uploads it to RomM.
-func (s *Service) UploadSave(id uint, core, filename string) error {
-	return s.uploadServerAsset(id, core, filename, constants.DirSaves)
+func (s *Service) UploadSave(id uint, core, filename, slot string) error {
+	return s.uploadServerAsset(id, core, filename, constants.DirSaves, slot)
 }
 
 // UploadState reads a local save state file and uploads it to RomM.
 func (s *Service) UploadState(id uint, core, filename string) error {
-	return s.uploadServerAsset(id, core, filename, constants.DirStates)
+	return s.uploadServerAsset(id, core, filename, constants.DirStates, "")
 }
 
 func getLocalAssetPaths(romDir, biosDir, subDir, core, filename, platform string) (baseDir, filePath string) {
@@ -248,7 +248,7 @@ func getLocalAssetPaths(romDir, biosDir, subDir, core, filename, platform string
 	return base, filepath.Join(base, core, filename)
 }
 
-func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) error {
+func (s *Service) uploadServerAsset(id uint, core, filename, subDir, slot string) error {
 	game, err := s.library.GetLocalGame(id)
 	if err != nil {
 		game, err = s.romm.GetRom(id)
@@ -283,7 +283,7 @@ func (s *Service) uploadServerAsset(id uint, core, filename, subDir string) erro
 	}
 
 	if subDir == constants.DirSaves {
-		err = s.romm.GetClient().UploadSave(id, core, filename, content)
+		err = s.romm.GetClient().UploadSave(id, core, filename, content, slot)
 	} else {
 		err = s.romm.GetClient().UploadState(id, core, filename, content)
 	}

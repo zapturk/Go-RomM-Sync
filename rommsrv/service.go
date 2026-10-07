@@ -147,6 +147,67 @@ func (s *Service) GetServerSaves(id uint) ([]types.ServerSave, error) {
 	return s.client.GetSaves(id)
 }
 
+// GetServerSavesForSlot gets server saves for a specific slot from RomM.
+func (s *Service) GetServerSavesForSlot(id uint, slot string) ([]types.ServerSave, error) {
+	return s.client.GetSavesForSlot(id, slot)
+}
+
+// GetSaveSlots fetches available save slots for a ROM from RomM.
+// It tries GetSaveSummary first, and falls back to grouping GetSaves by slot.
+func (s *Service) GetSaveSlots(romID uint) ([]types.SaveSlot, error) {
+	summary, err := s.client.GetSaveSummary(romID)
+	if err == nil && summary != nil {
+		var slots []types.SaveSlot
+		for _, item := range summary.Slots {
+			slotName := ""
+			if item.Slot != nil {
+				slotName = *item.Slot
+			}
+			slots = append(slots, types.SaveSlot{
+				Slot:            slotName,
+				Count:           item.Count,
+				LatestUpdatedAt: item.Latest.UpdatedAt,
+			})
+		}
+		return slots, nil
+	}
+
+	// Fallback: derive slots from GetSaves
+	saves, err := s.client.GetSaves(romID)
+	if err != nil {
+		return nil, err
+	}
+	slotsMap := make(map[string]*types.SaveSlot)
+	var order []string
+	for i := range saves {
+		name := saves[i].Slot
+		if existing, ok := slotsMap[name]; ok {
+			existing.Count++
+			if saves[i].UpdatedAt > existing.LatestUpdatedAt {
+				existing.LatestUpdatedAt = saves[i].UpdatedAt
+			}
+		} else {
+			slot := &types.SaveSlot{
+				Slot:            name,
+				Count:           1,
+				LatestUpdatedAt: saves[i].UpdatedAt,
+			}
+			slotsMap[name] = slot
+			order = append(order, name)
+		}
+	}
+	var slots []types.SaveSlot
+	for _, name := range order {
+		slots = append(slots, *slotsMap[name])
+	}
+	return slots, nil
+}
+
+// DeleteServerSaves deletes server saves on RomM by their IDs.
+func (s *Service) DeleteServerSaves(saveIDs []uint) error {
+	return s.client.DeleteServerSaves(saveIDs)
+}
+
 // GetServerStates gets a list of server states from RomM.
 func (s *Service) GetServerStates(id uint) ([]types.ServerState, error) {
 	return s.client.GetStates(id)

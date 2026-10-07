@@ -5,6 +5,7 @@ import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRomW
     OpenGameFolder, GetFirmware, SetPlatformFirmware, GetConfig, CancelDownload,
     GetGameController, SetGameController,
     GetRomStartupFiles, GetGameStartupFile, SetGameStartupFile,
+    GetSaveSlots, GetGameSaveSlot, SetGameSaveSlot, CreateSaveSlot, DeleteSaveSlot, DeleteServerSave,
 } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import { types } from "../wailsjs/go/models";
@@ -100,12 +101,28 @@ const handleEscapeKey = (
     isFirmwarePickerOpen: boolean,
     isControllerPickerOpen: boolean,
     isStartupFilePickerOpen: boolean,
+    isNewSlotModalOpen: boolean,
+    isDeleteSlotModalOpen: boolean,
     closePicker: () => void,
     closeFirmwarePicker: () => void,
     closeControllerPicker: () => void,
-    closeStartupFilePicker: () => void
+    closeStartupFilePicker: () => void,
+    closeNewSlotModal: () => void,
+    closeDeleteSlotModal: () => void
 ): boolean => {
     if (e.key !== 'Escape') return false;
+    if (isNewSlotModalOpen) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        closeNewSlotModal();
+        return true;
+    }
+    if (isDeleteSlotModalOpen) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        closeDeleteSlotModal();
+        return true;
+    }
     if (isPickerOpen) {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -144,13 +161,25 @@ function useGameSavesAndStates(
     const [states, setStates] = useState<types.FileItem[]>([]);
     const [serverSaves, setServerSaves] = useState<types.ServerSave[]>([]);
     const [serverStates, setServerStates] = useState<types.ServerState[]>([]);
+    const [slots, setSlots] = useState<types.SaveSlot[]>([]);
+    const [activeSlot, setActiveSlot] = useState<string>('default');
 
     const fetchAppData = useCallback(() => {
         GetSaves(gameId).then(res => setSaves(res || [])).catch(console.error);
         GetStates(gameId).then(res => setStates(res || [])).catch(console.error);
         GetServerSaves(gameId).then(res => setServerSaves(res || [])).catch(console.error);
         GetServerStates(gameId).then(res => setServerStates(res || [])).catch(console.error);
+        GetSaveSlots(gameId).then(res => setSlots(res || [])).catch(console.error);
+        GetGameSaveSlot(gameId).then(res => setActiveSlot(res || 'default')).catch(console.error);
     }, [gameId]);
+
+    const filteredServerSaves = serverSaves.filter(s => {
+        const sSlot = s.slot || '';
+        if (activeSlot === '') {
+            return sSlot === '';
+        }
+        return sSlot === activeSlot;
+    });
 
     const focusFallbackAfterDeletion = useCallback((
         primaryList: any[],
@@ -201,6 +230,45 @@ function useGameSavesAndStates(
         fetchAppData();
     }, [gameId, fetchAppData, setSuccessStatus, setDownloadStatus]);
 
+    const handleSelectSlot = useCallback((slotName: string) => {
+        SetGameSaveSlot(gameId, slotName).then(() => {
+            setActiveSlot(slotName);
+            setSuccessStatus(`Switched to save slot: ${slotName || 'Legacy'}`);
+            GetSaveSlots(gameId).then(res => setSlots(res || [])).catch(console.error);
+        }).catch((err: string) => {
+            setDownloadStatus(`Error selecting slot: ${err}`);
+        });
+    }, [gameId, setSuccessStatus, setDownloadStatus]);
+
+    const handleCreateSlot = useCallback((slotName: string) => {
+        const trimmed = slotName.trim();
+        if (!trimmed) {
+            setDownloadStatus("Slot name cannot be empty");
+            return;
+        }
+        CreateSaveSlot(gameId, trimmed).then(() => {
+            setActiveSlot(trimmed);
+            setSuccessStatus(`Created save slot: ${trimmed}`);
+            fetchAppData();
+        }).catch((err: string) => {
+            setDownloadStatus(`Error creating slot: ${err}`);
+        });
+    }, [gameId, fetchAppData, setSuccessStatus, setDownloadStatus]);
+
+    const handleDeleteSlot = useCallback((slotName: string) => {
+        const trimmed = slotName.trim();
+        if (!trimmed) {
+            setDownloadStatus("Legacy slot cannot be deleted");
+            return;
+        }
+        DeleteSaveSlot(gameId, trimmed).then(() => {
+            setSuccessStatus(`Deleted save slot: ${trimmed}`);
+            fetchAppData();
+        }).catch((err: string) => {
+            setDownloadStatus(`Error deleting slot: ${err}`);
+        });
+    }, [gameId, fetchAppData, setSuccessStatus, setDownloadStatus]);
+
     const handleDeleteSave = useCallback((core: string, name: string, index: number) => {
         DeleteSave(gameId, core, name).then(() => {
             GetSaves(gameId).then(res => {
@@ -211,6 +279,15 @@ function useGameSavesAndStates(
             setSuccessStatus("Save deleted.");
         }).catch((err: string) => setDownloadStatus(`Error deleting save: ${err}`));
     }, [gameId, states, focusFallbackAfterDeletion, setSuccessStatus, setDownloadStatus]);
+
+    const handleDeleteServerSave = useCallback((saveId: number) => {
+        DeleteServerSave(saveId).then(() => {
+            setSuccessStatus("Server save deleted from RomM.");
+            fetchAppData();
+        }).catch((err: string) => {
+            setDownloadStatus(`Error deleting server save: ${err}`);
+        });
+    }, [fetchAppData, setSuccessStatus, setDownloadStatus]);
 
     const handleDeleteState = useCallback((core: string, name: string, index: number) => {
         DeleteState(gameId, core, name).then(() => {
@@ -266,8 +343,8 @@ function useGameSavesAndStates(
     }, [gameId, fetchAppData, setSuccessStatus, setDownloadStatus]);
 
     const handleSyncSaves = useCallback(() => {
-        return syncFiles('saves', saves, serverSaves, UploadSave, DownloadServerSave);
-    }, [syncFiles, saves, serverSaves]);
+        return syncFiles('saves', saves, filteredServerSaves, UploadSave, DownloadServerSave);
+    }, [syncFiles, saves, filteredServerSaves]);
 
     const handleSyncStates = useCallback(() => {
         return syncFiles('states', states, serverStates, UploadState, DownloadServerState);
@@ -287,10 +364,17 @@ function useGameSavesAndStates(
         saves,
         states,
         serverSaves,
+        filteredServerSaves,
         serverStates,
+        slots,
+        activeSlot,
         hasSavesOrStates,
         fetchAppData,
+        handleSelectSlot,
+        handleCreateSlot,
+        handleDeleteSlot,
         handleDeleteSave,
+        handleDeleteServerSave,
         handleDeleteState,
         handleUploadSave,
         handleUploadState,
@@ -355,10 +439,17 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         saves,
         states,
         serverSaves,
+        filteredServerSaves,
         serverStates,
+        slots,
+        activeSlot,
         hasSavesOrStates,
         fetchAppData,
+        handleSelectSlot,
+        handleCreateSlot,
+        handleDeleteSlot,
         handleDeleteSave,
+        handleDeleteServerSave,
         handleDeleteState,
         handleUploadSave,
         handleUploadState,
@@ -373,11 +464,38 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
         setSuccessStatus
     );
 
+    const [isNewSlotModalOpen, setIsNewSlotModalOpen] = useState(false);
+    const [isDeleteSlotModalOpen, setIsDeleteSlotModalOpen] = useState(false);
+    const [newSlotName, setNewSlotName] = useState('');
+    const newSlotInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (isNewSlotModalOpen) {
+            setTimeout(() => newSlotInputRef.current?.focus(), 50);
+        }
+    }, [isNewSlotModalOpen]);
+
+    const handleCreateSlotSubmit = () => {
+        const trimmed = newSlotName.trim();
+        if (!trimmed) return;
+        handleCreateSlot(trimmed);
+        setIsNewSlotModalOpen(false);
+        setNewSlotName('');
+    };
+
+    const handleDeleteSlotSubmit = () => {
+        if (!activeSlot) return;
+        handleDeleteSlot(activeSlot);
+        setIsDeleteSlotModalOpen(false);
+    };
+
     const [firmwareDownloading, setFirmwareDownloading] = useState(false);
     const [firmwareStatus, setFirmwareStatus] = useState<string>('');
 
     const focusFirstAvailableSaveState = () => {
-        if (serverSaves.length > 0) {
+        if (slots.length > 0) {
+            setFocus('slot-pill-0');
+        } else if (filteredServerSaves.length > 0) {
             setFocus('server-save-0-download');
         } else if (saves.length > 0) {
             setFocus('save-0-upload');
@@ -683,12 +801,38 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 handleSmartSync();
             }
 
-            handleEscapeKey(e, isPickerOpen, isFirmwarePickerOpen, isControllerPickerOpen, isStartupFilePickerOpen, closePicker, closeFirmwarePicker, closeControllerPicker, closeStartupFilePicker);
+            handleEscapeKey(
+                e,
+                isPickerOpen,
+                isFirmwarePickerOpen,
+                isControllerPickerOpen,
+                isStartupFilePickerOpen,
+                isNewSlotModalOpen,
+                isDeleteSlotModalOpen,
+                closePicker,
+                closeFirmwarePicker,
+                closeControllerPicker,
+                closeStartupFilePicker,
+                () => setIsNewSlotModalOpen(false),
+                () => setIsDeleteSlotModalOpen(false)
+            );
         };
 
         window.addEventListener('keydown', handleKeyDown, true);
         return () => window.removeEventListener('keydown', handleKeyDown, true);
-    }, [isPickerOpen, isFirmwarePickerOpen, isControllerPickerOpen, isStartupFilePickerOpen, closePicker, closeFirmwarePicker, closeControllerPicker, closeStartupFilePicker, handleSmartSync]);
+    }, [
+        isPickerOpen,
+        isFirmwarePickerOpen,
+        isControllerPickerOpen,
+        isStartupFilePickerOpen,
+        isNewSlotModalOpen,
+        isDeleteSlotModalOpen,
+        closePicker,
+        closeFirmwarePicker,
+        closeControllerPicker,
+        closeStartupFilePicker,
+        handleSmartSync
+    ]);
 
 
     return (
@@ -815,6 +959,20 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                             </div>
                         </div>
                     )}
+                    <NewSlotModal
+                        isOpen={isNewSlotModalOpen}
+                        slotName={newSlotName}
+                        setSlotName={setNewSlotName}
+                        onConfirm={handleCreateSlotSubmit}
+                        onCancel={() => setIsNewSlotModalOpen(false)}
+                        inputRef={newSlotInputRef}
+                    />
+                    <DeleteSlotModal
+                        isOpen={isDeleteSlotModalOpen}
+                        activeSlot={activeSlot}
+                        onConfirm={handleDeleteSlotSubmit}
+                        onCancel={() => setIsDeleteSlotModalOpen(false)}
+                    />
                     <div className="game-page-content">
                         <div className="game-sidebar">
                             <GameCover game={game} className="game-page-cover" />
@@ -968,19 +1126,70 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                             </div>
                             <div className="game-saves-states-section">
                                 <div className="game-saves-column">
-                                    <h3>Server Saves</h3>
+                                    <div className="save-slots-container">
+                                        <div className="save-slots-title-row">
+                                            <h3>Save Slots</h3>
+                                            <div className="save-slots-actions">
+                                                <SlotActionButton
+                                                    label="+ New Slot"
+                                                    title="Create New Save Slot"
+                                                    className="slot-add-btn"
+                                                    focusKey="slot-btn-add"
+                                                    onClick={() => {
+                                                        setNewSlotName('');
+                                                        setIsNewSlotModalOpen(true);
+                                                    }}
+                                                />
+                                                {activeSlot !== "" && (
+                                                    <SlotActionButton
+                                                        label="Delete Slot"
+                                                        title={`Delete save slot "${activeSlot}" and its server saves`}
+                                                        className="slot-delete-btn"
+                                                        focusKey="slot-btn-delete"
+                                                        onClick={() => setIsDeleteSlotModalOpen(true)}
+                                                    />
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="save-slots-pills-row">
+                                            {slots.map((s, idx) => {
+                                                const isSelected = (s.slot || '') === (activeSlot || '');
+                                                const displayName = s.slot === '' ? 'Legacy' : s.slot;
+                                                return (
+                                                    <SlotPillButton
+                                                        key={s.slot || '__legacy__'}
+                                                        slotName={s.slot}
+                                                        displayName={displayName}
+                                                        count={s.count}
+                                                        isSelected={isSelected}
+                                                        focusKey={`slot-pill-${idx}`}
+                                                        onSelect={() => handleSelectSlot(s.slot)}
+                                                    />
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <h3 style={{ marginTop: '10px' }}>
+                                        Server Saves {activeSlot ? `(${activeSlot === '' ? 'Legacy' : activeSlot})` : ''}
+                                    </h3>
                                     <div className="file-list">
-                                        {serverSaves.map((save, idx) => (
+                                        {filteredServerSaves.map((save, idx) => (
                                             <FileItemRow
                                                 key={`server-save-${idx}`}
                                                 focusKeyPrefix={`server-save-${idx}`}
                                                 item={save}
                                                 onDownload={() => handleDownloadServerSave(save)}
+                                                onDelete={() => handleDeleteServerSave(save.id)}
                                                 status={getFileStatus(save, saves)}
                                                 isDisabled={isPlaying || offlineMode}
                                             />
                                         ))}
-                                        {(serverSaves.length === 0 || offlineMode) && <p className="no-files">{offlineMode ? "Server sync unavailable offline" : "No server saves found."}</p>}
+                                        {(filteredServerSaves.length === 0 || offlineMode) && (
+                                            <p className="no-files">
+                                                {offlineMode ? "Server sync unavailable offline" : `No server saves found in slot "${activeSlot || 'Legacy'}".`}
+                                            </p>
+                                        )}
                                     </div>
 
                                     <h3 style={{ marginTop: '20px' }}>Local Saves</h3>
@@ -992,7 +1201,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                                                 item={save}
                                                 onDelete={() => handleDeleteSave(save.core, save.name, idx)}
                                                 onUpload={() => handleUploadSave(save.core, save.name)}
-                                                status={getFileStatus(save, serverSaves)}
+                                                status={getFileStatus(save, filteredServerSaves)}
                                                 isDisabled={isPlaying}
                                                 isOffline={offlineMode}
                                             />
@@ -1477,9 +1686,9 @@ function PickerOption({ name, isSelected, onSelect, focusKey, isFirst, className
     );
 }
 
-function CancelButton({ onCancel }: { onCancel: () => void }) {
+function CancelButton({ onCancel, focusKey = 'picker-cancel' }: { onCancel: () => void; focusKey?: string }) {
     const { ref, focused } = useFocusable({
-        focusKey: 'picker-cancel',
+        focusKey,
         onEnterPress: onCancel,
         onArrowPress: (direction: string) => {
             // Block left/right/down
@@ -1495,12 +1704,194 @@ function CancelButton({ onCancel }: { onCancel: () => void }) {
             onClick={onCancel}
             onMouseEnter={() => {
                 if (getMouseActive()) {
-                    setFocus('picker-cancel');
+                    setFocus(focusKey);
                 }
             }}
         >
             Cancel
         </button>
+    );
+}
+
+interface SlotPillButtonProps {
+    slotName: string;
+    displayName: string;
+    count?: number;
+    isSelected: boolean;
+    focusKey: string;
+    onSelect: () => void;
+}
+
+function SlotPillButton({
+    displayName,
+    count,
+    isSelected,
+    focusKey,
+    onSelect
+}: SlotPillButtonProps) {
+    const { ref, focused } = useFocusable({
+        focusKey,
+        onEnterPress: onSelect,
+        onArrowPress: () => true
+    });
+
+    return (
+        <button
+            ref={ref}
+            type="button"
+            className={`slot-pill-btn ${isSelected ? 'active' : ''} ${focused ? 'focused' : ''}`}
+            onClick={onSelect}
+            onMouseEnter={() => {
+                if (getMouseActive()) {
+                    setFocus(focusKey);
+                }
+            }}
+        >
+            <span className="slot-pill-name">{displayName}</span>
+            {count !== undefined && count > 0 && (
+                <span className="slot-pill-count">{count}</span>
+            )}
+        </button>
+    );
+}
+
+interface SlotActionButtonProps {
+    label: string;
+    title: string;
+    className: string;
+    focusKey: string;
+    onClick: () => void;
+}
+
+function SlotActionButton({
+    label,
+    title,
+    className,
+    focusKey,
+    onClick
+}: SlotActionButtonProps) {
+    const { ref, focused } = useFocusable({
+        focusKey,
+        onEnterPress: onClick,
+        onArrowPress: () => true
+    });
+
+    return (
+        <button
+            ref={ref}
+            type="button"
+            className={`btn slot-action-btn ${className} ${focused ? 'focused' : ''}`}
+            onClick={onClick}
+            title={title}
+            onMouseEnter={() => {
+                if (getMouseActive()) {
+                    setFocus(focusKey);
+                }
+            }}
+        >
+            {label}
+        </button>
+    );
+}
+
+function NewSlotModal({
+    isOpen,
+    slotName,
+    setSlotName,
+    onConfirm,
+    onCancel,
+    inputRef
+}: {
+    isOpen: boolean;
+    slotName: string;
+    setSlotName: (val: string) => void;
+    onConfirm: () => void;
+    onCancel: () => void;
+    inputRef: React.RefObject<HTMLInputElement | null>;
+}) {
+    if (!isOpen) return null;
+
+    return (
+        <div className="core-picker-overlay" onClick={onCancel}>
+            <div className="core-picker-modal slot-dialog-modal" onClick={e => e.stopPropagation()}>
+                <div className="core-picker-header">
+                    <h3>New Save Slot</h3>
+                </div>
+                <div className="slot-modal-body">
+                    <p className="slot-modal-desc">Enter a name for the new save slot:</p>
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        className="slot-name-input"
+                        placeholder="e.g. run-2, casual, speedrun"
+                        value={slotName}
+                        onChange={e => setSlotName(e.target.value)}
+                        onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                onConfirm();
+                            } else if (e.key === 'Escape') {
+                                e.preventDefault();
+                                onCancel();
+                            }
+                        }}
+                        maxLength={32}
+                        autoFocus
+                    />
+                </div>
+                <div className="slot-modal-actions">
+                    <button
+                        className="slot-confirm-btn"
+                        onClick={onConfirm}
+                        disabled={!slotName.trim()}
+                    >
+                        Create Slot
+                    </button>
+                    <CancelButton onCancel={onCancel} focusKey="slot-new-cancel" />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function DeleteSlotModal({
+    isOpen,
+    activeSlot,
+    onConfirm,
+    onCancel
+}: {
+    isOpen: boolean;
+    activeSlot: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+}) {
+    if (!isOpen) return null;
+
+    return (
+        <div className="core-picker-overlay" onClick={onCancel}>
+            <div className="core-picker-modal slot-dialog-modal" onClick={e => e.stopPropagation()}>
+                <div className="core-picker-header">
+                    <h3 className="danger-text">Delete Save Slot</h3>
+                </div>
+                <div className="slot-modal-body">
+                    <p className="slot-modal-desc">
+                        Are you sure you want to delete save slot <strong>"{activeSlot}"</strong>?
+                    </p>
+                    <p className="slot-modal-warning">
+                        This will permanently delete all saves in this slot from RomM and cannot be undone.
+                    </p>
+                </div>
+                <div className="slot-modal-actions">
+                    <button
+                        className="slot-delete-confirm-btn"
+                        onClick={onConfirm}
+                    >
+                        Delete Slot
+                    </button>
+                    <CancelButton onCancel={onCancel} focusKey="slot-delete-cancel" />
+                </div>
+            </div>
+        </div>
     );
 }
 

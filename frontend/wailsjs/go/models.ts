@@ -17,6 +17,8 @@ export namespace types {
 	    disable_metadata: boolean;
 	    game_controllers: Record<string, string>;
 	    game_startup_files: Record<string, string>;
+	    game_save_slots: Record<string, string>;
+	    custom_save_slots: Record<string, Array<string>>;
 	    theme_background: string;
 	    theme_custom_background: string;
 	    theme_font: string;
@@ -45,6 +47,8 @@ export namespace types {
 	        this.disable_metadata = source["disable_metadata"];
 	        this.game_controllers = source["game_controllers"];
 	        this.game_startup_files = source["game_startup_files"];
+	        this.game_save_slots = source["game_save_slots"];
+	        this.custom_save_slots = source["custom_save_slots"];
 	        this.theme_background = source["theme_background"];
 	        this.theme_custom_background = source["theme_custom_background"];
 	        this.theme_font = source["theme_font"];
@@ -262,6 +266,24 @@ export namespace types {
 	}
 	
 	
+	export class SaveSlot {
+	    slot: string;
+	    count: number;
+	    latest_updated_at: string;
+	    is_active: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SaveSlot(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.slot = source["slot"];
+	        this.count = source["count"];
+	        this.latest_updated_at = source["latest_updated_at"];
+	        this.is_active = source["is_active"];
+	    }
+	}
 	export class ServerSave {
 	    id: number;
 	    file_name: string;
@@ -269,6 +291,7 @@ export namespace types {
 	    emulator: string;
 	    updated_at: string;
 	    file_size_bytes: number;
+	    slot: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ServerSave(source);
@@ -282,6 +305,7 @@ export namespace types {
 	        this.emulator = source["emulator"];
 	        this.updated_at = source["updated_at"];
 	        this.file_size_bytes = source["file_size_bytes"];
+	        this.slot = source["slot"];
 	    }
 	}
 	export class ServerState {

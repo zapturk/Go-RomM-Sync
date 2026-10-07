@@ -432,17 +432,17 @@ func (c *Client) DownloadRomFile(ctx context.Context, fileID uint, fileName stri
 	return resp.Body, nil
 }
 
-// UploadSave uploads a save file to RomM
-func (c *Client) UploadSave(romID uint, emulator, filename string, content []byte) error {
-	return c.uploadAsset(romID, emulator, filename, content, "saves", "saveFile")
+// UploadSave uploads a save file to RomM with an optional save slot
+func (c *Client) UploadSave(romID uint, emulator, filename string, content []byte, slot string) error {
+	return c.uploadAsset(romID, emulator, filename, content, "saves", "saveFile", slot)
 }
 
 // UploadState uploads a save state file to RomM
 func (c *Client) UploadState(romID uint, emulator, filename string, content []byte) error {
-	return c.uploadAsset(romID, emulator, filename, content, "states", "stateFile")
+	return c.uploadAsset(romID, emulator, filename, content, "states", "stateFile", "")
 }
 
-func (c *Client) uploadAsset(romID uint, emulator, filename string, content []byte, endpoint, fieldName string) error {
+func (c *Client) uploadAsset(romID uint, emulator, filename string, content []byte, endpoint, fieldName, slot string) error {
 	if c.Token == "" {
 		return fmt.Errorf("not authenticated")
 	}
@@ -450,6 +450,9 @@ func (c *Client) uploadAsset(romID uint, emulator, filename string, content []by
 	params := url.Values{}
 	params.Set("rom_id", fmt.Sprintf("%d", romID))
 	params.Set("emulator", emulator)
+	if slot != "" {
+		params.Set("slot", slot)
+	}
 
 	urlStr := fmt.Sprintf("%s/api/%s?%s", c.BaseURL, endpoint, params.Encode())
 
@@ -494,6 +497,85 @@ func (c *Client) uploadAsset(romID uint, emulator, filename string, content []by
 // GetSaves fetches the list of saves from the RomM server for a given ROM
 func (c *Client) GetSaves(romID uint) ([]types.ServerSave, error) {
 	return fetchAssets[types.ServerSave](c, fmt.Sprintf("%s/api/saves?rom_id=%d", c.BaseURL, romID), "saves")
+}
+
+// GetSavesForSlot fetches saves for a specific slot for a ROM.
+// If slot is empty (""), it fetches all saves and filters to those with no slot (legacy).
+func (c *Client) GetSavesForSlot(romID uint, slot string) ([]types.ServerSave, error) {
+	if slot == "" {
+		all, err := c.GetSaves(romID)
+		if err != nil {
+			return nil, err
+		}
+		var legacy []types.ServerSave
+		for _, s := range all {
+			if s.Slot == "" {
+				legacy = append(legacy, s)
+			}
+		}
+		return legacy, nil
+	}
+	urlStr := fmt.Sprintf("%s/api/saves?rom_id=%d&slot=%s", c.BaseURL, romID, url.QueryEscape(slot))
+	saves, err := fetchAssets[types.ServerSave](c, urlStr, "saves")
+	if err != nil {
+		return nil, err
+	}
+	var matched []types.ServerSave
+	for _, s := range saves {
+		if s.Slot == slot {
+			matched = append(matched, s)
+		}
+	}
+	return matched, nil
+}
+
+// GetSaveSummary fetches the save summary for a given ROM (/api/saves/summary).
+func (c *Client) GetSaveSummary(romID uint) (*types.SaveSummaryResponse, error) {
+	if c.Token == "" {
+		return nil, fmt.Errorf("not authenticated")
+	}
+	urlStr := fmt.Sprintf("%s/api/saves/summary?rom_id=%d", c.BaseURL, romID)
+	raw, err := c.getJSON(urlStr, "saves summary")
+	if err != nil {
+		return nil, err
+	}
+	var summary types.SaveSummaryResponse
+	if err := json.Unmarshal(raw, &summary); err != nil {
+		return nil, fmt.Errorf("failed to decode saves summary: %w", err)
+	}
+	return &summary, nil
+}
+
+// DeleteServerSaves deletes save files on RomM by their IDs (/api/saves/delete).
+func (c *Client) DeleteServerSaves(saveIDs []uint) error {
+	if c.Token == "" {
+		return fmt.Errorf("not authenticated")
+	}
+	if len(saveIDs) == 0 {
+		return nil
+	}
+	payload, err := json.Marshal(map[string][]uint{"saves": saveIDs})
+	if err != nil {
+		return fmt.Errorf("failed to encode delete saves payload: %w", err)
+	}
+	urlStr := fmt.Sprintf("%s/api/saves/delete", c.BaseURL)
+	req, err := http.NewRequest("POST", urlStr, bytes.NewBuffer(payload))
+	if err != nil {
+		return fmt.Errorf("failed to create delete saves request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.APIClient.Do(req) //nolint:bodyclose // closed below
+	if err != nil {
+		return fmt.Errorf("failed to perform delete saves request: %w", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		body, _ := c.readAllWithLimit(resp.Body, MaxMetadataSize)
+		return fmt.Errorf("delete saves failed with status %d: %s", resp.StatusCode, string(body))
+	}
+	return nil
 }
 
 // GetStates fetches the list of states from the RomM server for a given ROM

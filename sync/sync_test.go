@@ -123,7 +123,7 @@ func TestUploadSave_PathTraversal(t *testing.T) {
 	lib, romm, _ := setupServices(tempDir, gameData, nil)
 	s := New(lib, romm, &MockUIProvider{})
 
-	err = s.UploadSave(1, "../../etc", "passwd")
+	err = s.UploadSave(1, "../../etc", "passwd", "default")
 	if err == nil {
 		t.Errorf("Expected path traversal error")
 	}
@@ -259,7 +259,7 @@ func TestUploadSave_Success(t *testing.T) {
 
 	s := New(lib, romm, &MockUIProvider{})
 
-	err = s.UploadSave(1, "snes", "game.srm")
+	err = s.UploadSave(1, "snes", "game.srm", "default")
 	if err != nil {
 		t.Fatalf("UploadSave failed: %v", err)
 	}

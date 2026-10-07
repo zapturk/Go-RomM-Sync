@@ -177,45 +177,50 @@ func coreArchMatches(corePath, arch string) bool {
 	}
 }
 
+func findDarwinExecutable(exePath string) (string, bool) {
+	if strings.HasSuffix(exePath, ".app") {
+		return exePath, true
+	}
+	appPath := filepath.Join(exePath, "RetroArch.app")
+	if _, statErr := os.Stat(appPath); statErr == nil {
+		return appPath, true
+	}
+	target := filepath.Join(exePath, "RetroArch")
+	if _, statErr := os.Stat(target); statErr == nil {
+		return target, true
+	}
+	return "", false
+}
+
+func findExecutableInDir(exePath string) (string, error) {
+	if runtime.GOOS == constants.OSDarwin {
+		if p, ok := findDarwinExecutable(exePath); ok {
+			return p, nil
+		}
+		return "", fmt.Errorf("retroarch executable not found in directory: %s", exePath)
+	}
+	target := filepath.Join(exePath, "retroarch.exe")
+	if runtime.GOOS != constants.OSWindows {
+		target = filepath.Join(exePath, "retroarch")
+	}
+	if _, statErr := os.Stat(target); statErr == nil {
+		return target, nil
+	}
+	return "", fmt.Errorf("retroarch executable not found in directory: %s", exePath)
+}
+
 // resolveRetroArchPaths attempts to find the actual executable and its base
 // directory given a user-provided file or directory path.
 func resolveRetroArchPaths(exePath string) (baseDir, binaryPath string, err error) {
-	// If exePath is a directory, try to find the actual executable inside it
-	if info, statErr := os.Stat(exePath); statErr == nil && info.IsDir() {
-		found := false
-		target := filepath.Join(exePath, "retroarch.exe")
-		if runtime.GOOS != constants.OSWindows && runtime.GOOS != constants.OSDarwin {
-			target = filepath.Join(exePath, "retroarch")
-		}
-
-		if runtime.GOOS == constants.OSDarwin {
-			if strings.HasSuffix(exePath, ".app") {
-				found = true
-			} else {
-				appPath := filepath.Join(exePath, "RetroArch.app")
-				if _, statErr := os.Stat(appPath); statErr == nil {
-					exePath = appPath
-					found = true
-				} else {
-					target = filepath.Join(exePath, "RetroArch")
-					if _, statErr := os.Stat(target); statErr == nil {
-						exePath = target
-						found = true
-					}
-				}
-			}
-		} else {
-			if _, statErr := os.Stat(target); statErr == nil {
-				exePath = target
-				found = true
-			}
-		}
-
-		if !found {
-			return "", "", fmt.Errorf("retroarch executable not found in directory: %s", exePath)
-		}
-	} else if statErr != nil {
+	info, statErr := os.Stat(exePath)
+	if statErr != nil {
 		return "", "", fmt.Errorf("retroarch executable not found: %s", exePath)
+	}
+	if info.IsDir() {
+		exePath, err = findExecutableInDir(exePath)
+		if err != nil {
+			return "", "", err
+		}
 	}
 
 	binaryPath = exePath

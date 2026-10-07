@@ -255,4 +255,125 @@ func TestGetPlatform(t *testing.T) {
 	}
 }
 
-// Tests moved to assets package
+func TestGetSaveSlots_Summary(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/saves/summary" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{
+				"total_count": 3,
+				"slots": [
+					{"slot": "default", "count": 2, "latest": {"id": 1, "updated_at": "2026-04-10T10:00:00Z"}},
+					{"slot": "custom", "count": 1, "latest": {"id": 2, "updated_at": "2026-04-11T12:00:00Z"}}
+				]
+			}`))
+		} else {
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	cfg := &MockConfigProvider{Host: server.URL}
+	s := New(cfg)
+	s.client.Token = "test-token"
+
+	slots, err := s.GetSaveSlots(1)
+	if err != nil {
+		t.Fatalf("GetSaveSlots failed: %v", err)
+	}
+	if len(slots) != 2 {
+		t.Errorf("Expected 2 slots, got %d", len(slots))
+	}
+	if slots[0].Slot != "default" || slots[0].Count != 2 {
+		t.Errorf("Unexpected slot 0: %+v", slots[0])
+	}
+	if slots[1].Slot != "custom" || slots[1].Count != 1 {
+		t.Errorf("Unexpected slot 1: %+v", slots[1])
+	}
+}
+
+func TestGetSaveSlots_Fallback(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/saves/summary" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.URL.Path == "/api/saves" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`[
+				{"id": 1, "filename": "s1.srm", "slot": "slot1", "updated_at": "2026-04-01T00:00:00Z"},
+				{"id": 2, "filename": "s2.srm", "slot": "slot1", "updated_at": "2026-04-02T00:00:00Z"},
+				{"id": 3, "filename": "s3.srm", "slot": "slot2", "updated_at": "2026-04-03T00:00:00Z"}
+			]`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	cfg := &MockConfigProvider{Host: server.URL}
+	s := New(cfg)
+	s.client.Token = "test-token"
+
+	slots, err := s.GetSaveSlots(1)
+	if err != nil {
+		t.Fatalf("GetSaveSlots fallback failed: %v", err)
+	}
+	if len(slots) != 2 {
+		t.Errorf("Expected 2 slots from fallback, got %d", len(slots))
+	}
+	if slots[0].Slot != "slot1" || slots[0].Count != 2 {
+		t.Errorf("Expected slot1 with 2 saves, got %+v", slots[0])
+	}
+	if slots[0].LatestUpdatedAt != "2026-04-02T00:00:00Z" {
+		t.Errorf("Expected latest timestamp 2026-04-02, got %s", slots[0].LatestUpdatedAt)
+	}
+}
+
+func TestGetServerSavesForSlot(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("slot") == "active" {
+			w.Write([]byte(`[{"id": 10, "filename": "active.srm", "slot": "active"}]`))
+		} else {
+			w.Write([]byte(`[]`))
+		}
+	}))
+	defer server.Close()
+
+	cfg := &MockConfigProvider{Host: server.URL}
+	s := New(cfg)
+	s.client.Token = "test-token"
+
+	saves, err := s.GetServerSavesForSlot(1, "active")
+	if err != nil {
+		t.Fatalf("GetServerSavesForSlot failed: %v", err)
+	}
+	if len(saves) != 1 || saves[0].Slot != "active" {
+		t.Errorf("Expected 1 save in active slot, got %v", saves)
+	}
+}
+
+func TestDeleteServerSaves(t *testing.T) {
+	var deleted bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/saves/delete" && r.Method == "POST" {
+			deleted = true
+			w.WriteHeader(http.StatusOK)
+		} else {
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	cfg := &MockConfigProvider{Host: server.URL}
+	s := New(cfg)
+	s.client.Token = "test-token"
+
+	err := s.DeleteServerSaves([]uint{1, 2})
+	if err != nil {
+		t.Fatalf("DeleteServerSaves failed: %v", err)
+	}
+	if !deleted {
+		t.Error("Expected delete request to be performed")
+	}
+}
