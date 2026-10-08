@@ -80,6 +80,14 @@ func (s *Service) GetRomDir(game *types.Game) string {
 	return filepath.Join(libPath, relPath, fmt.Sprintf("%d", game.ID))
 }
 
+// UsesPlatformFolder returns true if the library is configured to use platform folders.
+func (s *Service) UsesPlatformFolder() bool {
+	if s.config != nil {
+		return s.config.GetConfig().UsePlatformFolder
+	}
+	return false
+}
+
 // GetMetadataPath returns the path to the game's metadata file.
 func (s *Service) GetMetadataPath(game *types.Game) string {
 	destDir := s.GetRomDir(game)
@@ -973,6 +981,11 @@ func (s *Service) trackGamePaths(game *types.Game, trackedPaths map[string]bool)
 		expectedNameWithoutExt := strings.TrimSuffix(expectedBase, filepath.Ext(expectedBase))
 		_ = filepath.Walk(subDirPath, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
+				return nil
+			}
+			normPath := filepath.ToSlash(path)
+			if strings.Contains(normPath, "/dolphin-emu/User/") {
+				trackedPaths[filepath.Clean(path)] = true
 				return nil
 			}
 			nameWithoutExt := strings.TrimSuffix(info.Name(), filepath.Ext(info.Name()))

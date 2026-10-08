@@ -608,3 +608,73 @@ func TestGetRomStartupFiles(t *testing.T) {
 		t.Errorf("Expected second file to be game.cue, got %s", files[1])
 	}
 }
+
+func TestSaveSlots_ActiveAndConfig(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "app-save-slots-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	configPath := filepath.Join(tmpDir, "config.json")
+	cm := config.NewConfigManager()
+	cm.ConfigPath = configPath
+	cm.Config = &types.AppConfig{
+		OfflineMode: true,
+	}
+
+	app := NewApp(cm)
+
+	// Initially defaults to "default"
+	if slot := app.GetGameSaveSlot(1); slot != "default" {
+		t.Errorf("Expected default slot 'default', got '%s'", slot)
+	}
+
+	// Set active slot
+	if err := app.SetGameSaveSlot(1, "slotA"); err != nil {
+		t.Fatalf("SetGameSaveSlot failed: %v", err)
+	}
+	if slot := app.GetGameSaveSlot(1); slot != "slotA" {
+		t.Errorf("Expected slot 'slotA', got '%s'", slot)
+	}
+
+	// Create new slot
+	if err := app.CreateSaveSlot(1, "speedrun"); err != nil {
+		t.Fatalf("CreateSaveSlot failed: %v", err)
+	}
+	if slot := app.GetGameSaveSlot(1); slot != "speedrun" {
+		t.Errorf("Expected active slot to be 'speedrun' after creation, got '%s'", slot)
+	}
+
+	// GetSaveSlots in offline mode should return the custom slots, active slot, and default
+	slots := app.GetSaveSlots(1)
+	if len(slots) < 2 {
+		t.Fatalf("Expected at least 2 slots, got %d", len(slots))
+	}
+	var foundSpeedrun bool
+	for _, s := range slots {
+		if s.Slot == "speedrun" {
+			foundSpeedrun = true
+			if !s.IsActive {
+				t.Errorf("Expected speedrun slot to be marked active")
+			}
+		}
+	}
+	if !foundSpeedrun {
+		t.Errorf("Expected speedrun in slots: %+v", slots)
+	}
+
+	// Delete slot
+	if err := app.DeleteSaveSlot(1, "speedrun"); err != nil {
+		t.Fatalf("DeleteSaveSlot failed: %v", err)
+	}
+	// Active slot should reset to "default"
+	if slot := app.GetGameSaveSlot(1); slot != "default" {
+		t.Errorf("Expected active slot to reset to 'default', got '%s'", slot)
+	}
+
+	// Attempting to delete legacy slot ("") should fail
+	if err := app.DeleteSaveSlot(1, ""); err == nil {
+		t.Errorf("Expected error when deleting empty/legacy slot, got nil")
+	}
+}

@@ -1,5 +1,7 @@
 package types
 
+import "path/filepath"
+
 // LibraryResult is a generic paginated response from the RomM library
 type LibraryResult[T any] struct {
 	Items []T `json:"items"`
@@ -54,9 +56,49 @@ type ServerAsset struct {
 	FileSize  int64  `json:"file_size_bytes"`
 }
 
+// SaveSlot represents a RomM save slot
+type SaveSlot struct {
+	Slot            string `json:"slot"`
+	Count           int    `json:"count"`
+	LatestUpdatedAt string `json:"latest_updated_at"`
+	IsActive        bool   `json:"is_active"`
+}
+
+// SaveSummarySlot represents a slot entry in RomM's save summary response
+type SaveSummarySlot struct {
+	Slot   *string `json:"slot"`
+	Count  int     `json:"count"`
+	Latest struct {
+		ID        uint   `json:"id"`
+		UpdatedAt string `json:"updated_at"`
+	} `json:"latest"`
+}
+
+// SaveSummaryResponse represents the response from /api/saves/summary
+type SaveSummaryResponse struct {
+	TotalCount int               `json:"total_count"`
+	Slots      []SaveSummarySlot `json:"slots"`
+}
+
 // ServerSave is a wrapper for ServerAsset representing a save file on the RomM server
 type ServerSave struct {
 	ServerAsset
+	Slot        string `json:"slot"`
+	AltFileName string `json:"filename,omitempty"`
+}
+
+// GetEffectiveFileName returns the save file name, supporting both file_name and filename JSON keys.
+func (s *ServerSave) GetEffectiveFileName() string {
+	if s.FileName != "" {
+		return s.FileName
+	}
+	if s.AltFileName != "" {
+		return s.AltFileName
+	}
+	if s.FullPath != "" {
+		return filepath.Base(s.FullPath)
+	}
+	return ""
 }
 
 // ServerState is a wrapper for ServerAsset representing a save state on the RomM server

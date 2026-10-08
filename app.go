@@ -351,6 +351,10 @@ func (a *App) GetServerSaves(id uint) ([]types.ServerSave, error) {
 	return a.rommSrv.GetServerSaves(id)
 }
 
+func (a *App) GetServerSavesForSlot(id uint, slot string) ([]types.ServerSave, error) {
+	return a.rommSrv.GetServerSavesForSlot(id, slot)
+}
+
 func (a *App) GetServerStates(id uint) ([]types.ServerState, error) {
 	return a.rommSrv.GetServerStates(id)
 }
@@ -446,7 +450,16 @@ func (a *App) DeleteState(id uint, core, filename string) error {
 }
 
 func (a *App) UploadSave(id uint, core, filename string) error {
-	return a.syncSrv.UploadSave(id, core, filename)
+	slot := a.GetGameSaveSlot(id)
+	return a.syncSrv.UploadSave(id, core, filename, slot)
+}
+
+func (a *App) UploadSaveToSlot(id uint, core, filename, slot string) error {
+	return a.syncSrv.UploadSave(id, core, filename, slot)
+}
+
+func (a *App) DeleteServerSave(id uint) error {
+	return a.rommSrv.DeleteServerSaves([]uint{id})
 }
 
 func (a *App) UploadState(id uint, core, filename string) error {
@@ -463,6 +476,10 @@ func (a *App) DownloadServerState(gameID, serverID uint, core, filename, updated
 
 func (a *App) ValidateAssetPath(core, filename string) (coreBase, fileBase string, err error) {
 	return a.syncSrv.ValidateAssetPath(core, filename)
+}
+
+func (a *App) BridgeGameSaves(id uint, targetCore string) error {
+	return a.syncSrv.BridgeGameSaves(id, targetCore)
 }
 
 // Launch
@@ -538,7 +555,10 @@ func (a *App) PlayRomWithCore(id uint, coreOverride string) error {
 		return err
 	}
 
-	platformSlug, _, controllerType := a.resolveCoreAndController(id, &game, coreOverride)
+	platformSlug, coreToSave, controllerType := a.resolveCoreAndController(id, &game, coreOverride)
+	if coreToSave != "" {
+		_ = a.syncSrv.BridgeGameSaves(id, coreToSave)
+	}
 	cheevosUser, cheevosPass := a.GetCheevosCredentials()
 
 	err = retroarch.Launch(a, exePath, romPath, cheevosUser, cheevosPass, coreOverride, platformSlug, a.GetBiosDir(), controllerType)
@@ -897,6 +917,191 @@ func (a *App) SetGameStartupFile(id uint, fileName string) error {
 			cfg.GameStartupFiles = make(map[string]string)
 		}
 		cfg.GameStartupFiles[key] = fileName
+	})
+}
+
+// GetGameSaveSlot returns the active save slot for the given game,
+// defaulting to constants.DefaultSaveSlot if not set.
+func (a *App) GetGameSaveSlot(id uint) string {
+	cfg := a.configManager.GetConfig()
+	key := strconv.FormatUint(uint64(id), 10)
+	if cfg.GameSaveSlots != nil {
+		if val, ok := cfg.GameSaveSlots[key]; ok && val != "" {
+			return val
+		}
+	}
+	return constants.DefaultSaveSlot
+}
+
+// SetGameSaveSlot saves the selected save slot name for the given game.
+func (a *App) SetGameSaveSlot(id uint, slot string) error {
+	key := strconv.FormatUint(uint64(id), 10)
+	slot = strings.TrimSpace(slot)
+	if slot == "" {
+		slot = constants.DefaultSaveSlot
+	}
+	return a.configManager.Update(func(cfg *types.AppConfig) {
+		if cfg.GameSaveSlots == nil {
+			cfg.GameSaveSlots = make(map[string]string)
+		}
+		cfg.GameSaveSlots[key] = slot
+	})
+}
+
+// GetSaveSlots returns all available save slots for a game, merging
+// server slots, custom local slots, and the active slot.
+func (a *App) GetSaveSlots(id uint) []types.SaveSlot {
+	activeSlot := a.GetGameSaveSlot(id)
+	cfg := a.configManager.GetConfig()
+	key := strconv.FormatUint(uint64(id), 10)
+
+	slotMap := make(map[string]*types.SaveSlot)
+	var slotOrder []string
+
+	if !cfg.OfflineMode && a.rommSrv != nil {
+		serverSlots, err := a.rommSrv.GetSaveSlots(id)
+		if err == nil {
+			for i := range serverSlots {
+				s := serverSlots[i]
+				slotMap[s.Slot] = &s
+				slotOrder = append(slotOrder, s.Slot)
+			}
+		}
+	}
+
+	// Merge locally created custom slots for this game
+	if cfg.CustomSaveSlots != nil {
+		if customList, ok := cfg.CustomSaveSlots[key]; ok {
+			for _, cs := range customList {
+				cs = strings.TrimSpace(cs)
+				if cs == "" {
+					continue
+				}
+				if _, exists := slotMap[cs]; !exists {
+					slotMap[cs] = &types.SaveSlot{
+						Slot:            cs,
+						Count:           0,
+						LatestUpdatedAt: "",
+					}
+					slotOrder = append(slotOrder, cs)
+				}
+			}
+		}
+	}
+
+	// Ensure the active slot is present in the list
+	if _, exists := slotMap[activeSlot]; !exists {
+		slotMap[activeSlot] = &types.SaveSlot{
+			Slot:            activeSlot,
+			Count:           0,
+			LatestUpdatedAt: "",
+		}
+		slotOrder = append(slotOrder, activeSlot)
+	}
+
+	// Ensure "default" is in the list
+	if _, exists := slotMap[constants.DefaultSaveSlot]; !exists {
+		slotMap[constants.DefaultSaveSlot] = &types.SaveSlot{
+			Slot:            constants.DefaultSaveSlot,
+			Count:           0,
+			LatestUpdatedAt: "",
+		}
+		slotOrder = append(slotOrder, constants.DefaultSaveSlot)
+	}
+
+	var result []types.SaveSlot
+	for _, name := range slotOrder {
+		if s, ok := slotMap[name]; ok {
+			s.IsActive = (s.Slot == activeSlot)
+			result = append(result, *s)
+			delete(slotMap, name)
+		}
+	}
+
+	return result
+}
+
+// CreateSaveSlot creates a new custom save slot for a game and sets it as active.
+func (a *App) CreateSaveSlot(id uint, slot string) error {
+	slot = strings.TrimSpace(slot)
+	if slot == "" {
+		return fmt.Errorf("slot name cannot be empty")
+	}
+	key := strconv.FormatUint(uint64(id), 10)
+	return a.configManager.Update(func(cfg *types.AppConfig) {
+		if cfg.CustomSaveSlots == nil {
+			cfg.CustomSaveSlots = make(map[string][]string)
+		}
+		exists := false
+		for _, existing := range cfg.CustomSaveSlots[key] {
+			if strings.EqualFold(existing, slot) {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			cfg.CustomSaveSlots[key] = append(cfg.CustomSaveSlots[key], slot)
+		}
+		if cfg.GameSaveSlots == nil {
+			cfg.GameSaveSlots = make(map[string]string)
+		}
+		cfg.GameSaveSlots[key] = slot
+	})
+}
+
+func (a *App) deleteServerSavesForSlot(id uint, slot string) error {
+	cfg := a.configManager.GetConfig()
+	if cfg.OfflineMode || a.rommSrv == nil {
+		return nil
+	}
+	serverSaves, err := a.rommSrv.GetServerSaves(id)
+	if err != nil {
+		return nil
+	}
+	var idsToDelete []uint
+	for _, s := range serverSaves {
+		if s.Slot == slot {
+			idsToDelete = append(idsToDelete, s.ID)
+		}
+	}
+	if len(idsToDelete) == 0 {
+		return nil
+	}
+	if err := a.rommSrv.DeleteServerSaves(idsToDelete); err != nil {
+		return fmt.Errorf("failed to delete server saves: %w", err)
+	}
+	return nil
+}
+
+func removeSlotFromList(list []string, target string) []string {
+	var updated []string
+	for _, item := range list {
+		if item != target {
+			updated = append(updated, item)
+		}
+	}
+	return updated
+}
+
+// DeleteSaveSlot deletes a save slot and all its server saves from RomM.
+func (a *App) DeleteSaveSlot(id uint, slot string) error {
+	slot = strings.TrimSpace(slot)
+	if slot == "" {
+		return fmt.Errorf("the legacy save slot cannot be deleted")
+	}
+	if err := a.deleteServerSavesForSlot(id, slot); err != nil {
+		return err
+	}
+	key := strconv.FormatUint(uint64(id), 10)
+	return a.configManager.Update(func(cfg *types.AppConfig) {
+		if cfg.CustomSaveSlots != nil {
+			if list, ok := cfg.CustomSaveSlots[key]; ok {
+				cfg.CustomSaveSlots[key] = removeSlotFromList(list, slot)
+			}
+		}
+		if cfg.GameSaveSlots != nil && cfg.GameSaveSlots[key] == slot {
+			cfg.GameSaveSlots[key] = constants.DefaultSaveSlot
+		}
 	})
 }
 

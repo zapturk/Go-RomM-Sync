@@ -342,3 +342,88 @@ func TestSyncDolphinRemap(t *testing.T) {
 		t.Errorf("Expected created remap to contain device 769, got:\n%s", string(createdData))
 	}
 }
+
+func TestWriteTempConfig_DisableSortSavefiles(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "test_cfg")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	savesDir := filepath.Join(tempDir, "saves")
+	statesDir := filepath.Join(tempDir, "states")
+	systemDir := filepath.Join(tempDir, "system")
+
+	cfgPath := writeTempConfig(&MockUI{}, savesDir, statesDir, systemDir, "user", "pass")
+	if cfgPath == "" {
+		t.Fatal("expected temp config to be created")
+	}
+	defer os.Remove(cfgPath)
+
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("failed to read temp config: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, `sort_savefiles_enable = "false"`) {
+		t.Errorf("expected temp config to contain sort_savefiles_enable = \"false\", got:\n%s", content)
+	}
+	if !strings.Contains(content, `sort_savefiles_by_content_enable = "false"`) {
+		t.Errorf("expected temp config to contain sort_savefiles_by_content_enable = \"false\", got:\n%s", content)
+	}
+	if !strings.Contains(content, fmt.Sprintf("savefile_directory = %q", savesDir)) {
+		t.Errorf("expected temp config to contain savefile_directory, got:\n%s", content)
+	}
+	if !strings.Contains(content, fmt.Sprintf("savestate_directory = %q", statesDir)) {
+		t.Errorf("expected temp config to contain savestate_directory, got:\n%s", content)
+	}
+}
+
+func TestPrepareLaunchEnv_Dolphin(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "test_dolphin_env")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	romBaseDir := filepath.Join(tempDir, "gamecube", "1")
+	savesDir := filepath.Join(romBaseDir, "saves")
+	_ = os.MkdirAll(savesDir, 0o755)
+
+	// Create a pre-existing saves/User folder
+	userCardDir := filepath.Join(savesDir, "User", "GC", "USA", "Card A")
+	_ = os.MkdirAll(userCardDir, 0o755)
+	_ = os.WriteFile(filepath.Join(userCardDir, "save.gci"), []byte("gci_data"), 0o644)
+
+	cfgPath := prepareLaunchEnv(&MockUI{}, tempDir, romBaseDir, "gamecube", "dolphin_libretro", "", "", "")
+	if cfgPath == "" {
+		t.Fatal("expected temp config to be created")
+	}
+	defer os.Remove(cfgPath)
+
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("failed to read temp config: %v", err)
+	}
+	content := string(data)
+
+	expectedSavesDir := filepath.Join(romBaseDir, "saves", "dolphin-emu")
+	expectedStatesDir := filepath.Join(romBaseDir, "states", "dolphin-emu")
+
+	if !strings.Contains(content, fmt.Sprintf("savefile_directory = %q", expectedSavesDir)) {
+		t.Errorf("expected savefile_directory to be %q, got:\n%s", expectedSavesDir, content)
+	}
+	if !strings.Contains(content, fmt.Sprintf("savestate_directory = %q", expectedStatesDir)) {
+		t.Errorf("expected savestate_directory to be %q, got:\n%s", expectedStatesDir, content)
+	}
+
+	// Verify User was migrated to dolphin-emu/User
+	migratedFile := filepath.Join(expectedSavesDir, "User", "GC", "USA", "Card A", "save.gci")
+	if _, err := os.Stat(migratedFile); os.IsNotExist(err) {
+		t.Errorf("expected saves/User to be migrated to %s", migratedFile)
+	}
+	if _, err := os.Stat(filepath.Join(savesDir, "User")); !os.IsNotExist(err) {
+		t.Errorf("expected old saves/User to be removed after migration")
+	}
+}

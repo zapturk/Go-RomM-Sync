@@ -1,11 +1,13 @@
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { types } from "../wailsjs/go/models";
-import { TrashIcon, UploadIcon, DownloadIcon } from "./components/Icons";
+import { TrashIcon, UploadIcon, DownloadIcon, SaveIcon, StateIcon } from "./components/Icons";
+import { TIMESTAMP_REGEX } from "./constants";
 
 type FileItemRowType = types.FileItem | types.ServerSave | types.ServerState;
 
 interface FileItemRowProps {
     item: FileItemRowType;
+    itemType?: 'save' | 'state';
     onDelete?: () => void;
     onUpload?: () => void;
     onDownload?: () => void;
@@ -13,6 +15,8 @@ interface FileItemRowProps {
     status?: 'newer' | 'older' | 'equal' | 'unsynced';
     isDisabled?: boolean;
     isOffline?: boolean;
+    onArrowLeft?: () => void;
+    onArrowUp?: () => void;
 }
 
 interface ActionButtonProps {
@@ -34,6 +38,7 @@ const ActionButton = ({ focusKey, onEnterPress, onArrowPress, className, childre
     return (
         <button
             ref={ref}
+            type="button"
             className={`${className} ${focused ? 'focused' : ''}`}
             onClick={(e) => {
                 e.stopPropagation();
@@ -52,11 +57,20 @@ interface ActionBtnProps {
     onDelete?: () => void;
     onUpload?: () => void;
     onDownload?: () => void;
+    onArrowLeft?: () => void;
+    onArrowUp?: () => void;
 }
 
-const DownloadButton = ({ focusKeyPrefix, onAction, onDelete }: ActionBtnProps) => {
+const DownloadButton = ({ focusKeyPrefix, onAction, onDelete, onArrowLeft, onArrowUp }: ActionBtnProps) => {
     const handleArrowPress = (direction: string) => {
-        if (direction === 'up') return false;
+        if (direction === 'up' && onArrowUp) {
+            onArrowUp();
+            return false;
+        }
+        if (direction === 'left' && onArrowLeft) {
+            onArrowLeft();
+            return false;
+        }
         if (direction === 'right' && onDelete) {
             setFocus(`${focusKeyPrefix}-delete`);
             return false;
@@ -77,9 +91,16 @@ const DownloadButton = ({ focusKeyPrefix, onAction, onDelete }: ActionBtnProps) 
     );
 };
 
-const UploadButton = ({ focusKeyPrefix, onAction, onDelete }: ActionBtnProps) => {
+const UploadButton = ({ focusKeyPrefix, onAction, onDelete, onArrowLeft, onArrowUp }: ActionBtnProps) => {
     const handleArrowPress = (direction: string) => {
-        if (direction === 'up') return false;
+        if (direction === 'up' && onArrowUp) {
+            onArrowUp();
+            return false;
+        }
+        if (direction === 'left' && onArrowLeft) {
+            onArrowLeft();
+            return false;
+        }
         if (direction === 'right' && onDelete) {
             setFocus(`${focusKeyPrefix}-delete`);
             return false;
@@ -100,8 +121,12 @@ const UploadButton = ({ focusKeyPrefix, onAction, onDelete }: ActionBtnProps) =>
     );
 };
 
-const DeleteButton = ({ focusKeyPrefix, onAction, onUpload, onDownload }: ActionBtnProps) => {
+const DeleteButton = ({ focusKeyPrefix, onAction, onUpload, onDownload, onArrowLeft, onArrowUp }: ActionBtnProps) => {
     const handleArrowPress = (direction: string) => {
+        if (direction === 'up' && onArrowUp) {
+            onArrowUp();
+            return false;
+        }
         if (direction === 'left') {
             if (onUpload) {
                 setFocus(`${focusKeyPrefix}-upload`);
@@ -109,6 +134,10 @@ const DeleteButton = ({ focusKeyPrefix, onAction, onUpload, onDownload }: Action
             }
             if (onDownload) {
                 setFocus(`${focusKeyPrefix}-download`);
+                return false;
+            }
+            if (onArrowLeft) {
+                onArrowLeft();
                 return false;
             }
         }
@@ -120,7 +149,7 @@ const DeleteButton = ({ focusKeyPrefix, onAction, onUpload, onDownload }: Action
             focusKey={`${focusKeyPrefix}-delete`}
             onEnterPress={onAction}
             className="file-action-btn file-delete-btn"
-            title="Delete locally"
+            title="Delete"
             onArrowPress={handleArrowPress}
         >
             <TrashIcon size={16} />
@@ -128,8 +157,55 @@ const DeleteButton = ({ focusKeyPrefix, onAction, onUpload, onDownload }: Action
     );
 };
 
-export const getItemName = (item: any) => item.name || item.file_name;
-export const getItemCore = (item: any) => item.core || item.emulator;
+export const getItemName = (item: any) => {
+    const raw = item?.name || item?.file_name || '';
+    return raw.replace(TIMESTAMP_REGEX, '');
+};
+
+export const getItemCore = (item: any) => item?.core || item?.emulator || '';
+
+export const formatCoreDisplay = (core: string): string => {
+    if (!core) return '';
+    const norm = core.replace(/\\/g, '/');
+    if (norm.includes('User/GC/')) {
+        const parts = norm.split('User/GC/')[1];
+        return `Dolphin (${parts.replace('/', ' - ')})`;
+    }
+    if (norm.endsWith('User/GC')) {
+        return 'Dolphin (GC)';
+    }
+    if (norm === 'Card A' || norm === 'Card B') {
+        return `Dolphin (${norm})`;
+    }
+    return norm;
+};
+
+export const formatItemDate = (dateStr?: string) => {
+    if (!dateStr) return '';
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleDateString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+        });
+    } catch {
+        return '';
+    }
+};
+
+export const formatItemSize = (bytes?: number) => {
+    if (!bytes || bytes <= 0) return '';
+    const KB = 1024;
+    const MB = KB * 1024;
+    const GB = MB * 1024;
+    if (bytes < MB) return `${(bytes / KB).toFixed(1)} KB`;
+    if (bytes < GB) return `${(bytes / MB).toFixed(2)} MB`;
+    return `${(bytes / GB).toFixed(2)} GB`;
+};
 
 const getFocusTarget = (onUpload: any, onDownload: any, onDelete: any, prefix: string) => {
     if (onUpload) return `${prefix}-upload`;
@@ -151,6 +227,8 @@ interface FileItemRowActionsProps {
     onDownload?: () => void;
     onUpload?: () => void;
     onDelete?: () => void;
+    onArrowLeft?: () => void;
+    onArrowUp?: () => void;
 }
 
 const FileItemRowActions = ({
@@ -159,7 +237,9 @@ const FileItemRowActions = ({
     focusKeyPrefix,
     onDownload,
     onUpload,
-    onDelete
+    onDelete,
+    onArrowLeft,
+    onArrowUp
 }: FileItemRowActionsProps) => {
     if (isDisabled) return null;
     return (
@@ -169,6 +249,8 @@ const FileItemRowActions = ({
                     focusKeyPrefix={focusKeyPrefix}
                     onAction={onDownload}
                     onDelete={onDelete}
+                    onArrowLeft={onArrowLeft}
+                    onArrowUp={onArrowUp}
                 />
             )}
             {onUpload && !isOffline && (
@@ -176,6 +258,8 @@ const FileItemRowActions = ({
                     focusKeyPrefix={focusKeyPrefix}
                     onAction={onUpload}
                     onDelete={onDelete}
+                    onArrowLeft={onArrowLeft}
+                    onArrowUp={onArrowUp}
                 />
             )}
             {onDelete && (
@@ -184,13 +268,27 @@ const FileItemRowActions = ({
                     onAction={onDelete}
                     onUpload={isOffline ? undefined : onUpload}
                     onDownload={onDownload}
+                    onArrowLeft={onArrowLeft}
+                    onArrowUp={onArrowUp}
                 />
             )}
         </div>
     );
 };
 
-export const FileItemRow = ({ item, onDelete, onUpload, onDownload, focusKeyPrefix, status, isDisabled = false, isOffline = false }: FileItemRowProps) => {
+export const FileItemRow = ({
+    item,
+    itemType = 'save',
+    onDelete,
+    onUpload,
+    onDownload,
+    focusKeyPrefix,
+    status,
+    isDisabled = false,
+    isOffline = false,
+    onArrowLeft,
+    onArrowUp
+}: FileItemRowProps) => {
     const { ref: rowRef } = useFocusable({
         focusKey: isDisabled ? undefined : focusKeyPrefix,
         onFocus: () => {
@@ -201,13 +299,29 @@ export const FileItemRow = ({ item, onDelete, onUpload, onDownload, focusKeyPref
 
     const fileName = getItemName(item);
     const coreName = getItemCore(item);
+    const dateText = formatItemDate((item as any)?.updated_at);
+    const sizeText = formatItemSize((item as any)?.file_size_bytes);
     const rowClassName = `file-item-row ${isDisabled ? 'disabled' : ''}`;
 
     return (
         <div className={rowClassName} ref={rowRef}>
-            <span className="file-name" title={fileName}>{fileName}</span>
-            <FileStatusBadge status={status} />
-            <span className="file-core">{coreName}</span>
+            <div className="file-item-icon">
+                {itemType === 'save' ? <SaveIcon size={16} /> : <StateIcon size={16} />}
+            </div>
+            <div className="file-item-details">
+                <span className="file-name" title={fileName}>{fileName}</span>
+                {(dateText || sizeText) && (
+                    <div className="file-item-subline">
+                        {dateText && <span className="file-meta-date">{dateText}</span>}
+                        {dateText && sizeText && <span className="file-meta-sep">•</span>}
+                        {sizeText && <span className="file-meta-size">{sizeText}</span>}
+                    </div>
+                )}
+            </div>
+            <div className="file-item-badges">
+                <FileStatusBadge status={status} />
+                {coreName && <span className="file-core">{formatCoreDisplay(coreName)}</span>}
+            </div>
             <FileItemRowActions
                 isDisabled={isDisabled}
                 isOffline={isOffline}
@@ -215,6 +329,8 @@ export const FileItemRow = ({ item, onDelete, onUpload, onDownload, focusKeyPref
                 onDownload={onDownload}
                 onUpload={onUpload}
                 onDelete={onDelete}
+                onArrowLeft={onArrowLeft}
+                onArrowUp={onArrowUp}
             />
         </div>
     );

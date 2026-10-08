@@ -4,15 +4,23 @@ import {context} from '../models';
 import {types} from '../models';
 import {io} from '../models';
 
+export function BridgeGameSaves(arg1:number,arg2:string):Promise<void>;
+
 export function CancelDownload(arg1:number):Promise<void>;
 
 export function ClearImageCache():Promise<void>;
+
+export function CreateSaveSlot(arg1:number,arg2:string):Promise<void>;
 
 export function DeleteOrphanedRoms(arg1:Array<string>):Promise<number>;
 
 export function DeleteRom(arg1:number):Promise<void>;
 
 export function DeleteSave(arg1:number,arg2:string,arg3:string):Promise<void>;
+
+export function DeleteSaveSlot(arg1:number,arg2:string):Promise<void>;
+
+export function DeleteServerSave(arg1:number):Promise<void>;
 
 export function DeleteState(arg1:number,arg2:string,arg3:string):Promise<void>;
 
@@ -48,6 +56,8 @@ export function GetFirmware(arg1:number):Promise<Array<types.Firmware>>;
 
 export function GetGameController(arg1:number):Promise<string>;
 
+export function GetGameSaveSlot(arg1:number):Promise<string>;
+
 export function GetGameStartupFile(arg1:number):Promise<string>;
 
 export function GetLibrary(arg1:number,arg2:number,arg3:number,arg4:string):Promise<types.LibraryResult_go_romm_sync_types_Game_>;
@@ -78,9 +88,13 @@ export function GetRomMHost():Promise<string>;
 
 export function GetRomStartupFiles(arg1:number):Promise<Array<string>>;
 
+export function GetSaveSlots(arg1:number):Promise<Array<types.SaveSlot>>;
+
 export function GetSaves(arg1:number):Promise<Array<types.FileItem>>;
 
 export function GetServerSaves(arg1:number):Promise<Array<types.ServerSave>>;
+
+export function GetServerSavesForSlot(arg1:number,arg2:string):Promise<Array<types.ServerSave>>;
 
 export function GetServerStates(arg1:number):Promise<Array<types.ServerState>>;
 
@@ -118,6 +132,8 @@ export function SelectRetroArchExecutable():Promise<string>;
 
 export function SetGameController(arg1:number,arg2:string):Promise<void>;
 
+export function SetGameSaveSlot(arg1:number,arg2:string):Promise<void>;
+
 export function SetGameStartupFile(arg1:number,arg2:string):Promise<void>;
 
 export function SetPlatformFirmware(arg1:string,arg2:types.Firmware):Promise<void>;
@@ -135,6 +151,8 @@ export function UpdateRetroArchBios():Promise<void>;
 export function UpdateRetroArchCores():Promise<void>;
 
 export function UploadSave(arg1:number,arg2:string,arg3:string):Promise<void>;
+
+export function UploadSaveToSlot(arg1:number,arg2:string,arg3:string,arg4:string):Promise<void>;
 
 export function UploadState(arg1:number,arg2:string,arg3:string):Promise<void>;
 

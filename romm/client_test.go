@@ -283,7 +283,7 @@ func TestUploadAsset(t *testing.T) {
 	client := NewClient(server.URL)
 	client.Token = "test-token"
 
-	err := client.UploadSave(1, "snes9x", "save.srm", []byte("save data"))
+	err := client.UploadSave(1, "snes9x", "save.srm", []byte("save data"), "default")
 	if err != nil {
 		t.Fatalf("UploadSave failed: %v", err)
 	}
@@ -477,4 +477,150 @@ func TestDownloadRomFile(t *testing.T) {
 			t.Error("Expected error for unauthenticated client, got nil")
 		}
 	})
+}
+
+func TestUploadSave_Slot(t *testing.T) {
+	var capturedSlot string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedSlot = r.URL.Query().Get("slot")
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+	client.Token = "test-token"
+
+	err := client.UploadSave(1, "snes9x", "save.srm", []byte("data"), "custom_slot")
+	if err != nil {
+		t.Fatalf("UploadSave failed: %v", err)
+	}
+	if capturedSlot != "custom_slot" {
+		t.Errorf("Expected slot 'custom_slot', got '%s'", capturedSlot)
+	}
+}
+
+func TestGetSavesForSlot(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		slotQuery := r.URL.Query().Get("slot")
+		if slotQuery == "slotA" {
+			w.Write([]byte(`[{"id": 1, "filename": "saveA.srm", "slot": "slotA"}]`))
+		} else {
+			w.Write([]byte(`[
+				{"id": 1, "filename": "saveA.srm", "slot": "slotA"},
+				{"id": 2, "filename": "legacy.srm", "slot": null}
+			]`))
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+	client.Token = "test-token"
+
+	// Named slot
+	savesA, err := client.GetSavesForSlot(1, "slotA")
+	if err != nil {
+		t.Fatalf("GetSavesForSlot failed: %v", err)
+	}
+	if len(savesA) != 1 || savesA[0].Slot != "slotA" {
+		t.Errorf("Expected 1 save in slotA, got %v", savesA)
+	}
+
+	// Legacy slot (empty string)
+	legacySaves, err := client.GetSavesForSlot(1, "")
+	if err != nil {
+		t.Fatalf("GetSavesForSlot legacy failed: %v", err)
+	}
+	if len(legacySaves) != 1 || legacySaves[0].Slot != "" {
+		t.Errorf("Expected 1 legacy save, got %v", legacySaves)
+	}
+}
+
+func TestGetSavesForSlot_ReturnsMostRecentSave(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[
+			{"id": 1, "filename": "metroid [2026-10-01_10-00-00].srm", "slot": "speedrun", "updated_at": "2026-10-01T10:00:00Z"},
+			{"id": 5, "filename": "metroid [2026-10-07_12-00-00].srm", "slot": "speedrun", "updated_at": "2026-10-07T12:00:00Z"},
+			{"id": 3, "filename": "metroid [2026-10-05_09-00-00].srm", "slot": "speedrun", "updated_at": "2026-10-05T09:00:00Z"},
+			{"id": 2, "filename": "metroid.rtc", "slot": "speedrun", "updated_at": "2026-10-06T11:00:00Z"}
+		]`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+	client.Token = "test-token"
+
+	saves, err := client.GetSavesForSlot(1, "speedrun")
+	if err != nil {
+		t.Fatalf("GetSavesForSlot failed: %v", err)
+	}
+
+	if len(saves) != 2 {
+		t.Fatalf("Expected 2 saves, got %d: %v", len(saves), saves)
+	}
+
+	if saves[0].ID != 5 {
+		t.Errorf("Expected newest save id 5 first, got id %d", saves[0].ID)
+	}
+	if CleanSaveFileName(saves[0].GetEffectiveFileName()) != "metroid.srm" {
+		t.Errorf("Expected clean filename metroid.srm, got %s", CleanSaveFileName(saves[0].GetEffectiveFileName()))
+	}
+
+	if saves[1].ID != 2 {
+		t.Errorf("Expected second save id 2, got id %d", saves[1].ID)
+	}
+}
+
+func TestGetSaveSummary(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/api/saves/summary" {
+			w.Write([]byte(`{
+				"total_count": 2,
+				"slots": [
+					{"slot": "default", "count": 1, "latest": {"id": 1, "updated_at": "2026-04-10T10:00:00Z"}},
+					{"slot": null, "count": 1, "latest": {"id": 2, "updated_at": "2026-04-09T10:00:00Z"}}
+				]
+			}`))
+		} else {
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+	client.Token = "test-token"
+
+	summary, err := client.GetSaveSummary(1)
+	if err != nil {
+		t.Fatalf("GetSaveSummary failed: %v", err)
+	}
+	if summary.TotalCount != 2 || len(summary.Slots) != 2 {
+		t.Errorf("Expected 2 slots, got %v", summary)
+	}
+}
+
+func TestDeleteServerSaves(t *testing.T) {
+	var receivedBody map[string][]uint
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/saves/delete" || r.Method != "POST" {
+			http.NotFound(w, r)
+			return
+		}
+		json.NewDecoder(r.Body).Decode(&receivedBody)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+	client.Token = "test-token"
+
+	err := client.DeleteServerSaves([]uint{10, 20})
+	if err != nil {
+		t.Fatalf("DeleteServerSaves failed: %v", err)
+	}
+	if len(receivedBody["saves"]) != 2 || receivedBody["saves"][0] != 10 {
+		t.Errorf("Expected received saves [10, 20], got %v", receivedBody)
+	}
 }

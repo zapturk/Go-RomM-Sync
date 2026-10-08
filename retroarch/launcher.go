@@ -71,7 +71,7 @@ func Launch(ui UIProvider, exePath, romPath, cheevosUser, cheevosPass, coreOverr
 		syncDolphinRemap(ui, baseDir, romPath, controllerType)
 	}
 
-	appendConfigPath := prepareLaunchEnv(ui, baseDir, romBaseDir, platform, customBiosDir, cheevosUser, cheevosPass)
+	appendConfigPath := prepareLaunchEnv(ui, baseDir, romBaseDir, platform, coreBaseName, customBiosDir, cheevosUser, cheevosPass)
 
 	runRetroArch(ui, exePath, baseDir, corePath, romPath, appendConfigPath, tempRomPath)
 
@@ -213,13 +213,61 @@ func ensurePCSX2Resources(ui UIProvider, coreBaseName, baseDir string) error {
 	return nil
 }
 
+func isDolphinCore(coreBaseName, platform string) bool {
+	if strings.Contains(strings.ToLower(coreBaseName), "dolphin") {
+		return true
+	}
+	p := IdentifyPlatform(platform)
+	return p == "gamecube" || p == "wii"
+}
+
+// MigrateDolphinUserDir migrates saves from a legacy saves/User directory to saves/dolphin-emu/User.
+func MigrateDolphinUserDir(savesDir string) {
+	userDir := filepath.Join(savesDir, "User")
+	if info, err := os.Stat(userDir); err != nil || !info.IsDir() {
+		return
+	}
+	targetUserDir := filepath.Join(savesDir, "dolphin-emu", "User")
+	_ = os.MkdirAll(targetUserDir, 0o755)
+	_ = filepath.Walk(userDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		rel, err := filepath.Rel(userDir, path)
+		if err != nil || rel == "." {
+			return nil
+		}
+		targetPath := filepath.Join(targetUserDir, rel)
+		if info.IsDir() {
+			return os.MkdirAll(targetPath, 0o755)
+		}
+		dstInfo, dstErr := os.Stat(targetPath)
+		if os.IsNotExist(dstErr) || (dstErr == nil && info.ModTime().After(dstInfo.ModTime())) {
+			_ = os.MkdirAll(filepath.Dir(targetPath), 0o755)
+			_ = os.Rename(path, targetPath)
+		}
+		return nil
+	})
+	_ = os.RemoveAll(userDir)
+}
+
 // prepareLaunchEnv sets up the directories and config file needed for a RetroArch launch.
-func prepareLaunchEnv(ui UIProvider, baseDir, romBaseDir, platform, customBiosDir, cheevosUser, cheevosPass string) string {
+func prepareLaunchEnv(ui UIProvider, baseDir, romBaseDir, platform, coreBaseName, customBiosDir, cheevosUser, cheevosPass string) string {
 	savesDir := filepath.Join(romBaseDir, constants.DirSaves)
 	statesDir := filepath.Join(romBaseDir, constants.DirStates)
+
+	if isDolphinCore(coreBaseName, platform) {
+		MigrateDolphinUserDir(savesDir)
+		savesDir = filepath.Join(savesDir, "dolphin-emu")
+		statesDir = filepath.Join(statesDir, "dolphin-emu")
+	}
+
 	ui.LogInfof("Launch: Saves dir: %s, States dir: %s", savesDir, statesDir)
 	if err := os.MkdirAll(savesDir, 0o755); err != nil {
 		ui.LogErrorf("MkdirAll failed for %s: %v", savesDir, err)
+	}
+	if err := os.MkdirAll(statesDir, 0o755); err != nil {
+		ui.LogErrorf("MkdirAll failed for %s: %v", statesDir, err)
 	}
 
 	systemDir := resolveSystemDir(ui, baseDir, platform, customBiosDir)
@@ -260,7 +308,8 @@ func writeTempConfig(ui UIProvider, savesDir, statesDir, systemDir, cheevosUser,
 	}
 
 	content := fmt.Sprintf(
-		"savefile_directory = %q\nsavestate_directory = %q\nsystem_directory = %q\n",
+		"savefile_directory = %q\nsavestate_directory = %q\nsystem_directory = %q\n"+
+			"sort_savefiles_enable = \"false\"\nsort_savefiles_by_content_enable = \"false\"\n",
 		savesDir, statesDir, systemDir,
 	)
 	if cheevosUser != "" && cheevosPass != "" {
