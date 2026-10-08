@@ -214,12 +214,15 @@ func ensurePCSX2Resources(ui UIProvider, coreBaseName, baseDir string) error {
 }
 
 func isDolphinCore(coreBaseName, platform string) bool {
-	c := strings.ToLower(coreBaseName)
-	p := strings.ToLower(platform)
-	return strings.Contains(c, "dolphin") || p == "gamecube" || p == "ngc" || p == "gc" || p == "wii" || p == "wiiware"
+	if strings.Contains(strings.ToLower(coreBaseName), "dolphin") {
+		return true
+	}
+	p := IdentifyPlatform(platform)
+	return p == "gamecube" || p == "wii"
 }
 
-func migrateDolphinUserDir(savesDir string) {
+// MigrateDolphinUserDir migrates saves from a legacy saves/User directory to saves/dolphin-emu/User.
+func MigrateDolphinUserDir(savesDir string) {
 	userDir := filepath.Join(savesDir, "User")
 	if info, err := os.Stat(userDir); err != nil || !info.IsDir() {
 		return
@@ -254,7 +257,7 @@ func prepareLaunchEnv(ui UIProvider, baseDir, romBaseDir, platform, coreBaseName
 	statesDir := filepath.Join(romBaseDir, constants.DirStates)
 
 	if isDolphinCore(coreBaseName, platform) {
-		migrateDolphinUserDir(savesDir)
+		MigrateDolphinUserDir(savesDir)
 		savesDir = filepath.Join(savesDir, "dolphin-emu")
 		statesDir = filepath.Join(statesDir, "dolphin-emu")
 	}

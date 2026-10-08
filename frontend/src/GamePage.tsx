@@ -64,6 +64,13 @@ const normalizeCoreForMatch = (core: string): string => {
 const isMatchingItem = (o: any, name: string, core: string) => 
     getCleanName(o) === name && normalizeCoreForMatch(getItemCore(o)) === normalizeCoreForMatch(core);
 
+const resolveDownloadEmulator = (serverEmulator?: string, selectedCore?: string, isGameCube?: boolean): string => {
+    if (isGameCube && (serverEmulator || '').match(/(?:User[\\\/]GC|Card [AB])/i)) {
+        return serverEmulator || '';
+    }
+    return selectedCore || serverEmulator || '';
+};
+
 const getItemTime = (item: any): number => {
     if (!item || !item.updated_at) return 0;
     return new Date(item.updated_at).getTime();
@@ -269,9 +276,9 @@ function useGameSavesAndStates(
             if (action === SyncAction.Upload && local) {
                 await uploadFn(gameId, local.core, local.name).catch(console.error);
             } else if (action === SyncAction.Download && serverClean) {
-                const targetEmulator = (isGameCube && (serverClean.emulator || '').match(/(?:User[\\\/]GC|Card [AB])/i))
-                    ? serverClean.emulator
-                    : ((type === 'saves' && selectedCore) ? selectedCore : serverClean.emulator);
+                const targetEmulator = (type === 'saves')
+                    ? resolveDownloadEmulator(serverClean.emulator, selectedCore, isGameCube)
+                    : serverClean.emulator;
                 await downloadFn(gameId, serverClean.id, targetEmulator, name, serverClean.updated_at).catch(console.error);
             }
         }
@@ -384,9 +391,7 @@ function useGameSavesAndStates(
     const handleDownloadServerSave = useCallback((save: types.ServerSave) => {
         setDownloadStatus(`Downloading save ${save.file_name}...`);
         const cleanFileName = save.file_name.replace(TIMESTAMP_REGEX, "");
-        const targetEmulator = (isGameCube && (save.emulator || '').match(/(?:User[\\\/]GC|Card [AB])/i))
-            ? save.emulator
-            : (selectedCore || save.emulator);
+        const targetEmulator = resolveDownloadEmulator(save.emulator, selectedCore, isGameCube);
         DownloadServerSave(gameId, save.id, targetEmulator, cleanFileName, save.updated_at).then(() => {
             setSuccessStatus("Server save downloaded successfully!");
             fetchAppData();
