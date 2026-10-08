@@ -921,7 +921,7 @@ func (a *App) SetGameStartupFile(id uint, fileName string) error {
 }
 
 // GetGameSaveSlot returns the active save slot for the given game,
-// defaulting to "default" if not set.
+// defaulting to constants.DefaultSaveSlot if not set.
 func (a *App) GetGameSaveSlot(id uint) string {
 	cfg := a.configManager.GetConfig()
 	key := strconv.FormatUint(uint64(id), 10)
@@ -930,7 +930,7 @@ func (a *App) GetGameSaveSlot(id uint) string {
 			return val
 		}
 	}
-	return "default"
+	return constants.DefaultSaveSlot
 }
 
 // SetGameSaveSlot saves the selected save slot name for the given game.
@@ -938,7 +938,7 @@ func (a *App) SetGameSaveSlot(id uint, slot string) error {
 	key := strconv.FormatUint(uint64(id), 10)
 	slot = strings.TrimSpace(slot)
 	if slot == "" {
-		slot = "default"
+		slot = constants.DefaultSaveSlot
 	}
 	return a.configManager.Update(func(cfg *types.AppConfig) {
 		if cfg.GameSaveSlots == nil {
@@ -950,7 +950,7 @@ func (a *App) SetGameSaveSlot(id uint, slot string) error {
 
 // GetSaveSlots returns all available save slots for a game, merging
 // server slots, custom local slots, and the active slot.
-func (a *App) GetSaveSlots(id uint) ([]types.SaveSlot, error) {
+func (a *App) GetSaveSlots(id uint) []types.SaveSlot {
 	activeSlot := a.GetGameSaveSlot(id)
 	cfg := a.configManager.GetConfig()
 	key := strconv.FormatUint(uint64(id), 10)
@@ -1000,13 +1000,13 @@ func (a *App) GetSaveSlots(id uint) ([]types.SaveSlot, error) {
 	}
 
 	// Ensure "default" is in the list
-	if _, exists := slotMap["default"]; !exists {
-		slotMap["default"] = &types.SaveSlot{
-			Slot:            "default",
+	if _, exists := slotMap[constants.DefaultSaveSlot]; !exists {
+		slotMap[constants.DefaultSaveSlot] = &types.SaveSlot{
+			Slot:            constants.DefaultSaveSlot,
 			Count:           0,
 			LatestUpdatedAt: "",
 		}
-		slotOrder = append(slotOrder, "default")
+		slotOrder = append(slotOrder, constants.DefaultSaveSlot)
 	}
 
 	var result []types.SaveSlot
@@ -1018,7 +1018,7 @@ func (a *App) GetSaveSlots(id uint) ([]types.SaveSlot, error) {
 		}
 	}
 
-	return result, nil
+	return result
 }
 
 // CreateSaveSlot creates a new custom save slot for a game and sets it as active.
@@ -1100,7 +1100,7 @@ func (a *App) DeleteSaveSlot(id uint, slot string) error {
 			}
 		}
 		if cfg.GameSaveSlots != nil && cfg.GameSaveSlots[key] == slot {
-			cfg.GameSaveSlots[key] = "default"
+			cfg.GameSaveSlots[key] = constants.DefaultSaveSlot
 		}
 	})
 }

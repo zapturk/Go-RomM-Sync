@@ -90,3 +90,8 @@ const (
 	ExtZip = ".zip"
 	ExtBin = ".bin"
 )
+
+// Save Slots
+const (
+	DefaultSaveSlot = "default"
+)

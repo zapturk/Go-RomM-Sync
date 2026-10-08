@@ -29,11 +29,23 @@ const (
 	corePPSSPP    = "PPSSPP"
 	corePPSSPP_LR = "ppsspp_libretro"
 	platformPSP   = "psp"
+
+	regionUSA = "USA"
+	regionEUR = "EUR"
+	regionJAP = "JAP"
+	regionJPN = "JPN"
+	cardA     = "Card A"
+	cardB     = "Card B"
+
+	extGCI = ".gci"
+	extGCP = ".gcp"
+	extRaw = ".raw"
+	extSav = ".sav"
 )
 
 var (
-	dolphinGCRegions = []string{"USA", "EUR", "JAP", "JPN"}
-	dolphinGCCards   = []string{"Card A", "Card B"}
+	dolphinGCRegions = []string{regionUSA, regionEUR, regionJAP, regionJPN}
+	dolphinGCCards   = []string{cardA, cardB}
 )
 
 func isGameCubePlatform(platform string) bool {
@@ -71,11 +83,11 @@ func isGameCubeSave(platform, core, filename string) bool {
 		return true
 	}
 	ext := strings.ToLower(filepath.Ext(filename))
-	if ext == ".gci" || ext == ".gcp" {
+	if ext == extGCI || ext == extGCP {
 		return true
 	}
 	upperFile := strings.ToUpper(filename)
-	return (ext == ".raw" || ext == ".sav") && (strings.HasPrefix(upperFile, "MEMORYCARDA") || strings.HasPrefix(upperFile, "MEMORYCARDB"))
+	return (ext == extRaw || ext == extSav) && (strings.HasPrefix(upperFile, "MEMORYCARDA") || strings.HasPrefix(upperFile, "MEMORYCARDB"))
 }
 
 // Service manages the synchronization of saves and states.
@@ -319,14 +331,33 @@ func (s *Service) UploadState(id uint, core, filename string) error {
 	return s.uploadServerAsset(id, core, filename, constants.DirStates, "")
 }
 
-func getLocalAssetPaths(romDir, biosDir, subDir, core, filename, platform string) (baseDir, filePath string) {
+func getSpecialAssetPaths(romDir, biosDir, subDir, core, filename, platform string) (baseDir, filePath string, ok bool) {
 	if core == corePCSX2 && subDir == constants.DirSaves {
 		base := filepath.Join(biosDir, "pcsx2", "memcards")
-		return base, filepath.Join(base, filename)
+		return base, filepath.Join(base, filename), true
 	}
 	if platform == platformPSP && (core == corePPSSPP || core == corePPSSPP_LR) && subDir == constants.DirSaves {
 		base := filepath.Join(romDir, subDir, core, "PSP", "SAVEDATA")
-		return base, filepath.Join(base, filename)
+		return base, filepath.Join(base, filename), true
+	}
+	return "", "", false
+}
+
+func resolveStandardSavePath(base, core, filename string) string {
+	flatPath := filepath.Join(base, filename)
+	if _, err := os.Stat(flatPath); err == nil {
+		return flatPath
+	}
+	corePath := filepath.Join(base, core, filename)
+	if _, err := os.Stat(corePath); err == nil {
+		return corePath
+	}
+	return flatPath
+}
+
+func getLocalAssetPaths(romDir, biosDir, subDir, core, filename, platform string) (baseDir, filePath string) {
+	if base, path, ok := getSpecialAssetPaths(romDir, biosDir, subDir, core, filename, platform); ok {
+		return base, path
 	}
 	base := filepath.Join(romDir, subDir)
 	if core == constants.CoreAzahar && filename == azaharDirName {
@@ -337,23 +368,15 @@ func getLocalAssetPaths(romDir, biosDir, subDir, core, filename, platform string
 		return base, filepath.Join(base, wiiDirName)
 	}
 	if isGameCubeSave(platform, core, filename) && subDir == constants.DirSaves {
-		return base, findOrResolveGameCubeSavePath(base, core, filename, platform)
+		return base, findOrResolveGameCubeSavePath(base, core, filename)
 	}
 	if subDir == constants.DirSaves && !isSpecialSaveCore(core) {
-		flatPath := filepath.Join(base, filename)
-		if _, err := os.Stat(flatPath); err == nil {
-			return base, flatPath
-		}
-		corePath := filepath.Join(base, core, filename)
-		if _, err := os.Stat(corePath); err == nil {
-			return base, corePath
-		}
-		return base, flatPath
+		return base, resolveStandardSavePath(base, core, filename)
 	}
 	return base, filepath.Join(base, core, filename)
 }
 
-func findOrResolveGameCubeSavePath(savesDir, core, filename, platform string) string {
+func findOrResolveGameCubeSavePath(savesDir, core, filename string) string {
 	normCore := filepath.ToSlash(core)
 	if strings.HasPrefix(normCore, coreDolphin+"/User/GC") {
 		candidate := filepath.Join(savesDir, filepath.FromSlash(normCore), filename)
@@ -667,7 +690,7 @@ func (s *Service) getGameCubeDestDir(game *types.Game, core, filename string) st
 
 	upperFile := strings.ToUpper(filename)
 	ext := strings.ToLower(filepath.Ext(filename))
-	if (ext == ".raw" || ext == ".gcp") && (strings.HasPrefix(upperFile, "MEMORYCARDA") || strings.HasPrefix(upperFile, "MEMORYCARDB")) &&
+	if (ext == extRaw || ext == extGCP) && (strings.HasPrefix(upperFile, "MEMORYCARDA") || strings.HasPrefix(upperFile, "MEMORYCARDB")) &&
 		!strings.Contains(strings.ToUpper(core), "CARD") {
 		return gcBase
 	}
@@ -681,60 +704,81 @@ func resolveGameCubeCard(core, filename string) string {
 	upperCore := strings.ToUpper(strings.ReplaceAll(core, "\\", "/"))
 	upperFile := strings.ToUpper(filename)
 	if strings.Contains(upperCore, "CARD B") || strings.Contains(upperFile, "CARD B") || strings.HasPrefix(upperFile, "MEMORYCARDB") {
-		return "Card B"
+		return cardB
 	}
-	return "Card A"
+	return cardA
 }
 
 func normalizeRegion(reg string) string {
-	if reg == "JPN" {
-		return "JAP"
+	if reg == regionJPN {
+		return regionJAP
 	}
 	return reg
 }
 
-func resolveGameCubeRegion(game *types.Game, core, filename, savesDir string) string {
+func detectRegionFromCore(core string) string {
 	upperCore := strings.ToUpper(strings.ReplaceAll(core, "\\", "/"))
 	for _, reg := range dolphinGCRegions {
 		if strings.Contains(upperCore, "/"+reg+"/") || strings.HasSuffix(upperCore, "/"+reg) || upperCore == reg {
 			return normalizeRegion(reg)
 		}
 	}
+	return ""
+}
 
+func detectRegionFromFilename(filename string) string {
 	upperFile := strings.ToUpper(filename)
 	for _, reg := range dolphinGCRegions {
 		if strings.Contains(upperFile, "."+reg+".") || strings.Contains(upperFile, "_"+reg+"_") || strings.Contains(upperFile, "("+reg+")") {
 			return normalizeRegion(reg)
 		}
 	}
+	return detectRegionFromGCI(filename)
+}
 
-	if reg := detectRegionFromGCI(filename); reg != "" {
-		return reg
-	}
-
+func detectRegionFromExistingDir(savesDir string) string {
 	gcBase := filepath.Join(savesDir, coreDolphin, "User", "GC")
 	for _, reg := range dolphinGCRegions {
 		if info, err := os.Stat(filepath.Join(gcBase, reg)); err == nil && info.IsDir() {
 			return normalizeRegion(reg)
 		}
 	}
+	return ""
+}
 
-	if game != nil {
-		combined := strings.ToUpper(game.Title + " " + game.FullPath)
-		if strings.Contains(combined, "EUROPE") || strings.Contains(combined, "(EUR)") || strings.Contains(combined, "(PAL)") {
-			return "EUR"
-		}
-		if strings.Contains(combined, "JAPAN") || strings.Contains(combined, "(JAP)") || strings.Contains(combined, "(JPN)") {
-			return "JAP"
-		}
+func detectRegionFromGame(game *types.Game) string {
+	if game == nil {
+		return ""
 	}
+	combined := strings.ToUpper(game.Title + " " + game.FullPath)
+	if strings.Contains(combined, "EUROPE") || strings.Contains(combined, "(EUR)") || strings.Contains(combined, "(PAL)") {
+		return regionEUR
+	}
+	if strings.Contains(combined, "JAPAN") || strings.Contains(combined, "(JAP)") || strings.Contains(combined, "(JPN)") {
+		return regionJAP
+	}
+	return ""
+}
 
-	return "USA"
+func resolveGameCubeRegion(game *types.Game, core, filename, savesDir string) string {
+	if reg := detectRegionFromCore(core); reg != "" {
+		return reg
+	}
+	if reg := detectRegionFromFilename(filename); reg != "" {
+		return reg
+	}
+	if reg := detectRegionFromExistingDir(savesDir); reg != "" {
+		return reg
+	}
+	if reg := detectRegionFromGame(game); reg != "" {
+		return reg
+	}
+	return regionUSA
 }
 
 func detectRegionFromGCI(filename string) string {
 	ext := strings.ToLower(filepath.Ext(filename))
-	if ext != ".gci" {
+	if ext != extGCI {
 		return ""
 	}
 	base := strings.TrimSuffix(filepath.Base(filename), ext)
@@ -753,7 +797,7 @@ func isGameID(s string) bool {
 	s = strings.ToUpper(s)
 	for i := 0; i < 3; i++ {
 		c := s[i]
-		if !((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
+		if (c < 'A' || c > 'Z') && (c < '0' || c > '9') {
 			return false
 		}
 	}
@@ -763,11 +807,11 @@ func isGameID(s string) bool {
 func regionCodeFromChar(c byte) string {
 	switch c {
 	case 'E', 'e':
-		return "USA"
+		return regionUSA
 	case 'P', 'p', 'X', 'x', 'Y', 'y', 'D', 'd', 'F', 'f', 'I', 'i', 'S', 's', 'U', 'u':
-		return "EUR"
+		return regionEUR
 	case 'J', 'j':
-		return "JAP"
+		return regionJAP
 	default:
 		return ""
 	}
@@ -833,16 +877,9 @@ func (s *Service) deleteAllCoreSaves(savesDir, filename string) {
 	}
 }
 
-type saveFileInfo struct {
-	name    string
-	core    string
-	path    string
-	modTime time.Time
-}
-
 var knownSaveExtensions = map[string]bool{
 	".srm": true,
-	".sav": true,
+	extSav: true,
 	".rtc": true,
 	".eep": true,
 	".fla": true,
@@ -850,12 +887,12 @@ var knownSaveExtensions = map[string]bool{
 	".mpk": true,
 	".sra": true,
 	".ram": true,
-	".raw": true,
+	extRaw: true,
 	".ps2": true,
 	".mcd": true,
 	".mcr": true,
-	".gci": true,
-	".gcp": true,
+	extGCI: true,
+	extGCP: true,
 }
 
 func isBatterySaveFile(filename string) bool {
@@ -906,7 +943,7 @@ func isSpecialSaveCore(core string) bool {
 	}
 	base := filepath.Base(strings.ReplaceAll(core, "\\", "/"))
 	switch base {
-	case corePCSX2, coreDolphin, corePPSSPP, corePPSSPP_LR, constants.CoreAzahar, "Card A", "Card B", "User":
+	case corePCSX2, coreDolphin, corePPSSPP, corePPSSPP_LR, constants.CoreAzahar, cardA, cardB, "User":
 		return true
 	}
 	norm := strings.ToLower(strings.ReplaceAll(core, "\\", "/"))
@@ -994,20 +1031,6 @@ func copyFileRawPreserveTime(src, dst string, modTime time.Time) error {
 	}
 
 	return os.Chtimes(dst, modTime, modTime)
-}
-
-func copyFilePreserveTime(src, dst string) error {
-	srcInfo, err := os.Stat(src)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return err
-	}
-	if dstInfo, err := os.Stat(dst); err == nil && !os.SameFile(srcInfo, dstInfo) {
-		backupExistingFile(dst)
-	}
-	return copyFileRawPreserveTime(src, dst, srcInfo.ModTime())
 }
 
 func getGameExpectedSavePrefix(game *types.Game) string {
@@ -1099,7 +1122,7 @@ func (s *Service) migrateMisplacedGameCubeSaves(game *types.Game) {
 		}
 		ext := strings.ToLower(filepath.Ext(e.Name()))
 		upper := strings.ToUpper(e.Name())
-		if ext == ".gci" || ext == ".gcp" || ((ext == ".raw" || ext == ".sav") && strings.HasPrefix(upper, "MEMORYCARD")) {
+		if ext == extGCI || ext == extGCP || ((ext == extRaw || ext == extSav) && strings.HasPrefix(upper, "MEMORYCARD")) {
 			src := filepath.Join(savesDir, e.Name())
 			destDir := s.getGameCubeDestDir(game, "", e.Name())
 			_ = os.MkdirAll(destDir, 0o755)

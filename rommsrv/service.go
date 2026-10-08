@@ -157,7 +157,7 @@ func (s *Service) GetServerSavesForSlot(id uint, slot string) ([]types.ServerSav
 func (s *Service) GetSaveSlots(romID uint) ([]types.SaveSlot, error) {
 	summary, err := s.client.GetSaveSummary(romID)
 	if err == nil && summary != nil {
-		var slots []types.SaveSlot
+		slots := make([]types.SaveSlot, 0, len(summary.Slots))
 		for _, item := range summary.Slots {
 			slotName := ""
 			if item.Slot != nil {

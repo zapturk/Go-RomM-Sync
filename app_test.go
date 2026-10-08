@@ -647,10 +647,7 @@ func TestSaveSlots_ActiveAndConfig(t *testing.T) {
 	}
 
 	// GetSaveSlots in offline mode should return the custom slots, active slot, and default
-	slots, err := app.GetSaveSlots(1)
-	if err != nil {
-		t.Fatalf("GetSaveSlots failed: %v", err)
-	}
+	slots := app.GetSaveSlots(1)
 	if len(slots) < 2 {
 		t.Fatalf("Expected at least 2 slots, got %d", len(slots))
 	}
