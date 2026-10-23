@@ -54,6 +54,37 @@ func TestFindBiosAssets_MultiPart(t *testing.T) {
 	}
 }
 
+func TestFindBiosAssets_MultiPartZip(t *testing.T) {
+	release := &githubRelease{
+		Assets: []struct {
+			Name               string `json:"name"`
+			BrowserDownloadURL string `json:"browser_download_url"`
+			Size               int64  `json:"size"`
+		}{
+			{Name: "Batocera_43.1_BIOS_Pack.part1of3.zip", BrowserDownloadURL: "https://example.com/batocera.001", Size: 100},
+			{Name: "RetroArch_Lakka_v1.22.2_BIOS_Pack.part2of2.zip", BrowserDownloadURL: "https://example.com/ra.part2.zip", Size: 1357136371},
+			{Name: "RetroArch_Lakka_v1.22.2_BIOS_Pack.part1of2.zip", BrowserDownloadURL: "https://example.com/ra.part1.zip", Size: 1992294400},
+			{Name: "RomM_5.3.1_BIOS_Pack.zip", BrowserDownloadURL: "https://example.com/romm.zip", Size: 100},
+		},
+	}
+
+	parts, err := findBiosAssets(release)
+	if err != nil {
+		t.Fatalf("findBiosAssets failed: %v", err)
+	}
+
+	if len(parts) != 2 {
+		t.Fatalf("expected 2 parts, got %d", len(parts))
+	}
+
+	if parts[0].Name != "RetroArch_Lakka_v1.22.2_BIOS_Pack.part1of2.zip" || parts[0].PartNumber != 1 {
+		t.Errorf("expected part 1 first, got %+v", parts[0])
+	}
+	if parts[1].Name != "RetroArch_Lakka_v1.22.2_BIOS_Pack.part2of2.zip" || parts[1].PartNumber != 2 {
+		t.Errorf("expected part 2 second, got %+v", parts[1])
+	}
+}
+
 func TestFindBiosAssets_SingleZip(t *testing.T) {
 	release := &githubRelease{
 		Assets: []struct {
@@ -249,6 +280,119 @@ func TestUpdateBios_MultiPart_Integration(t *testing.T) {
 	verifyExtractedBios(t, tempDir)
 
 	// 6. Verify UI events
+	if ui.EmittedEvents[constants.EventPlayStatus] == 0 {
+		t.Errorf("expected EventPlayStatus events, got 0")
+	}
+
+	foundSuccess := false
+	for _, msg := range ui.EmittedEventMsgs[constants.EventPlayStatus] {
+		if msg == "BIOS pack updated successfully!" {
+			foundSuccess = true
+			break
+		}
+	}
+	if !foundSuccess {
+		t.Errorf("expected 'BIOS pack updated successfully!' status message, got: %v", ui.EmittedEventMsgs[constants.EventPlayStatus])
+	}
+
+	if ui.EmittedEvents["bios-download-progress"] == 0 {
+		t.Errorf("expected bios-download-progress events, got 0")
+	}
+}
+
+func createSingleTestZip(files map[string]string) ([]byte, error) {
+	zipBuf := new(bytes.Buffer)
+	zw := zip.NewWriter(zipBuf)
+	for name, content := range files {
+		f, createErr := zw.Create(name)
+		if createErr != nil {
+			return nil, createErr
+		}
+		if _, writeErr := f.Write([]byte(content)); writeErr != nil {
+			return nil, writeErr
+		}
+	}
+	if closeErr := zw.Close(); closeErr != nil {
+		return nil, closeErr
+	}
+	return zipBuf.Bytes(), nil
+}
+
+func TestUpdateBios_MultiPartZip_Integration(t *testing.T) {
+	part1Bytes, err := createSingleTestZip(map[string]string{
+		"scph1001.bin":        "playstation-bios-data",
+		"system/gba_bios.bin": "gameboy-advance-bios-data",
+	})
+	if err != nil {
+		t.Fatalf("failed to build part 1 zip: %v", err)
+	}
+
+	part2Bytes, err := createSingleTestZip(map[string]string{
+		"dc/dc_boot.bin": "dreamcast-boot-data",
+	})
+	if err != nil {
+		t.Fatalf("failed to build part 2 zip: %v", err)
+	}
+
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/releases/latest":
+			rel := map[string]interface{}{
+				"assets": []map[string]interface{}{
+					{
+						"name":                 "RetroArch_Lakka_v1.22.2_BIOS_Pack.part1of2.zip",
+						"browser_download_url": server.URL + "/download/ra.part1.zip",
+						"size":                 len(part1Bytes),
+					},
+					{
+						"name":                 "RetroArch_Lakka_v1.22.2_BIOS_Pack.part2of2.zip",
+						"browser_download_url": server.URL + "/download/ra.part2.zip",
+						"size":                 len(part2Bytes),
+					},
+				},
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(rel)
+		case "/download/ra.part1.zip":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(part1Bytes)
+		case "/download/ra.part2.zip":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(part2Bytes)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	oldURL := biosReleaseURL
+	biosReleaseURL = server.URL + "/releases/latest"
+	defer func() { biosReleaseURL = oldURL }()
+
+	tempDir, err := os.MkdirTemp("", "test_system_dir_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldSysDir := overrideSystemDir
+	overrideSystemDir = tempDir
+	defer func() { overrideSystemDir = oldSysDir }()
+
+	dummyExe := filepath.Join(tempDir, "retroarch")
+	if err := os.WriteFile(dummyExe, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatalf("failed to create dummy exe: %v", err)
+	}
+
+	ui := &MockUI{}
+
+	if err := UpdateBios(ui, dummyExe); err != nil {
+		t.Fatalf("UpdateBios failed: %v", err)
+	}
+
+	verifyExtractedBios(t, tempDir)
+
 	if ui.EmittedEvents[constants.EventPlayStatus] == 0 {
 		t.Errorf("expected EventPlayStatus events, got 0")
 	}

@@ -1248,7 +1248,7 @@ func (a *App) DownloadFile(ctx context.Context, game *types.Game) (reader io.Rea
 	return a.rommSrv.GetClient().DownloadFile(ctx, game)
 }
 
-func (a *App) DownloadFirmwareContent(ctx context.Context, id uint, fileName string) (io.ReadCloser, string, error) {
+func (a *App) DownloadFirmwareContent(ctx context.Context, id uint, fileName string) (reader io.ReadCloser, filename string, err error) {
 	return a.rommSrv.GetClient().DownloadFirmwareContent(ctx, id, fileName)
 }
 
