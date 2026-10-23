@@ -63,7 +63,7 @@ jobs:
       - name: Run Linters
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.13.2
+          version: v2.15.0
           install-mode: goinstall
 
       - name: Build application
