@@ -117,7 +117,7 @@ func GetBiosFilenamesForPlatform(platformSlug string) []string {
 }
 
 var (
-	biosPackRegex  = regexp.MustCompile(`(?i)retroarch.*_bios_pack\.zip(?:\.(\d+))?$`)
+	biosPackRegex  = regexp.MustCompile(`(?i)retroarch.*_bios_pack(?:\.part(\d+)(?:of\d+)?)?\.zip(?:\.(\d+))?$`)
 	biosReleaseURL = constants.URLRetroBiosLatestRelease
 )
 
@@ -137,6 +137,7 @@ type githubRelease struct {
 }
 
 func findBiosAssets(release *githubRelease) ([]biosAsset, error) {
+	var singleAssets []biosAsset
 	var splitParts []biosAsset
 
 	for _, asset := range release.Assets {
@@ -144,15 +145,21 @@ func findBiosAssets(release *githubRelease) ([]biosAsset, error) {
 		if len(match) == 0 {
 			continue
 		}
-		if match[1] == "" {
-			return []biosAsset{{
+		if match[1] == "" && match[2] == "" {
+			singleAssets = append(singleAssets, biosAsset{
 				Name:               asset.Name,
 				BrowserDownloadURL: asset.BrowserDownloadURL,
 				Size:               asset.Size,
 				PartNumber:         1,
-			}}, nil
+			})
+			continue
 		}
-		partNum, err := strconv.Atoi(match[1])
+
+		partStr := match[1]
+		if partStr == "" {
+			partStr = match[2]
+		}
+		partNum, err := strconv.Atoi(partStr)
 		if err != nil {
 			continue
 		}
@@ -162,6 +169,10 @@ func findBiosAssets(release *githubRelease) ([]biosAsset, error) {
 			Size:               asset.Size,
 			PartNumber:         partNum,
 		})
+	}
+
+	if len(singleAssets) > 0 {
+		return []biosAsset{singleAssets[0]}, nil
 	}
 
 	if len(splitParts) == 0 {
@@ -200,6 +211,30 @@ func fetchBiosParts() ([]biosAsset, error) {
 	return findBiosAssets(&release)
 }
 
+func downloadBiosPart(ui UIProvider, part biosAsset, partIndex, totalParts int, dest io.Writer, pw *progressWriter) error {
+	if totalParts > 1 {
+		ui.EventsEmit(constants.EventPlayStatus, fmt.Sprintf("Downloading BIOS pack (part %d of %d)...", partIndex+1, totalParts))
+	} else {
+		ui.EventsEmit(constants.EventPlayStatus, "Downloading BIOS pack...")
+	}
+
+	dlResp, err := httpDownloadClient.Get(part.BrowserDownloadURL) //nolint:bodyclose // body closed below
+	if err != nil {
+		return fmt.Errorf("failed to download BIOS pack: %w", err)
+	}
+	defer dlResp.Body.Close() //nolint:errcheck
+
+	if dlResp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download BIOS pack: HTTP %d", dlResp.StatusCode)
+	}
+
+	destWriter := io.MultiWriter(dest, pw)
+	if _, err := io.Copy(destWriter, dlResp.Body); err != nil {
+		return fmt.Errorf("failed to save BIOS pack: %w", err)
+	}
+	return nil
+}
+
 func downloadBiosParts(ui UIProvider, parts []biosAsset, dest *os.File) error {
 	totalSize := int64(0)
 	for _, p := range parts {
@@ -210,32 +245,64 @@ func downloadBiosParts(ui UIProvider, parts []biosAsset, dest *os.File) error {
 		total: totalSize,
 		ui:    ui,
 	}
-	destWriter := io.MultiWriter(dest, pw)
 
 	for i, part := range parts {
-		if len(parts) > 1 {
-			ui.EventsEmit(constants.EventPlayStatus, fmt.Sprintf("Downloading BIOS pack (part %d of %d)...", i+1, len(parts)))
-		} else {
-			ui.EventsEmit(constants.EventPlayStatus, "Downloading BIOS pack...")
-		}
-
-		dlResp, err := httpDownloadClient.Get(part.BrowserDownloadURL) //nolint:bodyclose // body closed in loop
-		if err != nil {
-			return fmt.Errorf("failed to download BIOS pack: %w", err)
-		}
-
-		if dlResp.StatusCode != http.StatusOK {
-			_ = dlResp.Body.Close()
-			return fmt.Errorf("failed to download BIOS pack: HTTP %d", dlResp.StatusCode)
-		}
-
-		_, copyErr := io.Copy(destWriter, dlResp.Body)
-		_ = dlResp.Body.Close()
-		if copyErr != nil {
-			return fmt.Errorf("failed to save BIOS pack: %w", copyErr)
+		if err := downloadBiosPart(ui, part, i, len(parts), dest, pw); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func downloadAndExtractBiosZips(ui UIProvider, parts []biosAsset, systemDir string) error {
+	totalSize := int64(0)
+	for _, p := range parts {
+		totalSize += p.Size
+	}
+
+	pw := &progressWriter{
+		total: totalSize,
+		ui:    ui,
+	}
+
+	for i, part := range parts {
+		tmpZip, err := os.CreateTemp("", "retrobios_*.zip")
+		if err != nil {
+			return fmt.Errorf("failed to create temp file: %w", err)
+		}
+
+		dlErr := downloadBiosPart(ui, part, i, len(parts), tmpZip, pw)
+		closeErr := tmpZip.Close()
+
+		if dlErr != nil {
+			_ = os.Remove(tmpZip.Name())
+			return dlErr
+		}
+		if closeErr != nil {
+			_ = os.Remove(tmpZip.Name())
+			return fmt.Errorf("failed to close temporary BIOS zip: %w", closeErr)
+		}
+
+		if len(parts) > 1 {
+			ui.EventsEmit(constants.EventPlayStatus, fmt.Sprintf("Extracting BIOS pack (part %d of %d)...", i+1, len(parts)))
+		} else {
+			ui.EventsEmit(constants.EventPlayStatus, "Extracting BIOS pack...")
+		}
+
+		extErr := unzipBios(ui, tmpZip.Name(), systemDir)
+		_ = os.Remove(tmpZip.Name())
+		if extErr != nil {
+			return fmt.Errorf("failed to extract BIOS pack: %w", extErr)
+		}
+	}
+	return nil
+}
+
+func isSplitArchive(parts []biosAsset) bool {
+	if len(parts) <= 1 {
+		return false
+	}
+	return !strings.HasSuffix(strings.ToLower(parts[0].Name), ".zip")
 }
 
 func UpdateBios(ui UIProvider, exePath string) error {
@@ -254,28 +321,33 @@ func UpdateBios(ui UIProvider, exePath string) error {
 		return err
 	}
 
-	tmpZip, err := os.CreateTemp("", "retrobios_*.zip")
-	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
-	}
-	defer func() {
-		if err := os.Remove(tmpZip.Name()); err != nil && !os.IsNotExist(err) {
-			ui.LogErrorf("Failed to remove temp zip: %v", err)
+	if isSplitArchive(parts) {
+		tmpZip, err := os.CreateTemp("", "retrobios_*.zip")
+		if err != nil {
+			return fmt.Errorf("failed to create temp file: %w", err)
 		}
-	}()
+		defer func() {
+			if err := os.Remove(tmpZip.Name()); err != nil && !os.IsNotExist(err) {
+				ui.LogErrorf("Failed to remove temp zip: %v", err)
+			}
+		}()
 
-	if err := downloadBiosParts(ui, parts, tmpZip); err != nil {
-		_ = tmpZip.Close()
-		return err
-	}
+		if err := downloadBiosParts(ui, parts, tmpZip); err != nil {
+			_ = tmpZip.Close()
+			return err
+		}
+		if err := tmpZip.Close(); err != nil {
+			return fmt.Errorf("failed to close temporary BIOS zip: %w", err)
+		}
 
-	if err := tmpZip.Close(); err != nil {
-		return fmt.Errorf("failed to close temporary BIOS zip: %w", err)
-	}
-
-	ui.EventsEmit(constants.EventPlayStatus, "Extracting BIOS pack...")
-	if err := unzipBios(ui, tmpZip.Name(), systemDir); err != nil {
-		return fmt.Errorf("failed to extract BIOS pack: %w", err)
+		ui.EventsEmit(constants.EventPlayStatus, "Extracting BIOS pack...")
+		if err := unzipBios(ui, tmpZip.Name(), systemDir); err != nil {
+			return fmt.Errorf("failed to extract BIOS pack: %w", err)
+		}
+	} else {
+		if err := downloadAndExtractBiosZips(ui, parts, systemDir); err != nil {
+			return err
+		}
 	}
 
 	ui.EventsEmit(constants.EventPlayStatus, "BIOS pack updated successfully!")
