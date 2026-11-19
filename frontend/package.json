@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@noriginmedia/norigin-spatial-navigation": "^3.3.0",
+    "@noriginmedia/norigin-spatial-navigation": "^3.4.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
