@@ -47,7 +47,7 @@ Go-RomM-Sync is a desktop application built with Wails and React that synchroniz
 
 ## Technology Stack
 
-- **Backend**: Go with [Wails v2](https://wails.io/) for native OS integration.
+- **Backend**: Go with [Wails v3](https://wails.io/) for native OS integration.
 - **Frontend**: React + TypeScript + Vite.
 - **Styling**: Vanilla CSS for a lightweight, performant UI.
 - **Navigation**: Norigin Spatial Navigation for console-like input handling.
@@ -59,34 +59,43 @@ Go-RomM-Sync is a desktop application built with Wails and React that synchroniz
 - Go 1.23+ installed on your system.
 - Node.js 18+ installed on your system.
 - NPM installed on your system.
-- Wails cli installed on your system.
+- Wails v3 CLI (`wails3`) installed:
+  ```bash
+  go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+  ```
 
 ### Running Locally
 
 To run the application in development mode with hot reloading:
 
 ```bash
-wails dev
+wails3 dev
 ```
 
 ### Building
 
-To build a production-ready package for your current platform:
+To build a binary for your current platform:
 
 ```bash
-wails build
+wails3 build
+```
+
+To create a production package (`.app` bundle on macOS, installer on Windows/Linux):
+
+```bash
+wails3 task package
 ```
 
 #### Linux Specifics
 
-For modern Linux distributions (like Ubuntu 22.04+), you may need to install additional dependencies and use specific build tags:
+For Linux distributions (like Ubuntu 22.04+), install the required WebKit and GTK development libraries:
 
 ```bash
 # Install dependencies (Ubuntu/Debian)
 sudo apt-get install libgtk-3-dev libwebkit2gtk-4.1-dev
 
-# Build with WebKit 4.1 tags
-wails build -tags webkit2_41
+# Build application
+wails3 build
 ```
 
 ## Installation
