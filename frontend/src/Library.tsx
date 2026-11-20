@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { GetLibrary, GetPlatforms, Quit, GetConfig } from "../wailsjs/go/main/App";
-import { EventsOn } from "../wailsjs/runtime";
-import { types } from "../wailsjs/go/models";
+import { GetLibrary, GetPlatforms, Quit, GetConfig } from "../bindings/go-romm-sync/app";
+import { EventsOn } from "./runtime";
+import { types } from "./models";
 import { GamePage } from "./GamePage";
 import { PlatformGridView } from "./views/Library/PlatformGridView";
 import { GameGridView } from "./views/Library/GameGridView";

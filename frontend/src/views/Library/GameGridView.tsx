@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { types } from "../../../wailsjs/go/models";
+import { types } from "../../models";
 import { GameCard } from "../../GameCard";
 import { useFocusable, setFocus, getCurrentFocusKey } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from '../../inputMode';

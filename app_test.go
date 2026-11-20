@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 func TestSaveConfigMerge(t *testing.T) {
@@ -188,7 +190,7 @@ func TestAppStartup(t *testing.T) {
 	cm.ConfigPath = configPath
 
 	app := NewApp(cm)
-	app.startup(context.Background())
+	_ = app.ServiceStartup(context.Background(), application.ServiceOptions{})
 	if app.ctx == nil {
 		t.Error("Context not saved on startup")
 	}
@@ -334,7 +336,7 @@ func TestClearImageCache(t *testing.T) {
 	os.WriteFile(filepath.Join(coversDir, "test.jpg"), []byte("data"), 0o644)
 	os.WriteFile(filepath.Join(platformsDir, "test.svg"), []byte("data"), 0o644)
 
-	app := &App{}
+	app := NewApp(config.NewConfigManager())
 	err = app.ClearImageCache()
 	if err != nil {
 		t.Fatalf("ClearImageCache failed: %v", err)

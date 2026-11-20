@@ -33,6 +33,10 @@ go.work.sum
 
 # Wails
 build/bin
+bin/
+.task/
+.wails
+build/darwin/temp.plist
 node_modules
 frontend/dist
 .DS_Store

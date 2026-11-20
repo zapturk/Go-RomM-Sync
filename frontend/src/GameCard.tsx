@@ -1,4 +1,4 @@
-import { types } from "../wailsjs/go/models";
+import { types } from "./models";
 import { GameCover } from "./GameCover";
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 import { useEffect } from "react";

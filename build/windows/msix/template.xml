@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MsixPackagingToolTemplate
+    xmlns="http://schemas.microsoft.com/msix/packaging/msixpackagingtool/template/2022">
+    <Settings
+        AllowTelemetry="false"
+        ApplyACLsToPackageFiles="true"
+        GenerateCommandLineFile="true"
+        AllowPromptForPassword="false">
+    </Settings>
+    <Installer
+        Path="go-romm-sync"
+        Arguments=""
+        InstallLocation="C:\Program Files\Zapturk\Go RomM Sync">
+    </Installer>
+    <PackageInformation
+        PackageName="Go RomM Sync"
+        PackageDisplayName="Go RomM Sync"
+        PublisherName="CN=Zapturk"
+        PublisherDisplayName="Zapturk"
+        Version="0.2.2.0"
+        PackageDescription="A seamless bridge between RomM and RetroArch for a console-like gaming experience.">
+        <Capabilities>
+            <Capability Name="runFullTrust" />
+            
+        </Capabilities>
+        <Applications>
+            <Application
+                Id="com.zapturk.gorommsync"
+                Description="A seamless bridge between RomM and RetroArch for a console-like gaming experience."
+                DisplayName="Go RomM Sync"
+                ExecutableName="go-romm-sync"
+                EntryPoint="Windows.FullTrustApplication">
+                
+            </Application>
+        </Applications>
+        <Resources>
+            <Resource Language="en-us" />
+        </Resources>
+        <Dependencies>
+            <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.19041.0" />
+        </Dependencies>
+        <Properties>
+            <Framework>false</Framework>
+            <DisplayName>Go RomM Sync</DisplayName>
+            <PublisherDisplayName>Zapturk</PublisherDisplayName>
+            <Description>A seamless bridge between RomM and RetroArch for a console-like gaming experience.</Description>
+            <Logo>Assets\AppIcon.png</Logo>
+        </Properties>
+    </PackageInformation>
+    <SaveLocation PackagePath="go-romm-sync.msix" />
+    <PackageIntegrity>
+        <CertificatePath></CertificatePath>
+    </PackageIntegrity>
+</MsixPackagingToolTemplate>

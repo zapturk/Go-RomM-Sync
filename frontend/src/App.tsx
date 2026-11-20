@@ -3,12 +3,13 @@ import './App.css';
 import LoginView from './Login';
 import Library from './Library';
 import Settings from './Settings';
-import { Login, GetConfig } from "../wailsjs/go/main/App";
+import { Login, GetConfig } from "../bindings/go-romm-sync/app";
 import { init } from '@noriginmedia/norigin-spatial-navigation';
 import { useGamepad } from './useGamepad';
 import './inputMode'; // Activate input mode tracking
 import { APP_EVENTS } from './constants';
 import { applyTheme } from './theme';
+import { EventsOn } from './runtime';
 
 function App() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -21,22 +22,12 @@ function App() {
     useEffect(() => {
         init();
 
-        // @ts-ignore
-        if (window.runtime) {
-            // @ts-ignore
-            window.runtime.EventsOn(APP_EVENTS.GAME_STARTED, () => setIsPlaying(true));
-            // @ts-ignore
-            window.runtime.EventsOn(APP_EVENTS.GAME_EXITED, () => setIsPlaying(false));
-        }
+        const unlistenStarted = EventsOn(APP_EVENTS.GAME_STARTED, () => setIsPlaying(true));
+        const unlistenExited = EventsOn(APP_EVENTS.GAME_EXITED, () => setIsPlaying(false));
 
         return () => {
-            // @ts-ignore
-            if (window.runtime) {
-                // @ts-ignore
-                window.runtime.EventsOff(APP_EVENTS.GAME_STARTED);
-                // @ts-ignore
-                window.runtime.EventsOff(APP_EVENTS.GAME_EXITED);
-            }
+            unlistenStarted();
+            unlistenExited();
         };
     }, []);
 
