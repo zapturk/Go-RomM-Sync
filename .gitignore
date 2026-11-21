@@ -43,6 +43,12 @@ frontend/dist
 config.json
 go-romm-sync
 
+# Android
+.gradle/
+build/android/build/
+build/android/.gradle/
+build/android/app/build/
+
 # OpenAPI
 openapi.json
 tmp_romm/

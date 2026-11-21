@@ -29,7 +29,6 @@ import (
 // App struct
 type App struct {
 	ctx           context.Context
-	wailsApp      *application.App
 	mainWindow    *application.WebviewWindow
 	configManager *config.ConfigManager
 	rommSrv       *rommsrv.Service
@@ -60,11 +59,6 @@ func NewApp(cm *config.ConfigManager) *App {
 	app.assetSrv = assets.New(app, app.rommSrv, app)
 	app.coreResolver = retroarch.NewCoreResolver(app.librarySrv)
 	return app
-}
-
-// SetWailsApp stores the Wails application reference
-func (a *App) SetWailsApp(app *application.App) {
-	a.wailsApp = app
 }
 
 // SetMainWindow stores the main window reference
@@ -437,9 +431,7 @@ func (a *App) OpenGameFolder(game *types.Game) error {
 	case "linux":
 		cmd = exec.Command("xdg-open", absPath)
 	default:
-		if a.wailsApp != nil {
-			_ = a.wailsApp.Browser.OpenURL("file://" + absPath)
-		} else if wApp := application.Get(); wApp != nil {
+		if wApp := application.Get(); wApp != nil {
 			_ = wApp.Browser.OpenURL("file://" + absPath)
 		}
 		return nil
@@ -1274,9 +1266,7 @@ func (a *App) GetRomDir(game *types.Game) string {
 
 func (a *App) LogInfof(format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
-	if a.wailsApp != nil && a.wailsApp.Logger != nil {
-		a.wailsApp.Logger.Info(msg)
-	} else if wApp := application.Get(); wApp != nil && wApp.Logger != nil {
+	if wApp := application.Get(); wApp != nil && wApp.Logger != nil {
 		wApp.Logger.Info(msg)
 	} else {
 		fmt.Printf("[INFO] %s\n", msg)
@@ -1285,9 +1275,7 @@ func (a *App) LogInfof(format string, args ...interface{}) {
 
 func (a *App) LogErrorf(format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
-	if a.wailsApp != nil && a.wailsApp.Logger != nil {
-		a.wailsApp.Logger.Error(msg)
-	} else if wApp := application.Get(); wApp != nil && wApp.Logger != nil {
+	if wApp := application.Get(); wApp != nil && wApp.Logger != nil {
 		wApp.Logger.Error(msg)
 	} else {
 		fmt.Printf("[ERROR] %s\n", msg)
@@ -1295,9 +1283,7 @@ func (a *App) LogErrorf(format string, args ...interface{}) {
 }
 
 func (a *App) EventsEmit(eventName string, args ...interface{}) {
-	if a.wailsApp != nil {
-		a.wailsApp.Event.Emit(eventName, args...)
-	} else if wApp := application.Get(); wApp != nil {
+	if wApp := application.Get(); wApp != nil {
 		wApp.Event.Emit(eventName, args...)
 	}
 }
@@ -1327,10 +1313,7 @@ func (a *App) WindowSetAlwaysOnTop(b bool) {
 }
 
 func (a *App) OpenFileDialog(title string, filters []string) (string, error) {
-	wApp := a.wailsApp
-	if wApp == nil {
-		wApp = application.Get()
-	}
+	wApp := application.Get()
 	if wApp == nil {
 		return "", nil
 	}
@@ -1351,10 +1334,7 @@ func (a *App) OpenFileDialog(title string, filters []string) (string, error) {
 }
 
 func (a *App) OpenDirectoryDialog(title string) (string, error) {
-	wApp := a.wailsApp
-	if wApp == nil {
-		wApp = application.Get()
-	}
+	wApp := application.Get()
 	if wApp == nil {
 		return "", nil
 	}
@@ -1400,9 +1380,7 @@ func (a *App) DeleteOrphanedRoms(files []string) (int, error) {
 
 // Lifecycle
 func (a *App) Quit() {
-	if a.wailsApp != nil {
-		a.wailsApp.Quit()
-	} else if wApp := application.Get(); wApp != nil {
+	if wApp := application.Get(); wApp != nil {
 		wApp.Quit()
 	}
 }

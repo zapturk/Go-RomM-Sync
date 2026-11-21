@@ -47,8 +47,6 @@ func main() {
 		},
 	})
 
-	appInstance.SetWailsApp(wailsApp)
-
 	mainWindow := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "Go RomM Sync",
 		Width:            1920,
