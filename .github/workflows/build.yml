@@ -126,5 +126,15 @@ jobs:
             go install -tags purego github.com/wailsapp/wails/v3/cmd/wails3@latest && break || sleep 3
           done
 
+      - name: Build frontend
+        shell: bash
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          wails3 generate bindings -f '-tags android' -clean=true -ts
+          cd frontend
+          npm install
+          npm run build
+
       - name: Build Android APK
         run: wails3 task build:android

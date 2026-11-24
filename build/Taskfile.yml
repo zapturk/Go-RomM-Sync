@@ -178,6 +178,8 @@ tasks:
     run: once
     deps:
       - task: go:mod:tidy
+    env:
+      CGO_ENABLED: '0'
     sources:
       - "**/*.[jt]s"
       - exclude: frontend/**/*
