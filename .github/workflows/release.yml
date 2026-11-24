@@ -114,6 +114,8 @@ jobs:
 
       - name: Build and Package (Android)
         if: matrix.target == 'android'
+        env:
+          CGO_ENABLED: '0'
         run: |
           wails3 task package:android
           cp bin/go-romm-sync.apk go-romm-sync-android.apk

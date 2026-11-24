@@ -137,4 +137,6 @@ jobs:
           npm run build
 
       - name: Build Android APK
+        env:
+          CGO_ENABLED: '0'
         run: wails3 task build:android

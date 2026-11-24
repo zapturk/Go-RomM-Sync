@@ -1,5 +1,9 @@
 version: '3'
 
+env:
+  CGO_ENABLED: '0'
+  GOOS: android
+
 includes:
   common: ../Taskfile.yml
 
@@ -55,8 +59,6 @@ tasks:
       BUILD_FLAGS: '{{if eq .PRODUCTION "true"}}-tags production,android -trimpath -buildvcs=false -ldflags="-w -s"{{else}}-tags android,debug -buildvcs=false -gcflags=all="-l"{{end}}'
     env:
       PRODUCTION: '{{.PRODUCTION | default "false"}}'
-      CGO_ENABLED: '0'
-      GOOS: android
 
   compile:go:shared:
     summary: Compile Go code to shared library (.so)
