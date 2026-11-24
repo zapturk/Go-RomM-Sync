@@ -52,8 +52,11 @@ jobs:
         run: go install -tags purego github.com/wailsapp/wails/v3/cmd/wails3@latest
 
       - name: Build frontend
+        shell: bash
+        env:
+          CGO_ENABLED: '0'
         run: |
-          CGO_ENABLED=0 wails3 generate bindings -ts
+          wails3 generate bindings -ts
           cd frontend
           npm install
           npm run build
