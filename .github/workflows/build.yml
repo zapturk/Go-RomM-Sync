@@ -131,12 +131,10 @@ jobs:
         env:
           CGO_ENABLED: '0'
         run: |
-          wails3 generate bindings -f '-tags android' -clean=true -ts
+          wails3 generate bindings -f '-tags purego' -clean=true -ts
           cd frontend
           npm install
           npm run build
 
       - name: Build Android APK
-        env:
-          CGO_ENABLED: '0'
         run: wails3 task build:android

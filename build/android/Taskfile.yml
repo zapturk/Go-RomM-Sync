@@ -1,9 +1,5 @@
 version: '3'
 
-env:
-  CGO_ENABLED: '0'
-  GOOS: android
-
 includes:
   common: ../Taskfile.yml
 

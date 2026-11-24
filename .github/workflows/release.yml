@@ -99,11 +99,7 @@ jobs:
         env:
           CGO_ENABLED: '0'
         run: |
-          if [ "${{ matrix.target }}" = "android" ]; then
-            wails3 generate bindings -f '-tags android' -ts
-          else
-            wails3 generate bindings -f '-tags purego' -ts
-          fi
+          wails3 generate bindings -f '-tags purego' -clean=true -ts
           cd frontend
           npm install
           npm run build
@@ -114,8 +110,6 @@ jobs:
 
       - name: Build and Package (Android)
         if: matrix.target == 'android'
-        env:
-          CGO_ENABLED: '0'
         run: |
           wails3 task package:android
           cp bin/go-romm-sync.apk go-romm-sync-android.apk
