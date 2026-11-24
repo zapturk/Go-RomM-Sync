@@ -10,22 +10,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
         include:
-          - os: ubuntu-latest
-            platform: "linux/amd64"
-            tags: ""
-          - os: windows-latest
-            platform: "windows/amd64"
-            tags: ""
-          - os: macos-latest
-            platform: "darwin/universal"
-            tags: ""
+          - target: linux
+            os: ubuntu-latest
+          - target: windows
+            os: windows-latest
+          - target: macos
+            os: macos-latest
+          - target: android
+            os: ubuntu-latest
     runs-on: ${{ matrix.os }}
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-    permissions:
-      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -35,6 +31,9 @@ jobs:
         with:
           go-version-file: 'go.mod'
           cache: true
+
+      - name: Download Go modules
+        run: go mod download
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -49,8 +48,27 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev
 
+      - name: Setup Java (Android)
+        if: matrix.target == 'android'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set Android Environment
+        if: matrix.target == 'android'
+        shell: bash
+        run: |
+          ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          NDK_PATH="${ANDROID_NDK_LATEST_HOME:-$(ls -d $ANDROID_HOME/ndk/* 2>/dev/null | sort -V | tail -1)}"
+          if [ -n "$NDK_PATH" ]; then
+            echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
+            echo "Using Android NDK: $NDK_PATH"
+          fi
+
       - name: Install NSIS (Windows)
-        if: runner.os == 'Windows'
+        if: matrix.target == 'windows'
         shell: pwsh
         run: |
           choco install nsis -y
@@ -66,6 +84,18 @@ jobs:
             go install -tags purego github.com/wailsapp/wails/v3/cmd/wails3@latest && break || sleep 3
           done
 
+      - name: Set Version
+        shell: bash
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG#v}
+          perl -pi -e "s/version: \".*?\"/version: \"$VERSION\"/" build/config.yml
+          perl -pi -e "s/version: \".*?\"/version: \"$VERSION\"/" build/linux/nfpm/nfpm.yaml
+          perl -pi -e "s/versionName \".*?\"/versionName \"$VERSION\"/" build/android/app/build.gradle
+          perl -pi -e "s/\"(file|product)_version\": \".*?\"/\"\$1_version\": \"$VERSION\"/" build/windows/info.json 2>/dev/null || true
+          perl -pi -e "s/\"(FileVersion|ProductVersion)\": \".*?\"/\"\$1\": \"$VERSION\"/" build/windows/info.json 2>/dev/null || true
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
       - name: Build frontend
         shell: bash
         env:
@@ -76,56 +106,36 @@ jobs:
           npm install
           npm run build
 
-      - name: Set Version
-        shell: bash
-        run: |
-          TAG=${GITHUB_REF#refs/tags/}
-          VERSION=${TAG#v}
-          perl -pi -e "s/version: \".*?\"/version: \"$VERSION\"/" build/config.yml
-          perl -pi -e "s/version: \".*?\"/version: \"$VERSION\"/" build/linux/nfpm/nfpm.yaml
-          perl -pi -e "s/versionName \".*?\"/versionName \"$VERSION\"/" build/android/app/build.gradle
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-
-      - name: Build application
+      - name: Build and Package (Desktop)
+        if: matrix.target != 'android'
         run: wails3 task package
 
-      - name: Package (Linux)
-        if: runner.os == 'Linux'
+      - name: Build and Package (Android)
+        if: matrix.target == 'android'
         run: |
-          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
-          export PATH=$PATH:$(go env GOPATH)/bin
+          wails3 task package:android
+          cp bin/go-romm-sync.apk go-romm-sync-android.apk
+
+      - name: Package artifacts (Linux)
+        if: matrix.target == 'linux'
+        run: |
+          # Create standalone tar.gz
+          tar -czvf go-romm-sync-linux-amd64.tar.gz -C bin go-romm-sync
           
-          # Prepare binary for nfpm (needs to be in same dir as nfpm.yaml)
-          cp bin/go-romm-sync build/linux/go-romm-sync
-          
-          TAG=${GITHUB_REF#refs/tags/}
-          VERSION=${TAG#v}
-          
-          cd build/linux
-          VERSION=$VERSION nfpm pkg --packager deb --target ../../
-          VERSION=$VERSION nfpm pkg --packager rpm --target ../../
-          VERSION=$VERSION nfpm pkg --packager archlinux --target ../../
+          # Copy generated packages to root for artifact collection
+          cp bin/*.AppImage bin/*.deb bin/*.rpm bin/*.pkg.tar.zst . 2>/dev/null || true
           
           # Arch Linux PKGBUILD
-          cd arch
+          cd build/linux/arch
           sed -i "s/pkgver=.*/pkgver=$VERSION/" PKGBUILD
-          
-          # Calculate SHA256 of the source archive
-          # We create a reproducible archive using git archive
           git archive --format=tar.gz --prefix=Go-RomM-Sync-$VERSION/ HEAD -o source-code.tar.gz
           SHA256=$(sha256sum source-code.tar.gz | cut -d ' ' -f 1)
           sed -i "s/sha256sums=.*/sha256sums=('$SHA256')/" PKGBUILD
-          
           cp PKGBUILD ../../../go-romm-sync-arch-PKGBUILD
           rm source-code.tar.gz
-          
-          # Maintain original tar.gz
-          cd ../../../
-          mv build/linux/go-romm-sync go-romm-sync-linux
-          tar -czvf go-romm-sync-linux-amd64.tar.gz go-romm-sync-linux
 
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
+      - name: Package artifacts (Windows)
+        if: matrix.target == 'windows'
         shell: pwsh
         run: |
           Compress-Archive -Path bin/go-romm-sync.exe -DestinationPath go-romm-sync-windows-amd64.zip
@@ -134,16 +144,17 @@ jobs:
             Copy-Item $installer.FullName -Destination "go-romm-sync-windows-installer.exe"
           }
 
-      - name: Package (macOS)
-        if: runner.os == 'macOS'
+      - name: Package artifacts (macOS)
+        if: matrix.target == 'macos'
         run: |
           cd bin
           zip -r ../go-romm-sync-macos.zip go-romm-sync.app
 
-      - name: Release
-        uses: softprops/action-gh-release@v3
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          files: |
+          name: release-${{ matrix.target }}
+          path: |
             *.tar.gz
             *.zip
             *.deb
@@ -151,89 +162,26 @@ jobs:
             *.pkg.tar.zst
             *.exe
             *.AppImage
-            bin/*.AppImage
-            bin/*.deb
-            bin/*.rpm
-            bin/*.pkg.tar.zst
+            *.apk
             go-romm-sync-arch-PKGBUILD
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          if-no-files-found: ignore
 
-  android:
+  publish:
+    needs: build
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     permissions:
       contents: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Setup Go
-        uses: actions/setup-go@v7
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
         with:
-          go-version-file: 'go.mod'
-          cache: true
+          pattern: release-*
+          merge-multiple: true
+          path: dist
 
-      - name: Download Go modules
-        run: go mod download
-
-      - name: Install dependencies (Linux)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-
-      - name: Set Android Environment
-        shell: bash
-        run: |
-          ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
-          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          NDK_PATH="${ANDROID_NDK_LATEST_HOME:-$(ls -d $ANDROID_HOME/ndk/* 2>/dev/null | sort -V | tail -1)}"
-          if [ -n "$NDK_PATH" ]; then
-            echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
-            echo "Using Android NDK: $NDK_PATH"
-          fi
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install Wails CLI
-        shell: bash
-        run: |
-          for i in 1 2 3; do
-            go install -tags purego github.com/wailsapp/wails/v3/cmd/wails3@latest && break || sleep 3
-          done
-
-      - name: Set Version
-        shell: bash
-        run: |
-          TAG=${GITHUB_REF#refs/tags/}
-          VERSION=${TAG#v}
-          perl -pi -e "s/version: \".*?\"/version: \"$VERSION\"/" build/config.yml
-          perl -pi -e "s/version: \".*?\"/version: \"$VERSION\"/" build/linux/nfpm/nfpm.yaml
-          perl -pi -e "s/versionName \".*?\"/versionName \"$VERSION\"/" build/android/app/build.gradle
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          perl -pi -e "s/versionName \".*?\"/versionName \"$VERSION\"/" build/android/app/build.gradle
-
-      - name: Package Android APK
-        run: |
-          wails3 task package:android
-          cp bin/go-romm-sync.apk go-romm-sync-android.apk
-
-      - name: Release
+      - name: Publish Release
         uses: softprops/action-gh-release@v3
         with:
-          files: |
-            go-romm-sync-android.apk
+          files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
