@@ -181,14 +181,13 @@ tasks:
     sources:
       - "**/*.[jt]s"
       - exclude: frontend/**/*
-      - frontend/bindings/**/*  # Rerun when switching between dev/production mode causes changes in output
       - "**/*.go"
       - go.mod
       - go.sum
     generates:
       - frontend/bindings/**/*
     cmds:
-      - wails3 generate bindings -f '{{.BUILD_FLAGS}}' -clean=true{{if eq .OBFUSCATED "true"}} -obfuscated{{end}} -ts
+      - wails3 generate bindings -f '-tags purego' -clean=true{{if eq .OBFUSCATED "true"}} -obfuscated{{end}} -ts
 
   generate:icons:
     summary: Generates Windows `.ico` and Mac `.icns` from an image; on macOS, `-iconcomposerinput appicon.icon -macassetdir darwin` also produces `Assets.car` from a `.icon` file (skipped on other platforms).

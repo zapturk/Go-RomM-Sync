@@ -20,8 +20,6 @@ jobs:
             platform: "darwin/universal"
             tags: ""
     runs-on: ${{ matrix.os }}
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -57,7 +55,7 @@ jobs:
         env:
           CGO_ENABLED: '0'
         run: |
-          wails3 generate bindings -ts
+          wails3 generate bindings -f '-tags purego' -ts
           cd frontend
           npm install
           npm run build
@@ -79,8 +77,6 @@ jobs:
 
   android:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -100,7 +96,7 @@ jobs:
           sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -129,6 +125,16 @@ jobs:
           for i in 1 2 3; do
             go install -tags purego github.com/wailsapp/wails/v3/cmd/wails3@latest && break || sleep 3
           done
+
+      - name: Build frontend
+        shell: bash
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          wails3 generate bindings -f '-tags purego' -clean=true -ts
+          cd frontend
+          npm install
+          npm run build
 
       - name: Build Android APK
         run: wails3 task build:android
