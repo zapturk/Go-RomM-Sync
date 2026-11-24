@@ -92,7 +92,7 @@ For Linux distributions (like Ubuntu 22.04+), install the required WebKit and GT
 
 ```bash
 # Install dependencies (Ubuntu/Debian)
-sudo apt-get install libgtk-3-dev libwebkit2gtk-4.1-dev
+sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
 
 # Build application
 wails3 build
