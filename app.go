@@ -67,7 +67,9 @@ func (a *App) SetMainWindow(window *application.WebviewWindow) {
 }
 
 // ServiceStartup is called during Wails v3 service startup
-func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
+//
+//nolint:unparam // Implements Wails v3 application.Service interface
+func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
 	a.ctx = ctx
 	return nil
 }

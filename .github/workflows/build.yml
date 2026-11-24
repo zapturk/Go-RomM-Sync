@@ -77,8 +77,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-      GOOS: android
-      CGO_ENABLED: '0'
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -91,6 +89,11 @@ jobs:
 
       - name: Download Go modules
         run: go mod download
+
+      - name: Install dependencies (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
 
       - name: Setup Java
         uses: actions/setup-java@v4

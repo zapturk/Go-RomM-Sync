@@ -34,6 +34,7 @@ linters:
       - third_party$
       - builtin$
       - examples$
+      - ^build/
     rules:
       - path: retroarch/
         linters:
@@ -58,3 +59,4 @@ formatters:
       - third_party$
       - builtin$
       - examples$
+      - ^build/
