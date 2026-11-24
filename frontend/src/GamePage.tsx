@@ -6,9 +6,9 @@ import { GetRom, DownloadRomToLibrary, GetRomDownloadStatus, DeleteRom, PlayRomW
     GetGameController, SetGameController,
     GetRomStartupFiles, GetGameStartupFile, SetGameStartupFile,
     GetSaveSlots, GetGameSaveSlot, SetGameSaveSlot, CreateSaveSlot, DeleteSaveSlot, DeleteServerSave, UploadSaveToSlot,
-} from "../wailsjs/go/main/App";
-import { EventsOn } from "../wailsjs/runtime";
-import { types } from "../wailsjs/go/models";
+} from "../bindings/go-romm-sync/app";
+import { EventsOn } from "./runtime";
+import { types } from "./models";
 import { GameCover } from "./GameCover";
 import { TrashIcon, FolderIcon, PlayIcon, DownloadIcon, SaveIcon, StateIcon } from "./components/Icons";
 import { FileItemRow, getItemName, getItemCore } from "./FileItemRow";
@@ -671,7 +671,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
     useEffect(() => {
         if (gameId) {
-            GetCoresForGame(gameId).then((cores: string[]) => {
+            GetCoresForGame(gameId).then((cores) => {
                 setAvailableCores(cores || []);
                 if (cores && cores.length > 0) setSelectedCore(cores[0]);
             }).catch((err: any) => {
@@ -682,7 +682,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
             }).catch((err: any) => {
                 console.warn('GetGameController failed:', err);
             });
-            GetRomStartupFiles(gameId).then((files: string[]) => {
+            GetRomStartupFiles(gameId).then((files) => {
                 const list = files || [];
                 setStartupFiles(list);
                 GetGameStartupFile(gameId).then((saved: string) => {
@@ -750,7 +750,7 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
                 setSuccessStatus("Download complete!");
                 setDownloadProgress(100);
                 setIsDownloaded(true);
-                GetRomStartupFiles(game.id).then((files: string[]) => {
+                GetRomStartupFiles(game.id).then((files) => {
                     const list = files || [];
                     setStartupFiles(list);
                     GetGameStartupFile(game.id).then((saved: string) => {
@@ -830,8 +830,8 @@ export function GamePage({ gameId, onBack }: GamePageProps) {
 
                     // Get current config to see if a firmware is already selected
                     GetConfig().then(cfg => {
-                        if (cfg.platform_firmware && cfg.platform_firmware[res.platform_slug]) {
-                            setSelectedFirmwareId(cfg.platform_firmware[res.platform_slug]);
+                        if (cfg.platform_firmware && res.platform_slug && cfg.platform_firmware[res.platform_slug] !== undefined) {
+                            setSelectedFirmwareId(cfg.platform_firmware[res.platform_slug]!);
                         }
                         setOfflineMode(cfg.offline_mode || false);
                     });

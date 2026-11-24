@@ -2,12 +2,14 @@ package main
 
 import (
 	"embed"
+	"log"
+	"net/http"
+	"strings"
 
 	"go-romm-sync/config"
 
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 //go:embed all:frontend/dist
@@ -20,26 +22,49 @@ func main() {
 		println("Error loading config:", err.Error())
 	}
 
-	app := NewApp(cm)
+	appInstance := NewApp(cm)
 
-	// Create application with options
-	err := wails.Run(&options.App{
-		Title:      "Go RomM Sync",
-		Width:      1920,
-		Height:     1080,
-		Fullscreen: true,
-		AssetServer: &assetserver.Options{
-			Assets:  distAssets,
-			Handler: app.assetSrv,
+	wailsApp := application.New(application.Options{
+		Name:        "Go RomM Sync",
+		Description: "A seamless bridge between RomM and RetroArch for a console-like gaming experience.",
+		Services: []application.Service{
+			application.NewService(appInstance),
 		},
-		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:        app.startup,
-		Bind: []interface{}{
-			app,
+		Assets: application.AssetOptions{
+			Handler: application.AssetFileServerFS(distAssets),
+			Middleware: func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if strings.HasPrefix(r.URL.Path, "/cache/") {
+						appInstance.assetSrv.ServeHTTP(w, r)
+						return
+					}
+					next.ServeHTTP(w, r)
+				})
+			},
+		},
+		Mac: application.MacOptions{
+			ApplicationShouldTerminateAfterLastWindowClosed: false,
 		},
 	})
 
+	mainWindow := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:            "Go RomM Sync",
+		Width:            1920,
+		Height:           1080,
+		StartState:       application.WindowStateFullscreen,
+		BackgroundColour: application.NewRGB(27, 38, 54),
+		URL:              "/",
+		DevToolsEnabled:  true,
+	})
+
+	mainWindow.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
+		wailsApp.Quit()
+	})
+
+	appInstance.SetMainWindow(mainWindow)
+
+	err := wailsApp.Run()
 	if err != nil {
-		println("Error:", err.Error())
+		log.Fatal(err)
 	}
 }

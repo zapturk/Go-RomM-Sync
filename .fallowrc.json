@@ -5,7 +5,7 @@
     "src/main.{js,jsx,mjs}"
   ],
   "ignorePatterns": [
-    "**/wailsjs/**"
+    "**/bindings/**"
   ],
   "duplicates": {
     "minOccurrences": 3

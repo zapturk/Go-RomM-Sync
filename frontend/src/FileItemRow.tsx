@@ -1,5 +1,5 @@
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
-import { types } from "../wailsjs/go/models";
+import { types } from "./models";
 import { TrashIcon, UploadIcon, DownloadIcon, SaveIcon, StateIcon } from "./components/Icons";
 import { TIMESTAMP_REGEX } from "./constants";
 

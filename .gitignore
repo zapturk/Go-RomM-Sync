@@ -33,11 +33,23 @@ go.work.sum
 
 # Wails
 build/bin
+bin/
+.task/
+.wails
+build/darwin/temp.plist
 node_modules
 frontend/dist
 .DS_Store
 config.json
-go-romm-sync
+/go-romm-sync
+
+# Android
+.gradle/
+build/android/build/
+build/android/.gradle/
+build/android/app/build/
+build/android/gen/
+build/android/overlay.json
 
 # OpenAPI
 openapi.json

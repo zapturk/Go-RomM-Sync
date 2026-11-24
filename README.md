@@ -47,7 +47,7 @@ Go-RomM-Sync is a desktop application built with Wails and React that synchroniz
 
 ## Technology Stack
 
-- **Backend**: Go with [Wails v2](https://wails.io/) for native OS integration.
+- **Backend**: Go with [Wails v3](https://wails.io/) for native OS integration.
 - **Frontend**: React + TypeScript + Vite.
 - **Styling**: Vanilla CSS for a lightweight, performant UI.
 - **Navigation**: Norigin Spatial Navigation for console-like input handling.
@@ -59,37 +59,71 @@ Go-RomM-Sync is a desktop application built with Wails and React that synchroniz
 - Go 1.23+ installed on your system.
 - Node.js 18+ installed on your system.
 - NPM installed on your system.
-- Wails cli installed on your system.
+- Wails v3 CLI (`wails3`) installed:
+  ```bash
+  go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+  ```
 
 ### Running Locally
 
 To run the application in development mode with hot reloading:
 
 ```bash
-wails dev
+wails3 dev
 ```
 
 ### Building
 
-To build a production-ready package for your current platform:
+To build a binary for your current platform:
 
 ```bash
-wails build
+wails3 build
+```
+
+To create a production package (`.app` bundle on macOS, installer on Windows/Linux):
+
+```bash
+wails3 task package
 ```
 
 #### Linux Specifics
 
-For modern Linux distributions (like Ubuntu 22.04+), you may need to install additional dependencies and use specific build tags:
+For Linux distributions (like Ubuntu 22.04+), install the required WebKit and GTK development libraries:
 
 ```bash
 # Install dependencies (Ubuntu/Debian)
-sudo apt-get install libgtk-3-dev libwebkit2gtk-4.1-dev
+sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
 
-# Build with WebKit 4.1 tags
-wails build -tags webkit2_41
+# Build application
+wails3 build
+```
+
+#### Android
+
+Building for Android requires the Android SDK, Android NDK (e.g. NDK 26+), and JDK (e.g. OpenJDK 21).
+
+Ensure your environment variables are configured:
+```bash
+export ANDROID_HOME="$HOME/Library/Android/sdk"   # macOS default (or ~/Android/Sdk on Linux)
+export ANDROID_NDK_HOME="/path/to/android-ndk"
+export JAVA_HOME="/path/to/jdk-21"
+```
+
+To build a debug APK (`bin/go-romm-sync.apk`):
+```bash
+wails3 task build:android
+```
+
+To build a signed release APK (`bin/go-romm-sync.apk`):
+```bash
+wails3 task package:android
 ```
 
 ## Installation
+
+### Android
+
+Download the latest `go-romm-sync-android.apk` from the [Releases page](https://github.com/zapturk/Go-RomM-Sync/releases) and install it on your Android device.
 
 ### macOS (Homebrew)
 

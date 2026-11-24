@@ -23,12 +23,13 @@ import (
 	"strings"
 	"sync"
 
-	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 // App struct
 type App struct {
 	ctx           context.Context
+	mainWindow    *application.WebviewWindow
 	configManager *config.ConfigManager
 	rommSrv       *rommsrv.Service
 	librarySrv    *library.Service
@@ -60,10 +61,17 @@ func NewApp(cm *config.ConfigManager) *App {
 	return app
 }
 
-// startup is called when the app starts. The context is saved
-// so we can call the runtime methods
-func (a *App) startup(ctx context.Context) {
+// SetMainWindow stores the main window reference
+func (a *App) SetMainWindow(window *application.WebviewWindow) {
+	a.mainWindow = window
+}
+
+// ServiceStartup is called during Wails v3 service startup
+//
+//nolint:unparam // Implements Wails v3 application.Service interface
+func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
 	a.ctx = ctx
+	return nil
 }
 
 // --- Wails External API (Thin Wrappers) ---
@@ -425,7 +433,9 @@ func (a *App) OpenGameFolder(game *types.Game) error {
 	case "linux":
 		cmd = exec.Command("xdg-open", absPath)
 	default:
-		wailsRuntime.BrowserOpenURL(a.ctx, "file://"+absPath)
+		if wApp := application.Get(); wApp != nil {
+			_ = wApp.Browser.OpenURL("file://" + absPath)
+		}
 		return nil
 	}
 	a.LogInfof("Opening folder on %s: %s", runtime.GOOS, absPath)
@@ -706,9 +716,7 @@ func (a *App) ToggleOfflineMode() bool {
 	}); err != nil {
 		a.LogErrorf("Failed to update config during ToggleOfflineMode: %v", err)
 	}
-	if a.ctx != nil {
-		wailsRuntime.EventsEmit(a.ctx, "offline-mode-changed", newState)
-	}
+	a.EventsEmit("offline-mode-changed", newState)
 	return newState
 }
 
@@ -727,8 +735,8 @@ func (a *App) ToggleDisableMetadata() (bool, error) {
 		return currentConfig.DisableMetadata, err
 	}
 
-	if targetState && a.ctx != nil {
-		wailsRuntime.EventsEmit(a.ctx, "offline-mode-changed", false)
+	if targetState {
+		a.EventsEmit("offline-mode-changed", false)
 	}
 
 	a.LogInfof("ToggleDisableMetadata: Successfully changed DisableMetadata to %t", targetState)
@@ -745,9 +753,7 @@ func (a *App) handleConnectionError(err error) {
 	}); err != nil {
 		a.LogErrorf("Failed to update config during handleConnectionError: %v", err)
 	}
-	if a.ctx != nil {
-		wailsRuntime.EventsEmit(a.ctx, "offline-mode-changed", true)
-	}
+	a.EventsEmit("offline-mode-changed", true)
 }
 
 func (a *App) UpdateRetroArchCores() error {
@@ -1261,72 +1267,87 @@ func (a *App) GetRomDir(game *types.Game) string {
 }
 
 func (a *App) LogInfof(format string, args ...interface{}) {
-	if a.ctx != nil {
-		wailsRuntime.LogInfof(a.ctx, format, args...)
+	msg := fmt.Sprintf(format, args...)
+	if wApp := application.Get(); wApp != nil && wApp.Logger != nil {
+		wApp.Logger.Info(msg)
+	} else {
+		fmt.Printf("[INFO] %s\n", msg)
 	}
 }
 
 func (a *App) LogErrorf(format string, args ...interface{}) {
-	if a.ctx != nil {
-		wailsRuntime.LogErrorf(a.ctx, format, args...)
+	msg := fmt.Sprintf(format, args...)
+	if wApp := application.Get(); wApp != nil && wApp.Logger != nil {
+		wApp.Logger.Error(msg)
+	} else {
+		fmt.Printf("[ERROR] %s\n", msg)
 	}
 }
 
 func (a *App) EventsEmit(eventName string, args ...interface{}) {
-	if a.ctx != nil {
-		wailsRuntime.EventsEmit(a.ctx, eventName, args...)
+	if wApp := application.Get(); wApp != nil {
+		wApp.Event.Emit(eventName, args...)
 	}
 }
 
 func (a *App) WindowHide() {
-	if a.ctx != nil {
-		wailsRuntime.WindowHide(a.ctx)
+	if a.mainWindow != nil {
+		a.mainWindow.Hide()
 	}
 }
 
 func (a *App) WindowShow() {
-	if a.ctx != nil {
-		wailsRuntime.WindowShow(a.ctx)
+	if a.mainWindow != nil {
+		a.mainWindow.Show()
 	}
 }
 
 func (a *App) WindowUnminimise() {
-	if a.ctx != nil {
-		wailsRuntime.WindowUnminimise(a.ctx)
+	if a.mainWindow != nil {
+		a.mainWindow.UnMinimise()
 	}
 }
 
 func (a *App) WindowSetAlwaysOnTop(b bool) {
-	if a.ctx != nil {
-		wailsRuntime.WindowSetAlwaysOnTop(a.ctx, b)
+	if a.mainWindow != nil {
+		a.mainWindow.SetAlwaysOnTop(b)
 	}
 }
 
 func (a *App) OpenFileDialog(title string, filters []string) (string, error) {
-	options := wailsRuntime.OpenDialogOptions{Title: title}
-	if len(filters) > 0 {
-		options.Filters = []wailsRuntime.FileFilter{{DisplayName: "Filtered Files", Pattern: filters[0]}}
-	}
-	if runtime.GOOS == constants.OSDarwin {
-		options.DefaultDirectory = "/Applications"
-		options.TreatPackagesAsDirectories = false
-		options.Filters = nil
-	}
-	if a.ctx == nil {
+	wApp := application.Get()
+	if wApp == nil {
 		return "", nil
 	}
-	return wailsRuntime.OpenFileDialog(a.ctx, options)
+
+	dialog := wApp.Dialog.OpenFile().
+		SetTitle(title).
+		CanChooseFiles(true).
+		CanChooseDirectories(false)
+
+	if len(filters) > 0 {
+		dialog.AddFilter("Filtered Files", filters[0])
+	}
+	if runtime.GOOS == constants.OSDarwin {
+		dialog.SetDirectory("/Applications")
+		dialog.TreatsFilePackagesAsDirectories(false)
+	}
+	return dialog.PromptForSingleSelection()
 }
 
 func (a *App) OpenDirectoryDialog(title string) (string, error) {
-	options := wailsRuntime.OpenDialogOptions{
-		Title:                title,
-		CanCreateDirectories: true,
-	}
-	if a.ctx == nil {
+	wApp := application.Get()
+	if wApp == nil {
 		return "", nil
 	}
-	return wailsRuntime.OpenDirectoryDialog(a.ctx, options)
+
+	dialog := wApp.Dialog.OpenFile().
+		SetTitle(title).
+		CanChooseFiles(false).
+		CanChooseDirectories(true).
+		CanCreateDirectories(true)
+
+	return dialog.PromptForSingleSelection()
 }
 
 func (a *App) ToggleUsePlatformFolder() (bool, error) {
@@ -1361,5 +1382,7 @@ func (a *App) DeleteOrphanedRoms(files []string) (int, error) {
 
 // Lifecycle
 func (a *App) Quit() {
-	wailsRuntime.Quit(a.ctx)
+	if wApp := application.Get(); wApp != nil {
+		wApp.Quit()
+	}
 }

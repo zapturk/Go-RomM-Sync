@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { Quit } from "../wailsjs/go/main/App";
+import { Quit } from "../bindings/go-romm-sync/app";
+import { EventsOn } from './runtime';
 
 // Map for standard controllers (Xbox/PlayStation via standard gamepad API)
 const BUTTON_MAPPING = {
@@ -120,29 +121,19 @@ export function useGamepad() {
     };
 
     useEffect(() => {
-        // @ts-ignore
-        if (window.runtime) {
-            // @ts-ignore
-            window.runtime.EventsOn("game-started", () => {
-                isPlayingRef.current = true;
-            });
-            // @ts-ignore
-            window.runtime.EventsOn("game-exited", () => {
-                isPlayingRef.current = false;
-            });
-        }
+        const unlistenStarted = EventsOn("game-started", () => {
+            isPlayingRef.current = true;
+        });
+        const unlistenExited = EventsOn("game-exited", () => {
+            isPlayingRef.current = false;
+        });
 
         requestRef.current = requestAnimationFrame(scanGamepads);
 
         return () => {
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
-            // @ts-ignore
-            if (window.runtime) {
-                // @ts-ignore
-                window.runtime.EventsOff("game-started");
-                // @ts-ignore
-                window.runtime.EventsOff("game-exited");
-            }
+            unlistenStarted();
+            unlistenExited();
         };
     }, []);
 }

@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { types } from "../wailsjs/go/models";
+import { types } from "./models";
 
 interface GameCoverProps {
     game: types.Game;

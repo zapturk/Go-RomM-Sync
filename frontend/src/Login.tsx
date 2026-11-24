@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { GetConfig, SaveConfig, Login as RommLogin } from "../wailsjs/go/main/App";
-import { types } from "../wailsjs/go/models";
+import { GetConfig, SaveConfig, Login as RommLogin } from "../bindings/go-romm-sync/app";
+import { types } from "./models";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
 

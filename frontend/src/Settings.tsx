@@ -3,9 +3,9 @@ import { GetConfig, SaveConfig, SelectRetroArchExecutable, DownloadAndInstallRet
     Logout, ClearImageCache, ToggleOfflineMode, SyncOfflineMetadata,
     UpdateRetroArchCores, UpdateRetroArchBios, ToggleUsePlatformFolder, ToggleDisableMetadata,
     ScanOrphanedRoms, DeleteOrphanedRoms,
-} from "../wailsjs/go/main/App";
-import { EventsOn } from "../wailsjs/runtime";
-import { types } from "../wailsjs/go/models";
+} from "../bindings/go-romm-sync/app";
+import { EventsOn } from "./runtime";
+import { types } from "./models";
 import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
 import { FocusableButton } from './components/FocusableButton';
@@ -514,7 +514,7 @@ function Settings({ isActive = false, onLogout }: SettingsProps) {
         setIsCleaningOrphaned(true);
         setStatus("Scanning library for orphaned files...");
         ScanOrphanedRoms()
-            .then((files: string[]) => {
+            .then((files) => {
                 if (!files || files.length === 0) {
                     setStatus("No orphaned files found.");
                     setIsCleaningOrphaned(false);

@@ -1,23 +1,17 @@
-import {defineConfig} from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import wails from "@wailsio/runtime/plugins/vite";
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  server: {
+    host: "127.0.0.1",
+    port: Number(process.env.WAILS_VITE_PORT) || 9245,
+    strictPort: true,
+  },
   plugins: [
     react(),
-    // ponytail: middleware returns 404 for /cache/ paths during dev — unnecessary, dev server won't serve those.
-    {
-      name: 'wails-cache-bypass',
-      configureServer(server) {
-        server.middlewares.use((req, res, next) => {
-          if (req.url && req.url.startsWith('/cache/')) {
-            res.statusCode = 404;
-            res.end('Not Found');
-            return;
-          }
-          next();
-        });
-      }
-    }
-  ]
-})
+    wails("./bindings"),
+  ],
+});
+

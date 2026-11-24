@@ -1,6 +1,6 @@
-import { types } from "../wailsjs/go/models";
+import { types } from "./models";
 import { useEffect, useState, useRef } from "react";
-import { GetPlatformCover } from "../wailsjs/go/main/App";
+import { GetPlatformCover } from "../bindings/go-romm-sync/app";
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 import { getMouseActive } from './inputMode';
 import { getCachedImage, setCachedImage, hasCachedImage } from './ImageCache';

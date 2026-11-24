@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react';
-import { types } from "../../../wailsjs/go/models";
+import { types } from "../../models";
 import { PlatformCard } from "../../PlatformCard";
 import { SettingsIcon } from "../../components/Icons";
 import { getMouseActive } from '../../inputMode';
