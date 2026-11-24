@@ -60,7 +60,11 @@ jobs:
           }
 
       - name: Install Wails CLI
-        run: go install -tags purego github.com/wailsapp/wails/v3/cmd/wails3@latest
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            go install -tags purego github.com/wailsapp/wails/v3/cmd/wails3@latest && break || sleep 3
+          done
 
       - name: Build frontend
         shell: bash
@@ -196,7 +200,11 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install Wails CLI
-        run: go install -tags purego github.com/wailsapp/wails/v3/cmd/wails3@latest
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            go install -tags purego github.com/wailsapp/wails/v3/cmd/wails3@latest && break || sleep 3
+          done
 
       - name: Set Version
         shell: bash
