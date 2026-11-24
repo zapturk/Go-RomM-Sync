@@ -33,12 +33,14 @@ modules:
     build-commands:
       # Install binary
       - |
-        if [ -f build/bin/go-romm-sync ]; then
+        if [ -f bin/go-romm-sync ]; then
+          install -D -m 0755 bin/go-romm-sync /app/bin/go-romm-sync
+        elif [ -f build/bin/go-romm-sync ]; then
           install -D -m 0755 build/bin/go-romm-sync /app/bin/go-romm-sync
         elif [ -f go-romm-sync ]; then
           install -D -m 0755 go-romm-sync /app/bin/go-romm-sync
         else
-          CGO_ENABLED=1 go build -tags webkit2_41 -trimpath -ldflags="-s -w" -o /app/bin/go-romm-sync .
+          CGO_ENABLED=1 go build -trimpath -ldflags="-s -w" -o /app/bin/go-romm-sync .
         fi
       # Desktop entry
       - install -D -m 0644 io.github.zapturk.GoRomMSync.desktop /app/share/applications/io.github.zapturk.GoRomMSync.desktop

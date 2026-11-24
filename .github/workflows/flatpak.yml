@@ -33,22 +33,30 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev flatpak flatpak-builder
+          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev flatpak flatpak-builder
           sudo flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
           sudo flatpak install -y --noninteractive flathub org.gnome.Platform/x86_64/47 org.gnome.Sdk/x86_64/47
 
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            go install -tags purego github.com/wailsapp/wails/v3/cmd/wails3@latest && break || sleep 3
+          done
 
       - name: Build frontend
+        shell: bash
+        env:
+          CGO_ENABLED: '0'
         run: |
+          wails3 generate bindings -ts
           cd frontend
           npm install
           npm run build
 
       - name: Build application
-        run: wails build -platform linux/amd64 -tags webkit2_41
+        run: wails3 task build
 
       - name: Build Flatpak
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
