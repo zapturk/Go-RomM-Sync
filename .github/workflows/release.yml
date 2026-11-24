@@ -82,6 +82,9 @@ jobs:
           TAG=${GITHUB_REF#refs/tags/}
           VERSION=${TAG#v}
           perl -pi -e "s/version: \".*?\"/version: \"$VERSION\"/" build/config.yml
+          perl -pi -e "s/version: \".*?\"/version: \"$VERSION\"/" build/linux/nfpm/nfpm.yaml
+          perl -pi -e "s/versionName \".*?\"/versionName \"$VERSION\"/" build/android/app/build.gradle
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Build application
         run: wails3 task package
@@ -93,7 +96,7 @@ jobs:
           export PATH=$PATH:$(go env GOPATH)/bin
           
           # Prepare binary for nfpm (needs to be in same dir as nfpm.yaml)
-          mv bin/go-romm-sync build/linux/go-romm-sync
+          cp bin/go-romm-sync build/linux/go-romm-sync
           
           TAG=${GITHUB_REF#refs/tags/}
           VERSION=${TAG#v}
@@ -147,6 +150,11 @@ jobs:
             *.rpm
             *.pkg.tar.zst
             *.exe
+            *.AppImage
+            bin/*.AppImage
+            bin/*.deb
+            bin/*.rpm
+            bin/*.pkg.tar.zst
             go-romm-sync-arch-PKGBUILD
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -212,6 +220,9 @@ jobs:
           TAG=${GITHUB_REF#refs/tags/}
           VERSION=${TAG#v}
           perl -pi -e "s/version: \".*?\"/version: \"$VERSION\"/" build/config.yml
+          perl -pi -e "s/version: \".*?\"/version: \"$VERSION\"/" build/linux/nfpm/nfpm.yaml
+          perl -pi -e "s/versionName \".*?\"/versionName \"$VERSION\"/" build/android/app/build.gradle
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
           perl -pi -e "s/versionName \".*?\"/versionName \"$VERSION\"/" build/android/app/build.gradle
 
       - name: Package Android APK
