@@ -46,12 +46,18 @@ tasks:
 
   build:android:
     summary: Builds the Android shared library and debug APK
+    env:
+      GOOS: android
+      CGO_ENABLED: '0'
     cmds:
       - task: android:build
       - task: android:assemble:apk
 
   package:android:
     summary: Packages a production Android APK (universal arm64 & x86_64)
+    env:
+      GOOS: android
+      CGO_ENABLED: '0'
     cmds:
       - task: android:package:fat
 

@@ -3,6 +3,10 @@ version: '3'
 includes:
   common: ../Taskfile.yml
 
+env:
+  GOOS: android
+  CGO_ENABLED: '0'
+
 vars:
   APP_ID: '{{.APP_ID | default "com.zapturk.gorommsync"}}'
   MIN_SDK: '21'

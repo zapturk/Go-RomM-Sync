@@ -131,6 +131,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      GOOS: android
+      CGO_ENABLED: '0'
     permissions:
       contents: write
     steps:
