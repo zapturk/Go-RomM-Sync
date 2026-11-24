@@ -44,6 +44,17 @@ tasks:
     cmds:
       - task: common:setup:docker
 
+  build:android:
+    summary: Builds the Android shared library and debug APK
+    cmds:
+      - task: android:build
+      - task: android:assemble:apk
+
+  package:android:
+    summary: Packages a production Android APK (universal arm64 & x86_64)
+    cmds:
+      - task: android:package:fat
+
   build:server:
     summary: Builds the application in server mode (no GUI, HTTP server only)
     cmds:

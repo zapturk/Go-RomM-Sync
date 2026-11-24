@@ -98,7 +98,32 @@ sudo apt-get install libgtk-3-dev libwebkit2gtk-4.1-dev
 wails3 build
 ```
 
+#### Android
+
+Building for Android requires the Android SDK, Android NDK (e.g. NDK 26+), and JDK (e.g. OpenJDK 21).
+
+Ensure your environment variables are configured:
+```bash
+export ANDROID_HOME="$HOME/Library/Android/sdk"   # macOS default (or ~/Android/Sdk on Linux)
+export ANDROID_NDK_HOME="/path/to/android-ndk"
+export JAVA_HOME="/path/to/jdk-21"
+```
+
+To build a debug APK (`bin/go-romm-sync.apk`):
+```bash
+wails3 task build:android
+```
+
+To build a signed release APK (`bin/go-romm-sync.apk`):
+```bash
+wails3 task package:android
+```
+
 ## Installation
+
+### Android
+
+Download the latest `go-romm-sync-android.apk` from the [Releases page](https://github.com/zapturk/Go-RomM-Sync/releases) and install it on your Android device.
 
 ### macOS (Homebrew)
 

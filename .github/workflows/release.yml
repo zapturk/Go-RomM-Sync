@@ -126,3 +126,72 @@ jobs:
             go-romm-sync-arch-PKGBUILD
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  android:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+
+      - name: Set Version
+        shell: bash
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG#v}
+          perl -pi -e "s/version: \".*?\"/version: \"$VERSION\"/" build/config.yml
+          perl -pi -e "s/versionName \".*?\"/versionName \"$VERSION\"/" build/android/app/build.gradle
+
+      - name: Set Android NDK Path
+        shell: bash
+        run: |
+          if [ -z "$ANDROID_NDK_HOME" ]; then
+            NDK_PATH=$(ls -d $ANDROID_HOME/ndk/* 2>/dev/null | sort -V | tail -1)
+            if [ -n "$NDK_PATH" ]; then
+              echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
+            else
+              echo "y" | sdkmanager "ndk;26.3.11579264"
+              echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.3.11579264" >> $GITHUB_ENV
+            fi
+          fi
+
+      - name: Package Android APK
+        run: |
+          wails3 task package:android
+          cp bin/go-romm-sync.apk go-romm-sync-android.apk
+
+      - name: Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            go-romm-sync-android.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

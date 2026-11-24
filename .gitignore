@@ -48,6 +48,8 @@ go-romm-sync
 build/android/build/
 build/android/.gradle/
 build/android/app/build/
+build/android/gen/
+build/android/overlay.json
 
 # OpenAPI
 openapi.json
