@@ -143,6 +143,9 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
 
+      - name: Download Go modules
+        run: go mod download
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
