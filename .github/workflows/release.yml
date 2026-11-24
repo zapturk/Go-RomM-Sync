@@ -20,8 +20,6 @@ jobs:
           - target: android
             os: ubuntu-latest
     runs-on: ${{ matrix.os }}
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -50,7 +48,7 @@ jobs:
 
       - name: Setup Java (Android)
         if: matrix.target == 'android'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -101,7 +99,11 @@ jobs:
         env:
           CGO_ENABLED: '0'
         run: |
-          wails3 generate bindings -ts
+          if [ "${{ matrix.target }}" = "android" ]; then
+            wails3 generate bindings -f '-tags android' -ts
+          else
+            wails3 generate bindings -f '-tags purego' -ts
+          fi
           cd frontend
           npm install
           npm run build
