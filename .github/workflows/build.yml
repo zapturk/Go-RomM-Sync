@@ -89,8 +89,16 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Set Android Environment
+        shell: bash
+        run: |
+          ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          NDK_PATH="${ANDROID_NDK_LATEST_HOME:-$(ls -d $ANDROID_HOME/ndk/* 2>/dev/null | sort -V | tail -1)}"
+          if [ -n "$NDK_PATH" ]; then
+            echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
+            echo "Using Android NDK: $NDK_PATH"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -101,19 +109,6 @@ jobs:
 
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
-
-      - name: Set Android NDK Path
-        shell: bash
-        run: |
-          if [ -z "$ANDROID_NDK_HOME" ]; then
-            NDK_PATH=$(ls -d $ANDROID_HOME/ndk/* 2>/dev/null | sort -V | tail -1)
-            if [ -n "$NDK_PATH" ]; then
-              echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
-            else
-              echo "y" | sdkmanager "ndk;26.3.11579264"
-              echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.3.11579264" >> $GITHUB_ENV
-            fi
-          fi
 
       - name: Build Android APK
         run: wails3 task build:android
