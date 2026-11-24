@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         include:
@@ -47,6 +48,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Install NSIS (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install nsis -y
+          $nsisPath = "C:\Program Files (x86)\NSIS"
+          if (Test-Path $nsisPath) {
+            echo $nsisPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          }
 
       - name: Install Wails CLI
         run: go install -tags purego github.com/wailsapp/wails/v3/cmd/wails3@latest
@@ -111,6 +122,10 @@ jobs:
         shell: pwsh
         run: |
           Compress-Archive -Path bin/go-romm-sync.exe -DestinationPath go-romm-sync-windows-amd64.zip
+          $installer = Get-ChildItem -Path bin -Filter "*installer.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($installer) {
+            Copy-Item $installer.FullName -Destination "go-romm-sync-windows-installer.exe"
+          }
 
       - name: Package (macOS)
         if: runner.os == 'macOS'
@@ -127,6 +142,7 @@ jobs:
             *.deb
             *.rpm
             *.pkg.tar.zst
+            *.exe
             go-romm-sync-arch-PKGBUILD
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
