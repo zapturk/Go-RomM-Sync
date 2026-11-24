@@ -53,6 +53,7 @@ jobs:
 
       - name: Build frontend
         run: |
+          CGO_ENABLED=0 wails3 generate bindings -ts
           cd frontend
           npm install
           npm run build
